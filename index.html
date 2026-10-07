@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ringfall — Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js" } }</script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud" class="hidden">
+    <div id="shield-wrap">
+      <div id="shield-bar"><div id="shield-fill"></div></div>
+      <div id="health-bar"><div id="health-fill"></div></div>
+    </div>
+    <div id="topright">
+      <div id="score">0</div>
+      <div id="wave-info">OLEADA <b id="wave-num">1</b> · <span id="enemies-left"></span></div>
+    </div>
+    <div id="crosshair"></div>
+    <div id="hitmarker"></div>
+    <div id="dmg-dir"></div>
+    <div id="hint"></div>
+    <div id="weapon-panel">
+      <div id="weapon-name"></div>
+      <div id="ammo"><span id="ammo-mag">32</span><span id="ammo-res">/ 192</span></div>
+      <div id="heat" class="hidden"><div id="heat-fill"></div></div>
+      <div id="grenades"></div>
+    </div>
+    <canvas id="radar" width="200" height="200"></canvas>
+    <div id="banner"><h2 id="banner-title"></h2><p id="banner-sub"></p></div>
+    <div id="toast"></div>
+    <div id="vignette"></div>
+  </div>
+
+  <div id="menu" class="overlay">
+    <div class="panel">
+      <h1>RINGFALL</h1>
+      <p class="subtitle">DEMO · SHOOTER SCI-FI EN PRIMERA PERSONA</p>
+      <p class="lead">Aguanta en la arena del anillo contra oleadas cada vez más duras.</p>
+      <div class="controls">
+        <kbd>WASD</kbd><span>Moverse</span>
+        <kbd>Ratón</kbd><span>Apuntar · Clic izq. dispara</span>
+        <kbd>Shift</kbd><span>Esprintar</span>
+        <kbd>Espacio</kbd><span>Saltar</span>
+        <kbd>C / Ctrl</kbd><span>Agacharse</span>
+        <kbd>R</kbd><span>Recargar</span>
+        <kbd>Q / 1 / 2</kbd><span>Cambiar arma</span>
+        <kbd>G / Clic der.</kbd><span>Granada</span>
+        <kbd>F</kbd><span>Golpe cuerpo a cuerpo (por la espalda = eliminación)</span>
+        <kbd>Esc</kbd><span>Pausa</span>
+      </div>
+      <p class="tip">La pistola de iones destroza escudos; la carabina remata. Los escudos se recargan si te cubres.</p>
+      <button id="btn-start">DESPLEGAR</button>
+      <p class="best">Récord: <b id="best">0</b></p>
+      <p id="touch-warn" class="warn hidden">Esta demo requiere teclado y ratón.</p>
+      <p class="note">Proyecto fan original. No usa assets, nombres ni código de ninguna franquicia comercial.</p>
+    </div>
+  </div>
+
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h2>PAUSA</h2>
+      <p>Haz clic para continuar</p>
+    </div>
+  </div>
+
+  <div id="gameover" class="overlay hidden">
+    <div class="panel">
+      <h2>FIN DE LA PARTIDA</h2>
+      <div id="go-stats" class="stats"></div>
+      <button id="btn-retry">REINTENTAR</button>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
