@@ -249,3 +249,100 @@ code { font-family: ui-monospace, monospace; color: #e9fbff; background: rgba(0,
 .boss-bar { position: relative; height: 12px; border: 1px solid rgba(255, 120, 100, 0.7); background: rgba(30, 0, 0, 0.5); }
 #boss-hp { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #ff3b2f, #ff9a3d); transition: width 0.15s; }
 #boss-sh { position: absolute; left: 0; bottom: -5px; height: 3px; background: #7fe7ff; box-shadow: 0 0 6px #7fe7ff; transition: width 0.15s; }
+
+/* ---------- Móvil / táctil ---------- */
+#touch, #rotate, .touch-help, .touch-only { display: none; }
+body.touch .touch-only { display: inline; }
+body.touch .desktop-only, body.touch .controls { display: none; }
+body.touch .touch-help { display: block; margin: 16px auto; max-width: 520px; font-size: 15px; color: #cfeff8; text-align: left; line-height: 1.5; }
+body.touch .touch-help b { color: var(--hud); }
+body.touch .touch-help .tip { margin: 8px 0 0; }
+
+body.touch #touch { display: block; position: absolute; inset: 0; pointer-events: none; touch-action: none; }
+body.touch #app canvas { touch-action: none; }
+#t-pad { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
+#t-stick { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transition: opacity 0.15s; pointer-events: none; }
+#t-stick.show { opacity: 1; }
+#t-stick::before { content: ''; position: absolute; width: 124px; height: 124px; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid var(--hud-dim); background: rgba(8, 24, 34, 0.35); }
+#t-knob { position: absolute; width: 54px; height: 54px; border-radius: 50%; background: rgba(127, 231, 255, 0.45); border: 2px solid var(--hud); transform: translate(-50%, -50%); }
+
+#touch .tb {
+  --sz: 54px; position: absolute; width: var(--sz); height: var(--sz); padding: 0; border-radius: 50%;
+  font-size: 20px; letter-spacing: 0; line-height: 1; color: #e9fbff; pointer-events: auto; touch-action: none;
+  background: rgba(8, 24, 34, 0.45); border: 2px solid var(--hud-dim); -webkit-tap-highlight-color: transparent;
+}
+#touch .tb.down { background: rgba(127, 231, 255, 0.4); border-color: var(--hud); }
+#touch .tb.on { background: rgba(127, 231, 255, 0.28); border-color: var(--hud); }
+#touch .tb:hover { background: rgba(8, 24, 34, 0.45); }
+.t-combat, .t-spec { position: absolute; right: env(safe-area-inset-right, 0); bottom: env(safe-area-inset-bottom, 0); width: 0; height: 0; }
+#touch #t-fire { --sz: 92px; right: 22px; bottom: 26px; font-size: 36px; border-color: rgba(255, 120, 120, 0.7); background: rgba(60, 10, 14, 0.4); }
+#touch #t-fire.down { background: rgba(255, 77, 94, 0.45); }
+#touch #t-jump { --sz: 64px; right: 128px; bottom: 18px; }
+#touch #t-crouch { right: 206px; bottom: 14px; }
+#touch #t-melee { right: 126px; bottom: 96px; font-size: 11px; font-weight: 700; }
+#touch #t-reload { right: 24px; bottom: 132px; font-size: 26px; }
+#touch #t-gren { right: 24px; bottom: 198px; color: #b6ff7a; }
+#touch #t-swap { --sz: 40px; width: auto; min-width: 54px; padding: 0 12px; border-radius: 20px; right: 92px; bottom: 164px; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; white-space: nowrap; }
+#touch #t-alt { display: none; right: 196px; bottom: 84px; font-size: 26px; }
+#touch #t-alt.zoom { display: block; }
+#touch #t-use { right: 206px; bottom: 156px; font-size: 13px; font-weight: 700; border-color: #ffd36b; color: #ffd36b; }
+#touch #t-pause { --sz: 42px; left: calc(env(safe-area-inset-left, 0px) + 118px); top: 10px; font-size: 14px; }
+#touch #t-board { --sz: 42px; left: calc(env(safe-area-inset-left, 0px) + 118px); top: 60px; }
+.t-spec { display: none; }
+#touch .t-spec .tb { --sz: 64px; bottom: 28px; font-size: 24px; }
+#touch .t-spec .tb:first-child { right: 104px; }
+#touch .t-spec .tb:last-child { right: 24px; }
+#hud.spectating .t-combat { display: none; }
+#hud.spectating .t-spec { display: block; }
+
+/* HUD reorganizado para dejar libres las esquinas inferiores a los pulgares. */
+body.touch #radar { left: calc(env(safe-area-inset-left, 0px) + 10px); top: 10px; bottom: auto; width: 100px; height: 100px; }
+body.touch #feed { left: calc(env(safe-area-inset-left, 0px) + 10px); top: 118px; font-size: 12px; }
+body.touch #topright { right: calc(env(safe-area-inset-right, 0px) + 14px); top: 8px; }
+body.touch #score { font-size: 22px; }
+body.touch #wave-info { font-size: 12px; }
+body.touch #score-label { font-size: 11px; }
+/* Arma en una sola línea bajo el escudo: las esquinas quedan para los botones. */
+body.touch #weapon-panel { left: 50%; right: auto; top: 40px; bottom: auto; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+body.touch #weapon-alt { display: none; }
+body.touch #weapon-name { font-size: 11px; }
+body.touch #ammo-mag { font-size: 20px; }
+body.touch #ammo-res { font-size: 12px; margin-left: 3px; }
+body.touch #heat { width: 90px; height: 8px; margin: 0; }
+body.touch #grenades { font-size: 12px; margin: 0; letter-spacing: 2px; }
+body.touch #boss { top: 66px; }
+body.touch #shield-wrap { top: 12px; width: min(340px, 44vw); }
+body.touch #shield-bar { height: 12px; }
+body.touch #hint { top: 56%; font-size: 14px; }
+body.touch #toast { bottom: auto; top: 30%; font-size: 14px; }
+body.touch #banner { top: 18%; }
+body.touch #boss { width: min(380px, 50vw); }
+body.touch #boss-name { font-size: 13px; }
+body.touch #spectate { bottom: 104px; }
+body.touch .spec-keys { display: none; }
+body.touch #spec-name { font-size: 22px; }
+body.touch #scoreboard { top: 10%; padding: 10px 14px; }
+body.touch #scoreboard table { font-size: 14px; }
+
+/* Aviso de orientación: solo en partida y en vertical. */
+@media (orientation: portrait) {
+  body.touch.ingame #rotate {
+    display: flex; position: fixed; inset: 0; z-index: 50; align-items: center; justify-content: center; text-align: center;
+    background: rgba(2, 6, 12, 0.94); font-size: 20px; letter-spacing: 0.15em; color: #e9fbff;
+  }
+  #rotate b { display: block; font-size: 64px; color: var(--hud); animation: spin 2.4s ease-in-out infinite; }
+}
+@keyframes spin { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(90deg); } }
+/* Menús en móvil horizontal (poca altura). */
+@media (max-height: 500px) {
+  .panel { padding: 16px 16px; }
+  h1 { font-size: 48px; }
+  .panel h2 { font-size: 28px; margin-bottom: 6px; }
+  .lead, .subtitle { font-size: 14px; margin-top: 6px; }
+  button { font-size: 17px; padding: 9px 22px; }
+  button.secondary { margin-top: 10px; }
+}
+/* Pantallas bajas: botones algo más pequeños. */
+@media (max-height: 380px) {
+  body.touch .t-combat { transform: scale(0.86); transform-origin: right bottom; }
+}

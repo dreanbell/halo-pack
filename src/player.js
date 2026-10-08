@@ -16,6 +16,7 @@ export class Player {
     this.vel = new THREE.Vector3();
     this._eye = new THREE.Vector3();
     this.keys = new Set();
+    this.stick = { x: 0, y: 0, m: 0, sprint: false }; // joystick táctil (m: intensidad 0..1)
 
     addEventListener('keydown', (e) => {
       this.keys.add(e.code);
@@ -84,15 +85,17 @@ export class Player {
     if (!this.alive) return this.deathAnim(dt);
     const { world, sfx } = this.ctx;
     const k = this.keys;
-    const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
-    const s = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
+    const st = this.stick, analog = st.m > 0;
+    const f = analog ? -st.y : (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    const s = analog ? st.x : (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
     this.crouching = k.has('ControlLeft') || k.has('KeyC');
-    this.sprinting = (k.has('ShiftLeft') || k.has('ShiftRight')) && f > 0 && !this.crouching;
+    this.sprinting = (k.has('ShiftLeft') || k.has('ShiftRight') || st.sprint) && f > 0 && !this.crouching;
 
     const yaw = this.yaw.rotation.y, sn = Math.sin(yaw), cs = Math.cos(yaw);
     let wx = -sn * f + cs * s, wz = -cs * f - sn * s;
     const wl = Math.hypot(wx, wz);
     if (wl > 0) { wx /= wl; wz /= wl; }
+    if (analog && !this.sprinting) { wx *= st.m; wz *= st.m; }
     const speed = this.crouching ? P.crouch : this.sprinting ? P.sprint : P.walk;
     const a = 1 - Math.exp(-(this.onGround ? P.groundAccel : P.airControl) * dt);
     this.vel.x += (wx * speed - this.vel.x) * a;

@@ -12,6 +12,7 @@ import { Net, v3, normalizeCode, BUILD, DEBUG } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { Armory } from './armory.js';
 import { Spectator } from './spectator.js';
+import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
 import { DEFAULT_SKIN, sanitizeSkin } from './skins.js';
 import { skyEnvironment } from './world.js';
 
@@ -24,7 +25,7 @@ for (const el of document.querySelectorAll('.build')) el.textContent = `v${BUILD
 console.info(`Ringfall v${BUILD}`);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.25 : 2)); // móvil: menos píxeles, más FPS
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -50,7 +51,8 @@ ctx.player = new Player(ctx);
 ctx.director = new Director(ctx);
 ctx.arsenal = new Arsenal(ctx);
 ctx.spectator = new Spectator(ctx);
-const { sfx, hud, fx, player, director, arsenal, net, remotes, world, spectator } = ctx;
+ctx.touch = new TouchControls(ctx);
+const { sfx, hud, fx, player, director, arsenal, net, remotes, world, spectator, touch } = ctx;
 const vec = (a) => new THREE.Vector3().fromArray(a);
 
 // --- Armadura del jugador ----------------------------------------------------
@@ -165,6 +167,7 @@ function writeBest(v) {
 }
 
 function lock() {
+  if (TOUCH) return false; // en móvil no hay puntero que capturar
   const el = renderer.domElement;
   if (!el.requestPointerLock) return false;
   try {
@@ -214,6 +217,7 @@ function startSession(mode) {
 }
 
 function newGame() {
+  enterFullscreen();
   startSession('sp');
 }
 
@@ -226,6 +230,7 @@ function respawn() {
 
 function resume() {
   sfx.unlock();
+  enterFullscreen();
   if (!lock()) { game.state = 'playing'; hud.showOverlay(null); }
 }
 
@@ -342,7 +347,7 @@ function openLobby(code = '') {
   (code ? $('btn-join') : $('mp-name')).focus();
 }
 
-$('btn-mp').addEventListener('click', () => openLobby());
+$('btn-mp').addEventListener('click', () => { enterFullscreen(); openLobby(); });
 
 function playerNameInput() {
   const name = $('mp-name').value.trim() || 'Jugador';
@@ -532,10 +537,23 @@ function renderBoard() {
 // --- UI general --------------------------------------------------------------
 $('btn-start').addEventListener('click', newGame);
 $('btn-retry').addEventListener('click', () => (game.mode === 'sp' ? newGame() : toLobby()));
-$('pause').addEventListener('click', resume);
+$('pause').addEventListener('click', () => { if (performance.now() - pausedAt > 400) resume(); });
 $('btn-quit').addEventListener('click', (e) => { e.stopPropagation(); toMenu(); });
 $('best').textContent = readBest().toLocaleString('es-ES');
-if (matchMedia('(pointer: coarse)').matches) $('touch-warn').classList.remove('hidden');
+
+// Pausa manual (botón táctil) y automática al salir de la app en el móvil.
+let pausedAt = 0;
+function pause() {
+  if (game.state !== 'playing') return;
+  pausedAt = performance.now();
+  game.state = 'paused';
+  arsenal.trigger = false;
+  player.keys.clear();
+  touch.release();
+  hud.showOverlay('pause');
+}
+ctx.pause = pause;
+document.addEventListener('visibilitychange', () => { if (document.hidden && TOUCH) pause(); });
 
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === renderer.domElement;
@@ -543,10 +561,7 @@ document.addEventListener('pointerlockchange', () => {
     game.state = 'playing';
     hud.showOverlay(null);
   } else if (!locked && game.state === 'playing' && (player.alive || game.mode !== 'sp')) {
-    game.state = 'paused';
-    arsenal.trigger = false;
-    player.keys.clear();
-    hud.showOverlay('pause');
+    pause();
   }
 });
 
@@ -600,6 +615,7 @@ function tick(dt) {
     player.yaw.position.set(0, 9, 34);
     player.pitch.rotation.set(-0.12, 0, 0);
   }
+  touch.update();
   fx.update(game.state === 'paused' && game.mode === 'sp' ? 0 : dt);
 }
 
