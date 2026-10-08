@@ -59,15 +59,25 @@ export class Arsenal {
     return this.slots[this.current];
   }
 
+  // Se puede dañar a otros jugadores: DM, o cooperativo con fuego amigo.
   get pvp() {
-    return this.ctx.game.mode === 'dm';
+    const { game, rules } = this.ctx;
+    return game.mode === 'dm' || (game.mode === 'coop' && rules.friendlyFire);
+  }
+
+  get pvpMult() {
+    return this.ctx.rules.pvpDamage;
+  }
+
+  get infinite() {
+    return this.ctx.rules.infiniteAmmo;
   }
 
   reset(loadout = CFG.defaultLoadout) {
     this.slots = [...new Set(loadout)].filter((id) => W[id]).slice(0, 2).map((id) => new Slot(id));
     if (!this.slots.length) this.slots = CFG.defaultLoadout.map((id) => new Slot(id));
     this.current = 0;
-    this.grenades = G.start;
+    this.grenades = Math.min(G.max, this.ctx.rules?.grenades ?? G.start);
     this.cooldown = this.reloadT = this.swapT = this.meleeT = this.throwT = 0;
     this.spray = this.recoil = this.flashT = this.bobT = this.pumpT = 0;
     this.burstLeft = 0;
@@ -169,7 +179,7 @@ export class Arsenal {
   // Impacto a otro jugador (DM): la víctima aplica el daño sobre su propio escudo.
   hitRemote(r, dmg, opts, part, from) {
     const { net, hud, sfx } = this.ctx;
-    net.to(r.id, 'hit', { dmg: dmg * CFG.pvp.damageMult, sm: opts.shieldMult ?? 1, hm: opts.headMult ?? 1, part, from: v3(from) });
+    net.to(r.id, 'hit', { dmg: dmg * this.pvpMult, sm: opts.shieldMult ?? 1, hm: opts.headMult ?? 1, part, from: v3(from) });
     hud.hitMarker(false);
     sfx.hit();
   }
@@ -186,7 +196,7 @@ export class Arsenal {
 
   // --- Munición y cambios de arma ---
   wantsAmmo() {
-    return this.slots.some((s) => s.def.mag && s.reserve < s.def.maxReserve);
+    return !this.infinite && this.slots.some((s) => s.def.mag && s.reserve < s.def.maxReserve);
   }
 
   addAmmo(mult = 1) {
@@ -264,14 +274,14 @@ export class Arsenal {
     const s = this.w, d = s.def;
     if (d.shellReload) {
       s.mag++;
-      s.reserve--;
+      if (!this.infinite) s.reserve--;
       // Cartucho a cartucho: continúa salvo que el jugador quiera disparar.
       if (s.mag < d.mag && s.reserve > 0 && !this.trigger) { this.reloadT = d.reload; this.ctx.sfx.shell(); }
       return;
     }
     const take = Math.min(d.mag - s.mag, s.reserve);
     s.mag += take;
-    s.reserve -= take;
+    if (!this.infinite) s.reserve -= take;
   }
 
   // --- Disparo ---
@@ -544,7 +554,7 @@ export class Arsenal {
       player.shake = 1;
       if (hurtsMe && player.alive && world.lineOfSight(_m.copy(p).setY(p.y + 0.3), pc)) {
         const f = 1 - d / G.radius;
-        player.damage(G.damage * 0.6 * f * (g.owner !== null ? CFG.pvp.damageMult : 1), p, g.owner);
+        player.damage(G.damage * 0.6 * f * (g.owner !== null ? this.pvpMult : 1), p, g.owner);
         _d.subVectors(pc, p).setY(0).normalize();
         player.vel.addScaledVector(_d, 10 * f);
         player.vel.y += 4 * f;
@@ -609,7 +619,7 @@ export class Arsenal {
       if (r) {
         // Por la espalda: el rival mira en la misma dirección que el atacante.
         const back = Math.cos(r.yaw - player.yaw.rotation.y) > 0.3;
-        this.hitRemote(r, back ? 9999 : M.damage / CFG.pvp.damageMult, {}, back ? 'back' : 'body', player.pos);
+        this.hitRemote(r, back ? 9999 : M.damage / this.pvpMult, {}, back ? 'back' : 'body', player.pos);
         fx.sparks(_o.set(r.pos.x, r.pos.y + 1.1, r.pos.z), 0x7fe7ff);
         return;
       }

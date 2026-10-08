@@ -37,8 +37,9 @@ export class Player {
   reset(spawn = SPAWN, yaw = 0) {
     this.pos.copy(spawn);
     this.vel.set(0, 0, 0);
+    this.maxShield = this.ctx.rules?.shields === false ? 0 : P.maxShield;
     this.health = P.maxHealth;
-    this.shield = P.maxShield;
+    this.shield = this.maxShield;
     this.sinceHit = 99;
     this.onGround = true;
     this.alive = true;
@@ -114,14 +115,17 @@ export class Player {
     }
 
     // Escudo: recarga tras un tiempo sin recibir daño; la salud se recupera despacio a la par.
+    // Sin escudos (regla), solo se recupera la salud.
     this.sinceHit += dt;
-    if (this.sinceHit > P.shieldDelay && this.shield < P.maxShield) {
+    if (this.sinceHit > P.shieldDelay && this.shield < this.maxShield) {
       if (!this.recharging) { this.recharging = true; sfx.shieldRecharge(); }
-      this.shield = Math.min(P.maxShield, this.shield + P.shieldRate * dt);
+      this.shield = Math.min(this.maxShield, this.shield + P.shieldRate * dt);
+      this.health = Math.min(P.maxHealth, this.health + P.healthRate * dt);
+    } else if (!this.maxShield && this.sinceHit > P.shieldDelay) {
       this.health = Math.min(P.maxHealth, this.health + P.healthRate * dt);
     }
-    if (this.shield >= P.maxShield) this.recharging = false;
-    if (this.shield <= 0) {
+    if (this.shield >= this.maxShield) this.recharging = false;
+    if (this.maxShield && this.shield <= 0) {
       this.alarmT -= dt;
       if (this.alarmT <= 0) { sfx.alarm(); this.alarmT = 0.45; }
     }
@@ -160,7 +164,7 @@ export class Player {
       amount = (sd - absorbed) / shieldMult;
       if (this.shield <= 0) sfx.shieldBreak(); else sfx.shieldHit();
     } else if (part === 'head') {
-      amount *= headMult;
+      amount = this.ctx.rules?.headKill ? Math.max(amount, this.health) : amount * headMult;
       if (this.lastHit) this.lastHit.head = true;
     }
     if (amount > 0) { this.health -= amount; sfx.hurt(); }

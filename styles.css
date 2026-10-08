@@ -237,3 +237,25 @@ code { font-family: ui-monospace, monospace; color: #e9fbff; background: rgba(0,
 .boss-bar { position: relative; height: 12px; border: 1px solid rgba(255, 120, 100, 0.7); background: rgba(30, 0, 0, 0.5); }
 #boss-hp { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #ff3b2f, #ff9a3d); transition: width 0.15s; }
 #boss-sh { position: absolute; left: 0; bottom: -5px; height: 3px; background: #7fe7ff; box-shadow: 0 0 6px #7fe7ff; transition: width 0.15s; }
+
+/* ---------- Reglas de partida ---------- */
+.rules-panel { max-width: 720px; }
+.rules { margin: 6px 0 14px; }
+.rules .variants { justify-content: center; margin-bottom: 10px; }
+.rules .variant-desc { min-height: 2.4em; margin-bottom: 12px; }
+.rules-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center; text-align: left; max-width: 520px; margin: 0 auto; }
+.rule-label { font-size: 14px; letter-spacing: 0.18em; color: #cfeff8; }
+.rule-label.changed { color: #ffd36b; }
+.stepper { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.stepper b { min-width: 9.5em; text-align: center; font-size: 15px; letter-spacing: 0.1em; color: #e9fbff; }
+.stepper button { font-size: 16px; letter-spacing: 0; padding: 2px 0; width: 38px; border-color: var(--hud-dim); }
+.stepper button.toggle { width: auto; }
+.stepper button.toggle { min-width: 9.5em; font-size: 15px; letter-spacing: 0.15em; opacity: 0.7; }
+.stepper button.toggle.on { opacity: 1; background: rgba(127, 231, 255, 0.22); border-color: var(--hud); }
+#timer { font-size: 22px; font-weight: 700; letter-spacing: 0.12em; color: #e9fbff; }
+#timer.low { color: var(--warn); }
+@media (max-width: 600px) {
+  .rules-grid { grid-template-columns: 1fr; gap: 2px; }
+  .stepper { justify-content: flex-start; margin-bottom: 8px; }
+  .stepper b, .stepper button.toggle { min-width: 7em; }
+}
