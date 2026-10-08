@@ -22,7 +22,7 @@ export class Player {
       this.keys.add(e.code);
       if (!e.repeat) {
         if (e.code === 'Space') this.jumpBuf = P.jumpBuffer;
-        if (e.code === 'ControlLeft' || e.code === 'KeyC') this.crouchTap = true;
+        if (e.code === 'ControlLeft' || e.code === 'KeyC') this.crouchBuf = SL.buffer;
       }
       if (ctx.game.state === 'playing' && (e.code === 'Space' || e.code === 'ControlLeft' || e.code.startsWith('Arrow'))) e.preventDefault();
     });
@@ -51,7 +51,7 @@ export class Player {
     this.sprinting = this.crouching = this.recharging = this.sliding = false;
     this.slideT = this.slideCD = this.slideK = this.jumpBuf = this.dip = 0;
     this.coyote = P.coyote;
-    this.crouchTap = false;
+    this.crouchBuf = 0;
     this.shake = 0;
     this.alarmT = 0;
     this.deathT = 0;
@@ -95,8 +95,9 @@ export class Player {
     const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     const s = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
     const crouchHeld = k.has('ControlLeft') || k.has('KeyC');
-    const tap = this.crouchTap;
-    this.crouchTap = false;
+    // Margen para pulsar agachar justo antes de alcanzar velocidad o de tocar suelo.
+    const tap = this.crouchBuf > 0;
+    this.crouchBuf = Math.max(0, this.crouchBuf - dt);
     this.jumpBuf = Math.max(0, this.jumpBuf - dt);
     this.slideCD = Math.max(0, this.slideCD - dt);
     this.coyote = this.onGround ? P.coyote : Math.max(0, this.coyote - dt);
@@ -111,6 +112,7 @@ export class Player {
     if (!this.sliding && crouchHeld && this.onGround && this.slideCD <= 0 && hs >= SL.minSpeed &&
         (tap || this.justLanded) && (this.vel.x * wx + this.vel.z * wz > 0 || wl === 0)) {
       this.sliding = true;
+      this.crouchBuf = 0;
       this.slideT = 0;
       const boost = tap ? Math.max(hs, SL.boost) / hs : 1; // al aterrizar solo se conserva la inercia
       this.vel.x *= boost; this.vel.z *= boost;
@@ -118,8 +120,11 @@ export class Player {
       sfx.slide?.();
     }
     this.justLanded = false;
-    this.crouching = crouchHeld || this.sliding;
-    this.sprinting = !this.crouching && (k.has('ShiftLeft') || k.has('ShiftRight')) && f > 0;
+    const shift = k.has('ShiftLeft') || k.has('ShiftRight');
+    // Agachar recién pulsado con Shift+avance: se sigue acelerando unos instantes para entrar en deslizamiento.
+    const pending = !this.sliding && tap && crouchHeld && shift && f > 0 && this.onGround && this.slideCD <= 0;
+    this.crouching = (crouchHeld && !pending) || this.sliding;
+    this.sprinting = !this.crouching && shift && f > 0;
 
     const wantJump = (this.jumpBuf > 0 || k.has('Space')) && this.coyote > 0 && this.vel.y <= 0.5;
     if (this.sliding) {
