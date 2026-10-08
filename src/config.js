@@ -6,6 +6,9 @@ export const CFG = {
     height: 1.7, crouchHeight: 1.1, radius: 0.4, step: 0.5,
     walk: 6.2, sprint: 9.4, crouch: 3.2, jump: 7.4, gravity: 22,
     groundAccel: 14, airControl: 2.5, sensitivity: 0.0022,
+    coyote: 0.12, jumpBuffer: 0.14,
+    // Deslizamiento: al agacharse corriendo (o al aterrizar agachado con inercia).
+    slide: { minSpeed: 7.2, boost: 13.5, buffer: 0.25, friction: 6.5, maxTime: 1.1, steer: 1.6, height: 0.9, cooldown: 0.9, jumpKeep: 0.92 },
     maxHealth: 100, maxShield: 100,
     shieldDelay: 4.5, shieldRate: 45, healthRate: 6,
   },
