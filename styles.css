@@ -69,6 +69,16 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 
 #hint { position: absolute; top: 60%; width: 100%; text-align: center; font-size: 18px; letter-spacing: 0.2em; color: #ffd36b; font-weight: 700; }
 
+/* Espectador */
+#spectate { display: none; position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); text-align: center; width: min(620px, calc(100% - 32px)); }
+#hud.spectating #spectate { display: block; }
+#hud.spectating #crosshair, #hud.spectating #weapon-panel, #hud.spectating #scope, #hud.spectating #dmg-dir { display: none; }
+#spectate small { display: block; font-size: 13px; letter-spacing: 0.35em; opacity: 0.75; }
+#spec-name { display: block; font-size: 30px; letter-spacing: 0.2em; line-height: 1.1; text-shadow: 0 0 14px rgba(0, 0, 0, 0.8); }
+#spec-sub { display: block; font-size: 14px; letter-spacing: 0.2em; color: #cfeff8; min-height: 1.2em; }
+.spec-keys { margin-top: 8px; font-size: 13px; letter-spacing: 0.08em; color: #cfeff8; opacity: 0.8; }
+.spec-keys kbd { font-size: 12px; padding: 0 5px; }
+
 #weapon-panel { position: absolute; right: 28px; bottom: 24px; text-align: right; }
 #weapon-name { font-size: 15px; letter-spacing: 0.2em; opacity: 0.8; }
 #ammo-mag { font-size: 54px; font-weight: 700; line-height: 1; color: #e9fbff; }
@@ -170,6 +180,8 @@ code { font-family: ui-monospace, monospace; color: #e9fbff; background: rgba(0,
   #ammo-mag { font-size: 40px; }
   #topright { right: 16px; }
   #weapon-panel { right: 16px; }
+  #spectate { bottom: 150px; }
+  .spec-keys { display: none; }
 }
 
 /* ---------- Armería ---------- */

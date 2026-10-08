@@ -6,6 +6,7 @@ const IDS = [
   'grenades', 'radar', 'score', 'banner', 'banner-title', 'banner-sub',
   'toast', 'hint', 'vignette', 'dmg-dir', 'go-stats', 'go-title', 'btn-retry', 'feed', 'scoreboard', 'sb-title',
   'sb-table', 'wave-info', 'score-label', 'weapon-alt', 'scope', 'boss', 'boss-name', 'boss-hp', 'boss-sh',
+  'spectate', 'spec-name', 'spec-sub',
 ];
 const RADAR_RANGE = 30;
 
@@ -16,6 +17,7 @@ export class Hud {
     this.cache = new Map();
     this.timers = {};
     this.dmgFlash = 0;
+    this.spec = null;
   }
 
   text(id, v) {
@@ -45,6 +47,18 @@ export class Hud {
     this.toggle('toast', 'show', false);
     this.el.feed.replaceChildren();
     this.toggle('scoreboard', 'hidden', true);
+    this.spectate(null);
+  }
+
+  // Modo espectador: info = { name, color, shield, health, weapon, kills, count } o null para salir.
+  spectate(info) {
+    this.spec = info;
+    this.toggle('hud', 'spectating', info);
+    if (!info) return;
+    this.text('spec-name', info.name.toUpperCase());
+    this.style('spec-name', 'color', info.color);
+    const w = CFG.weapons[info.weapon]?.name ?? '';
+    this.text('spec-sub', [w, info.kills != null && `${info.kills} BAJAS`].filter(Boolean).join(' · '));
   }
 
   // Entrada del registro de bajas: partes = [{ text, color? }].
@@ -122,12 +136,15 @@ export class Hud {
   update(ctx, dt) {
     const { player: p, arsenal: a, director: d, game: g } = ctx;
     const P = CFG.player;
+    const sp = this.spec;
+    // Espectando: las barras muestran el estado del jugador observado.
+    const shield = sp ? sp.shield : p.shield, health = sp ? sp.health : p.health;
 
-    this.style('shield-fill', 'width', `${((p.shield / P.maxShield) * 100).toFixed(1)}%`);
-    this.toggle('shield-bar', 'low', p.shield < P.maxShield * 0.25);
-    this.toggle('shield-bar', 'charging', p.recharging);
-    this.style('health-fill', 'width', `${((p.health / P.maxHealth) * 100).toFixed(1)}%`);
-    this.toggle('health-bar', 'low', p.health < 35);
+    this.style('shield-fill', 'width', `${((shield / P.maxShield) * 100).toFixed(1)}%`);
+    this.toggle('shield-bar', 'low', shield < P.maxShield * 0.25);
+    this.toggle('shield-bar', 'charging', !sp && p.recharging);
+    this.style('health-fill', 'width', `${((health / P.maxHealth) * 100).toFixed(1)}%`);
+    this.toggle('health-bar', 'low', health < 35);
 
     const sl = a.w, wd = sl.def, other = a.slots[1 - a.current];
     this.text('weapon-name', wd.name);
@@ -174,7 +191,7 @@ export class Hud {
     this.text('hint', hint);
 
     this.dmgFlash = Math.max(0, this.dmgFlash - dt * 1.8);
-    const low = p.health < 40 ? (1 - p.health / 40) * 0.7 : 0;
+    const low = !sp && p.health < 40 ? (1 - p.health / 40) * 0.7 : 0;
     this.style('vignette', 'opacity', Math.max(this.dmgFlash, low).toFixed(2));
 
     // Barra del jefe.
@@ -185,10 +202,12 @@ export class Hud {
       this.style('boss-hp', 'width', `${Math.max(0, (boss.hp / boss.maxHp) * 100).toFixed(1)}%`);
       this.style('boss-sh', 'width', `${boss.maxShield ? Math.max(0, (boss.shield / boss.maxShield) * 100).toFixed(1) : 0}%`);
     }
-    this.drawRadar(p, d.enemies, ctx.remotes.list(), g.mode);
+    const view = sp ? ctx.remotes.get(sp.id) : null;
+    if (view) this.drawRadar(view.pos, view.yaw, d.enemies, ctx.remotes.list().filter((r) => r !== view), g.mode);
+    else this.drawRadar(p.pos, p.yaw.rotation.y, d.enemies, ctx.remotes.list(), g.mode);
   }
 
-  drawRadar(p, enemies, remotes = [], mode = 'sp') {
+  drawRadar(pos, yaw, enemies, remotes = [], mode = 'sp') {
     const c = this.radar, W = c.canvas.width, cx = W / 2, R = W / 2 - 6;
     c.clearRect(0, 0, W, W);
     c.fillStyle = 'rgba(8,24,34,0.55)';
@@ -198,7 +217,7 @@ export class Hud {
     for (const k of [1, 2 / 3, 1 / 3]) { c.beginPath(); c.arc(cx, cx, R * k, 0, Math.PI * 2); c.stroke(); }
     c.beginPath(); c.moveTo(cx, cx - R); c.lineTo(cx, cx + R); c.moveTo(cx - R, cx); c.lineTo(cx + R, cx); c.stroke();
 
-    const s = Math.sin(p.yaw.rotation.y), co = Math.cos(p.yaw.rotation.y);
+    const s = Math.sin(yaw), co = Math.cos(yaw);
     // Los Stalker camuflados no aparecen en el radar.
     const blips = enemies.filter((e) => !e.dead && (e.flags & 1)).map((e) => ({ pos: e.pos, big: e.cfg.scale > 1.1, color: e.cfg.boss ? '#ffb340' : '#ff4d5e' }));
     const now = performance.now();
@@ -210,7 +229,7 @@ export class Hud {
       blips.push({ pos: r.pos, big: false, color: mode === 'dm' ? '#ff4d5e' : r.colorHex, ally: mode !== 'dm' });
     }
     for (const e of blips) {
-      const rx = e.pos.x - p.pos.x, rz = e.pos.z - p.pos.z;
+      const rx = e.pos.x - pos.x, rz = e.pos.z - pos.z;
       let right = rx * co - rz * s, fwd = -rx * s - rz * co;
       const dist = Math.hypot(right, fwd);
       const edge = dist > RADAR_RANGE;
@@ -221,7 +240,7 @@ export class Hud {
       c.fillStyle = c.strokeStyle = e.color;
       c.beginPath();
       if (e.ally) { c.rect(x - 4, y - 4, 8, 8); } else c.arc(x, y, size, 0, Math.PI * 2);
-      if (Math.abs(e.pos.y - p.pos.y) > 2) { c.lineWidth = 2; c.stroke(); } else c.fill();
+      if (Math.abs(e.pos.y - pos.y) > 2) { c.lineWidth = 2; c.stroke(); } else c.fill();
     }
     c.globalAlpha = 1;
     c.fillStyle = '#ffe27a';
