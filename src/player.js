@@ -64,6 +64,8 @@ export class Player {
 
   look(dx, dy) {
     const k = P.sensitivity / (this.ctx.arsenal?.zoom ?? 1); // más fino con mira
+    this.lookDX = (this.lookDX ?? 0) + dx; // para la inercia del arma en mano
+    this.lookDY = (this.lookDY ?? 0) + dy;
     this.yaw.rotation.y -= dx * k;
     this.pitch.rotation.x = clamp(this.pitch.rotation.x - dy * k, -1.5, 1.5);
   }
@@ -148,7 +150,8 @@ export class Player {
         this.endSlide();
       }
     } else {
-      const speed = this.crouching ? P.crouch : this.sprinting ? P.sprint : P.walk;
+      const aiming = (this.ctx.arsenal?.aimK ?? 0) > 0.5; // apuntando: más lento
+      const speed = (this.crouching ? P.crouch : this.sprinting ? P.sprint : P.walk) * (aiming ? 0.72 : 1);
       // En el aire se conserva la inercia si ya se va más rápido que la velocidad objetivo.
       const ctl = this.onGround ? P.groundAccel : P.airControl;
       const a = 1 - Math.exp(-ctl * dt);
