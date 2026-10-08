@@ -178,6 +178,10 @@ export class Sfx {
   shieldRecharge() { this.tone({ freq: 300, freqEnd: 1300, dur: 0.9, gain: 0.1 }); }
   alarm() { this.tone({ freq: 1000, dur: 0.08, type: 'square', gain: 0.05 }); }
   hurt() { this.noise({ dur: 0.22, freq: 320, type: 'lowpass', gain: 0.4 }); }
+  slide() {
+    this.noise({ dur: 0.55, freq: 900, freqEnd: 220, type: 'lowpass', q: 0.7, gain: 0.32, attack: 0.03 });
+    this.noise({ dur: 0.4, freq: 3200, freqEnd: 1200, q: 1.2, gain: 0.08, attack: 0.02 });
+  }
   land() { this.noise({ dur: 0.12, freq: 260, type: 'lowpass', gain: 0.3 }); }
   melee() {
     this.noise({ dur: 0.12, freq: 450, type: 'lowpass', gain: 0.45 });
