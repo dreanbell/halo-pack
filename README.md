@@ -36,6 +36,23 @@ No necesita build ni dependencias: three.js y PeerJS van incluidos en `vendor/`.
 python3 -m http.server 8000   # o: node server.js 8000 → http://localhost:8000
 ```
 
+## Armas
+
+| Arma | Tipo | Notas |
+|---|---|---|
+| AR-9 Carbine | Fusil automático | Todoterreno |
+| Ion Sidearm | Pistola de calor | ×2 contra escudos, cabeza ×3 |
+| Viper SMG | Subfusil | Cadencia altísima, poco alcance |
+| Breacher-12 | Escopeta | 9 perdigones, recarga cartucho a cartucho |
+| DMR-3 Marksman | Tirador | Ráfaga de 3, mira ×2 |
+| Longshot SR-2 | Francotirador | 95 de daño, cabeza ×2,5, mira ×5 |
+| Plasma Lance 👽 | Alienígena, calor | ×1,8 contra escudos |
+| Needle Swarm 👽 | Alienígena | Agujas que persiguen al objetivo |
+| Arc Cannon 👽 | Alienígena | Proyectil explosivo con daño en área |
+
+- **Un jugador y todos contra todos:** eliges tus dos armas en **ARMAS** (menú o lobby).
+- **Cooperativo:** empiezas con carabina y pistola. Ganas **créditos** con cada baja y cada oleada superada. Las **cajas misteriosas** (una en la plataforma central y otra en el campo, marcadas con un haz de luz) cuestan 500 créditos: pulsa **E**, la caja se abre, van pasando armas y sale una al azar, que coges con **E** antes de 8 s. Sustituye al arma que llevas en la mano. Si ya la tenías, te llena la munición. Las mejores salen en rondas altas: francotirador y agujas desde la 3, cañón de arco desde la 5.
+
 ## Armería (skins)
 
 Desde el menú (**ARMERÍA · PERSONALIZAR SOLDADO**) o desde el lobby (**ARMERÍA**). Hay vista previa 3D giratoria.
@@ -63,7 +80,9 @@ El modelo del soldado es procedural (unas 40 piezas biseladas con materiales PBR
 | C / Ctrl | Agacharse (menos dispersión) |
 | R | Recargar |
 | Q / 1 / 2 / rueda | Cambiar arma |
-| G / clic der. | Granada |
+| Clic der. | Mira (DMR, francotirador); si el arma no tiene, granada |
+| G | Granada |
+| E | Caja misteriosa (cooperativo) |
 | F | Golpe cuerpo a cuerpo (por la espalda = eliminación) |
 | Tab | Marcador (multijugador) |
 | Esc | Pausa (en multijugador la partida sigue) |
@@ -106,6 +125,8 @@ src/remote.js       Otros jugadores: interpolación, impactos y etiqueta de nomb
 src/avatar.js       Modelo del soldado, materiales por skin, animación e IK de brazos
 src/skins.js        Opciones de armadura y validación
 src/armory.js       Pantalla de armería con vista previa 3D
+src/guns.js         Modelos de las armas
+src/box.js          Caja misteriosa del cooperativo
 src/config.js       Tuning: armas, enemigos, oleadas
 src/world.js        Arena procedural, cielo con anillo y colisiones AABB
 src/nav.js          Rejilla de navegación + campo de flujo

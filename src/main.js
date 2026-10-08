@@ -17,6 +17,7 @@ import { skyEnvironment } from './world.js';
 const BEST_KEY = 'ringfall.best';
 const NAME_KEY = 'ringfall.name';
 const SKIN_KEY = 'ringfall.skin';
+const LOADOUT_KEY = 'ringfall.loadout';
 const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.build')) el.textContent = `v${BUILD}${DEBUG ? ' · diagnóstico' : ''}`;
 console.info(`Ringfall v${BUILD}`);
@@ -68,6 +69,79 @@ const armory = new Armory({
   },
 });
 let armoryReturn = 'menu';
+
+// --- Armas elegidas (un jugador y DM; en coop se empieza básico y el resto sale de la caja) ---
+function readLoadout() {
+  try {
+    const l = JSON.parse(localStorage.getItem(LOADOUT_KEY) ?? 'null');
+    if (Array.isArray(l) && l.length === 2 && l.every((id) => CFG.weapons[id]) && l[0] !== l[1]) return l;
+  } catch { /* sin almacenamiento */ }
+  return [...CFG.defaultLoadout];
+}
+ctx.loadout = readLoadout();
+function loadoutFor(mode) {
+  return mode === 'coop' ? CFG.defaultLoadout : ctx.loadout;
+}
+
+const STAT_MAX = { dps: 230, range: 400, mob: 1 };
+function weaponStats(w) {
+  const shots = w.kind === 'pellets' ? w.pellets : w.burst ?? 1;
+  const dps = (w.damage * shots) / (w.interval + (w.burst ? w.burstGap * (w.burst - 1) : 0));
+  const range = w.kind === 'projectile' ? w.projSpeed * w.life : w.range;
+  return [['DAÑO', Math.min(1, dps / STAT_MAX.dps)], ['ALCANCE', Math.min(1, range / STAT_MAX.range)], ['CADENCIA', Math.min(1, 0.05 / w.interval * 1.4)]];
+}
+
+function renderLoadout() {
+  for (const slot of [0, 1]) {
+    $(`lo-${slot}`).replaceChildren(...Object.entries(CFG.weapons).map(([id, w]) => {
+      const b = document.createElement('button');
+      b.className = `wcard${w.alien ? ' alien' : ''}${ctx.loadout[slot] === id ? ' selected' : ''}`;
+      b.disabled = ctx.loadout[1 - slot] === id;
+      const name = document.createElement('b');
+      name.textContent = w.name;
+      const kind = document.createElement('small');
+      kind.textContent = `${w.alien ? 'ALIENÍGENA · ' : ''}${w.heat ? 'CALOR' : `CARGADOR ${w.mag}`}${w.zoom ? ` · MIRA x${w.zoom}` : ''}`;
+      const bars = document.createElement('div');
+      bars.className = 'bars';
+      for (const [label, v] of weaponStats(w)) {
+        const l = document.createElement('span');
+        l.textContent = label;
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        const fill = document.createElement('i');
+        fill.style.width = `${Math.round(v * 100)}%`;
+        bar.append(fill);
+        bars.append(l, bar);
+      }
+      b.append(name, kind, bars);
+      b.addEventListener('click', () => {
+        ctx.loadout[slot] = id;
+        try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(ctx.loadout)); } catch { /* sin almacenamiento */ }
+        renderLoadout();
+      });
+      return b;
+    }));
+  }
+}
+
+let loadoutReturn = 'menu';
+function openLoadout(from) {
+  loadoutReturn = from;
+  renderLoadout();
+  hud.showOverlay('loadout');
+}
+$('btn-loadout').addEventListener('click', () => openLoadout('menu'));
+$('btn-lobby-loadout').addEventListener('click', () => openLoadout('lobby'));
+$('btn-loadout-done').addEventListener('click', () => {
+  hud.showOverlay(loadoutReturn);
+  if (loadoutReturn === 'lobby') renderLobby();
+});
+
+// Tecla E: caja misteriosa (cooperativo).
+addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyE' || e.repeat || game.state !== 'playing' || game.mode !== 'coop') return;
+  director.interact();
+});
 function openArmory(from) {
   armoryReturn = from;
   hud.showOverlay('armory');
@@ -122,7 +196,7 @@ function startSession(mode) {
   Object.assign(game, { mode, wave: 0, kills: 0, score: 0, time: 0, deathT: -1, respawnIn: 0, state: 'playing' });
   const online = mode !== 'sp';
   director.configure(mode, !online || net.isHost);
-  arsenal.reset();
+  arsenal.reset(loadoutFor(mode));
   fx.clear();
   hud.reset();
   remotes.clear();
@@ -142,7 +216,7 @@ function newGame() {
 
 function respawn() {
   player.reset(...pickSpawn());
-  arsenal.reset();
+  arsenal.reset(loadoutFor(game.mode));
   game.respawnIn = 0;
 }
 
@@ -340,11 +414,20 @@ net.on('fx', (m) => {
   if (!inMatch()) return;
   const r = remotes.get(m.from);
   if (r) r.lastShot = performance.now();
-  const a = vec(m.a), b = vec(m.b);
-  fx.tracer(a, b, m.w === 0 ? 0xffe3a0 : 0x6ff5ff);
-  const d = a.distanceTo(player.pos);
-  if (m.w === 0) sfx.rifle(Math.max(1, d)); else sfx.pistol(Math.max(1, d));
+  const w = CFG.weapons[m.w] ?? CFG.weapons.rifle;
+  const a = vec(m.a);
+  for (const b of m.bs ?? [m.b]) fx.tracer(a, vec(b), w.tracer);
+  sfx.shot(w.sound, Math.max(1, a.distanceTo(player.pos)));
 });
+net.on('pshot', (m) => {
+  if (!inMatch() || !CFG.weapons[m.w]) return;
+  arsenal.remoteShot(m);
+  sfx.shot(CFG.weapons[m.w].sound, Math.max(1, vec(m.p).distanceTo(player.pos)));
+});
+net.on('box', (m) => { if (inMatch() && game.mode === 'coop') director.onBox(m); });
+net.on('boxUse', (m) => { if (inMatch() && director.authority) director.useBox(m.id, m.from); });
+net.on('boxDeny', (m) => { hud.toast(m.reason); sfx.deny(); });
+net.on('boxTake', (m) => { director.boxes[m.id]?.close(); });
 net.on('gren', (m) => { if (inMatch()) arsenal.remoteGrenade(m.p, m.v, m.from); });
 net.on('hit', (m) => {
   if (!inMatch() || game.mode !== 'dm') return;
@@ -467,7 +550,7 @@ function netTick(dt) {
     stateT = CFG.net.stateRate;
     net.send('st', {
       p: v3(player.pos), v: v3(player.vel), y: +player.yaw.rotation.y.toFixed(3), pt: +player.pitch.rotation.x.toFixed(3),
-      h: +player.height.toFixed(2), a: player.alive ? 1 : 0, w: arsenal.current, hp: Math.round(player.health), sh: Math.round(player.shield),
+      h: +player.height.toFixed(2), a: player.alive ? 1 : 0, w: arsenal.w.id, hp: Math.round(player.health), sh: Math.round(player.shield),
     });
   }
 }

@@ -72,12 +72,71 @@ export class Sfx {
     this.tone({ freq: 950, freqEnd: 180, dur: 0.15, type: 'sawtooth', gain: 0.16 * v });
     this.noise({ dur: 0.06, freq: 3000, type: 'highpass', gain: 0.18 * v });
   }
+  // Disparo por nombre de sonido; dist > 0 = otro jugador (atenuado).
+  shot(name, dist = 0) {
+    (this[name] ?? this.rifle).call(this, dist);
+  }
+  vol(dist, k = 0.7) {
+    return dist ? Sfx.falloff(dist, 90) * k : 1;
+  }
+  smg(dist = 0) {
+    const v = this.vol(dist);
+    this.noise({ dur: 0.06, freq: 2600, freqEnd: 700, q: 0.8, gain: 0.32 * v });
+    this.tone({ freq: 210, freqEnd: 90, dur: 0.05, type: 'square', gain: 0.08 * v });
+  }
+  shotgun(dist = 0) {
+    const v = this.vol(dist, 0.8);
+    this.noise({ dur: 0.35, freq: 1400, freqEnd: 120, type: 'lowpass', q: 0.6, gain: 0.85 * v, attack: 0.003 });
+    this.tone({ freq: 95, freqEnd: 40, dur: 0.25, gain: 0.45 * v });
+    if (!dist) { this.noise({ dur: 0.07, freq: 1800, gain: 0.18, delay: 0.32 }); this.noise({ dur: 0.07, freq: 1300, gain: 0.18, delay: 0.45 }); }
+  }
+  dmr(dist = 0) {
+    const v = this.vol(dist);
+    this.noise({ dur: 0.12, freq: 2200, freqEnd: 500, q: 0.9, gain: 0.5 * v });
+    this.tone({ freq: 180, freqEnd: 70, dur: 0.09, type: 'square', gain: 0.12 * v });
+  }
+  sniper(dist = 0) {
+    const v = this.vol(dist, 0.9);
+    this.noise({ dur: 0.9, freq: 3000, freqEnd: 90, type: 'lowpass', q: 0.4, gain: 0.95 * v, attack: 0.002 });
+    this.tone({ freq: 140, freqEnd: 35, dur: 0.6, gain: 0.5 * v });
+    this.noise({ dur: 0.5, freq: 600, type: 'bandpass', q: 0.5, gain: 0.15 * v, delay: 0.25 });
+  }
+  plasma(dist = 0) {
+    const v = this.vol(dist);
+    this.tone({ freq: 700, freqEnd: 260, dur: 0.11, type: 'sawtooth', gain: 0.12 * v });
+    this.tone({ freq: 1400, freqEnd: 600, dur: 0.08, type: 'sine', gain: 0.06 * v });
+  }
+  needle(dist = 0) {
+    const v = this.vol(dist);
+    this.tone({ freq: 2400, freqEnd: 3600, dur: 0.07, type: 'triangle', gain: 0.08 * v });
+    this.noise({ dur: 0.04, freq: 6000, type: 'highpass', gain: 0.08 * v });
+  }
+  arc(dist = 0) {
+    const v = this.vol(dist, 0.9);
+    this.tone({ freq: 120, freqEnd: 600, dur: 0.35, type: 'sawtooth', gain: 0.2 * v });
+    this.noise({ dur: 0.4, freq: 900, freqEnd: 200, type: 'lowpass', gain: 0.4 * v });
+  }
+  zoom() { this.tone({ freq: 1600, dur: 0.03, type: 'square', gain: 0.04 }); }
+  shell() { this.noise({ dur: 0.06, freq: 1600, gain: 0.14 }); }
+  boxOpen() {
+    // Cajita de música: arpegio misterioso.
+    [523, 659, 784, 988, 784, 659, 880, 1047].forEach((f, i) => this.tone({ freq: f, dur: 0.22, type: 'triangle', gain: 0.1, delay: i * 0.13 }));
+    this.noise({ dur: 0.4, freq: 300, type: 'lowpass', gain: 0.25 });
+  }
+  boxTick() { this.tone({ freq: 1800, dur: 0.02, type: 'square', gain: 0.025 }); }
+  boxReveal() {
+    this.tone({ freq: 523, dur: 0.15, type: 'triangle', gain: 0.14 });
+    this.tone({ freq: 784, dur: 0.15, type: 'triangle', gain: 0.14, delay: 0.1 });
+    this.tone({ freq: 1047, dur: 0.4, type: 'triangle', gain: 0.14, delay: 0.2 });
+  }
+  deny() { this.tone({ freq: 220, freqEnd: 160, dur: 0.18, type: 'square', gain: 0.08 }); }
   overheat() {
     this.noise({ dur: 0.7, freq: 5000, freqEnd: 700, type: 'bandpass', q: 2, gain: 0.25 });
     this.tone({ freq: 320, freqEnd: 110, dur: 0.5, type: 'triangle', gain: 0.15 });
   }
   empty() { this.tone({ freq: 1200, dur: 0.03, type: 'square', gain: 0.07 }); }
-  reload() {
+  reload(shell = false) {
+    if (shell) { this.shell(); return; }
     this.tone({ freq: 480, dur: 0.05, type: 'square', gain: 0.08 });
     this.noise({ dur: 0.08, freq: 2200, gain: 0.15, delay: 0.3 });
     this.tone({ freq: 720, dur: 0.05, type: 'square', gain: 0.09, delay: 1.7 });

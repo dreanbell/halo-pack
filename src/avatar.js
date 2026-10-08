@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { sanitizeSkin } from './skins.js';
+import { buildGun } from './guns.js';
 
 // Soldado acorazado procedural (diseño original): esqueleto de grupos + piezas compartidas.
 // Mira hacia -Z, como la cámara. Pies en y = 0.
@@ -143,7 +144,7 @@ export function skinMaterials(skinIn) {
 
 // --- Geometrías compartidas --------------------------------------------------
 // Placa con bordes biselados (ExtrudeGeometry de un rectángulo redondeado).
-function plate(w, h, d, r = Math.min(w, h, d) * 0.25) {
+export function plate(w, h, d, r = Math.min(w, h, d) * 0.25) {
   const s = new THREE.Shape();
   const x = -w / 2 + r * 0.6, y = -h / 2 + r * 0.6, W = w - r * 1.2, H = h - r * 1.2, c = Math.min(W, H) * 0.25;
   s.moveTo(x + c, y);
@@ -340,11 +341,17 @@ export class Avatar {
     const gun = (this.gun = new THREE.Group());
     gun.position.set(0.12, 0.27, -0.34);
     spine.add(gun);
-    this.mesh(gun, g.gunBody, 'gun', 0, 0, 0);
-    this.mesh(gun, g.gunMag, 'trim', 0, -0.1, 0.03, 0.2, 0, 0);
-    this.mesh(gun, g.gunBarrel, 'gun', 0, 0.015, -0.36);
-    this.mesh(gun, g.gunStock, 'gun', 0, -0.02, 0.3);
-    this.mesh(gun, g.sight, 'glow', 0, 0.07, -0.05);
+    this.setWeapon('rifle');
+  }
+
+  // Cambia el arma que lleva en las manos (las manos se recolocan por IK en sus empuñaduras).
+  setWeapon(id) {
+    if (this.weaponId === id) return;
+    this.weaponId = id;
+    this.gun.clear();
+    const model = buildGun(id);
+    this.gun.add(model.group);
+    this.grips = model.grips;
   }
 
   buildHelmet() {
@@ -425,8 +432,8 @@ export class Avatar {
     const low = this.sprintK;
     this.gun.position.set(0.11 - low * 0.05, 0.27 - low * 0.12 + sw * 0.01 * a, -0.33 + low * 0.08);
     this.gun.rotation.set(-low * 0.5, low * 0.55, low * 0.2);
-    this.solveArm(this.arms[1], 0, -0.075, 0.1, 1);
-    this.solveArm(this.arms[-1], 0, -0.06, -0.19, -1);
+    this.solveArm(this.arms[1], ...this.grips.r, 1);
+    this.solveArm(this.arms[-1], ...this.grips.l, -1);
 
     // Muerte: cae de bruces.
     this.body.rotation.x = -this.deadK * Math.PI / 2;

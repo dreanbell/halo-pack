@@ -4,24 +4,41 @@ import { glowTexture } from './world.js';
 import { v3 } from './net.js';
 import { skinMaterials } from './avatar.js';
 import { DEFAULT_SKIN } from './skins.js';
+import { buildGun } from './guns.js';
 
-const R = CFG.rifle, PI = CFG.pistol, G = CFG.grenade, M = CFG.melee;
-const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _m = new THREE.Vector3(), _n = new THREE.Vector3();
+const W = CFG.weapons, G = CFG.grenade, M = CFG.melee;
+const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _m = new THREE.Vector3(), _n = new THREE.Vector3(), _c = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+
+// Estado de un arma en mano: munición en cargador/reserva o calor.
+class Slot {
+  constructor(id) {
+    this.id = id;
+    this.def = W[id];
+    this.mag = this.def.mag ?? 0;
+    this.reserve = this.def.reserve ?? 0;
+    this.heat = 0;
+    this.overT = 0;
+  }
+}
 
 export class Arsenal {
   constructor(ctx) {
     this.ctx = ctx;
     this.ray = new THREE.Raycaster();
     this.grenadeList = [];
+    this.shots = [];
     this.grenadeGeo = new THREE.SphereGeometry(0.12, 10, 8);
-    this.buildViewmodels();
+    this.shotGeo = new THREE.SphereGeometry(0.07, 10, 8).scale(1, 1, 3.2);
+    this.models = new Map();
+    this.zoom = 1;
+    this.buildViewmodelBase();
 
     const playing = () => ctx.game.state === 'playing' && ctx.player.alive;
     document.addEventListener('mousedown', (e) => {
       if (!playing()) return;
       if (e.button === 0) { this.trigger = true; this.pressed = true; }
-      if (e.button === 2) this.throwGrenade();
+      if (e.button === 2) { if (this.w.def.zoom) this.toggleZoom(); else this.throwGrenade(); }
     });
     document.addEventListener('mouseup', (e) => { if (e.button === 0) this.trigger = false; });
     document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -38,133 +55,110 @@ export class Arsenal {
     this.reset();
   }
 
-  reset() {
-    this.mag = R.mag;
-    this.reserve = R.reserve;
-    this.heat = 0;
-    this.overT = 0;
+  get w() {
+    return this.slots[this.current];
+  }
+
+  get pvp() {
+    return this.ctx.game.mode === 'dm';
+  }
+
+  reset(loadout = CFG.defaultLoadout) {
+    this.slots = [...new Set(loadout)].filter((id) => W[id]).slice(0, 2).map((id) => new Slot(id));
+    if (!this.slots.length) this.slots = CFG.defaultLoadout.map((id) => new Slot(id));
     this.current = 0;
     this.grenades = G.start;
     this.cooldown = this.reloadT = this.swapT = this.meleeT = this.throwT = 0;
-    this.spray = this.recoil = this.flashT = this.bobT = 0;
+    this.spray = this.recoil = this.flashT = this.bobT = this.pumpT = 0;
+    this.burstLeft = 0;
+    this.burstT = 0;
+    this.zoom = 1;
     this.trigger = this.pressed = false;
     this.aimEnemy = false;
     for (const g of this.grenadeList) this.ctx.scene.remove(g.mesh);
+    for (const s of this.shots) this.ctx.scene.remove(s.mesh);
     this.grenadeList.length = 0;
-    this.showModel();
+    this.shots.length = 0;
+    this.equip();
   }
 
   // --- Modelos en primera persona ---
-  buildViewmodels() {
-    const cam = this.ctx.camera;
+  buildViewmodelBase() {
     this.vm = new THREE.Group();
     this.vm.scale.setScalar(0.8);
-    cam.add(this.vm);
-    const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, metalness: 0.25, roughness: 0.55, ...o });
-    const box = (parent, m, w, h, d, x, y, z) => {
-      const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-      b.position.set(x, y, z);
-      parent.add(b);
-      return b;
-    };
-    const flashTex = glowTexture('rgba(255,240,200,1)', 'rgba(255,170,60,0)');
-    const makeFlash = (parent, color) => {
-      const f = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.28),
-        new THREE.MeshBasicMaterial({ map: flashTex, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-      f.visible = false;
-      parent.add(f);
-      return f;
-    };
-
-    // Carabina
-    const rifle = (this.rifleModel = new THREE.Group());
-    const body = mat(0x66775e), dark = mat(0x34393f), glow = new THREE.MeshBasicMaterial({ color: 0x8fe3ff });
-    box(rifle, body, 0.09, 0.12, 0.42, 0, 0, 0);
-    box(rifle, body, 0.1, 0.08, 0.22, 0, 0.04, -0.25);
-    box(rifle, dark, 0.06, 0.16, 0.08, 0, -0.12, -0.02).rotation.x = 0.2;
-    box(rifle, dark, 0.05, 0.13, 0.06, 0, -0.1, 0.13).rotation.x = -0.3;
-    box(rifle, body, 0.07, 0.1, 0.18, 0, -0.02, 0.27);
-    box(rifle, glow, 0.05, 0.03, 0.06, 0, 0.075, 0.08);
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.3, 8), dark);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.02, -0.4);
-    rifle.add(barrel);
-    this.rifleMuzzle = new THREE.Object3D();
-    this.rifleMuzzle.position.set(0, 0.02, -0.57);
-    rifle.add(this.rifleMuzzle);
-    this.rifleFlash = makeFlash(this.rifleMuzzle, 0xffd08a);
-
-    // Pistola de iones
-    const pistol = (this.pistolModel = new THREE.Group());
-    const white = mat(0xc9ccd6, { metalness: 0.3, roughness: 0.35 });
-    this.coilMat = new THREE.MeshBasicMaterial({ color: 0x5fe9ff });
-    box(pistol, white, 0.07, 0.09, 0.26, 0, 0, -0.05);
-    box(pistol, this.coilMat, 0.076, 0.03, 0.14, 0, 0.02, -0.08);
-    box(pistol, dark, 0.055, 0.14, 0.07, 0, -0.1, 0.04).rotation.x = -0.25;
-    box(pistol, white, 0.05, 0.05, 0.06, 0, 0.01, -0.2);
-    pistol.position.set(-0.02, 0.02, 0.06);
-    this.pistolMuzzle = new THREE.Object3D();
-    this.pistolMuzzle.position.set(0, 0.01, -0.25);
-    pistol.add(this.pistolMuzzle);
-    this.pistolFlash = makeFlash(this.pistolMuzzle, 0x7ff2ff);
-
-    // Brazos con la armadura del jugador: mano en el origen, antebrazo hacia la cámara.
+    this.ctx.camera.add(this.vm);
+    this.flashTex = glowTexture('rgba(255,240,200,1)', 'rgba(255,170,60,0)');
+    this.muzzleLight = new THREE.PointLight(0xffd08a, 0, 9, 2);
+    this.muzzleLight.position.set(0, 0.05, -0.6);
+    this.vm.add(this.muzzleLight);
+    this.skin = DEFAULT_SKIN;
     this.skinMeshes = [];
-    const sm = skinMaterials(DEFAULT_SKIN);
-    const geo = {
+    this.armGeo = {
       glove: new THREE.BoxGeometry(0.075, 0.075, 0.1),
       knuckle: new THREE.BoxGeometry(0.078, 0.025, 0.04),
       gauntlet: new THREE.CylinderGeometry(0.05, 0.043, 0.22, 14).rotateX(Math.PI / 2),
       cuff: new THREE.TorusGeometry(0.05, 0.01, 6, 16),
       sleeve: new THREE.CapsuleGeometry(0.046, 0.22, 4, 12).rotateX(Math.PI / 2),
     };
-    const arm = (parent, pos, rot) => {
-      const a = new THREE.Group();
-      a.position.set(...pos);
-      a.rotation.set(...rot);
-      a.scale.setScalar(1.25);
-      const part = (g, role, z, y = 0) => {
-        const m = new THREE.Mesh(g, sm[role]);
-        m.position.set(0, y, z);
-        m.userData.role = role;
-        a.add(m);
-        this.skinMeshes.push(m);
-      };
-      part(geo.glove, 'suit', 0);
-      part(geo.knuckle, 'trim', -0.03, 0.035);
-      part(geo.gauntlet, 'armor', 0.16);
-      part(geo.cuff, 'trim', 0.06);
-      part(geo.sleeve, 'suit', 0.36);
-      parent.add(a);
-    };
-    arm(rifle, [0.01, -0.1, 0.13], [0.32, 0.42, 0]);
-    arm(rifle, [-0.015, -0.07, -0.27], [0.62, -0.42, 0]);
-    arm(pistol, [0.005, -0.11, 0.06], [0.3, 0.38, 0]);
-    arm(pistol, [-0.04, -0.12, 0.05], [0.45, -0.45, 0.15]);
+  }
 
-    this.vm.add(rifle, pistol);
-    this.vm.traverse((o) => { o.frustumCulled = false; });
-    this.muzzleLight = new THREE.PointLight(0xffd08a, 0, 9, 2);
-    this.muzzleLight.position.set(0, 0.05, -0.6);
-    this.vm.add(this.muzzleLight);
+  // Brazo con la armadura del jugador: mano en el origen, antebrazo hacia la cámara.
+  arm(parent, pos, rot) {
+    const sm = skinMaterials(this.skin);
+    const a = new THREE.Group();
+    a.position.fromArray(pos);
+    a.rotation.set(...rot);
+    a.scale.setScalar(1.25);
+    const part = (g, role, z, y = 0) => {
+      const m = new THREE.Mesh(g, sm[role]);
+      m.position.set(0, y, z);
+      m.userData.role = role;
+      a.add(m);
+      this.skinMeshes.push(m);
+    };
+    part(this.armGeo.glove, 'suit', 0);
+    part(this.armGeo.knuckle, 'trim', -0.03, 0.035);
+    part(this.armGeo.gauntlet, 'armor', 0.16);
+    part(this.armGeo.cuff, 'trim', 0.06);
+    part(this.armGeo.sleeve, 'suit', 0.36);
+    parent.add(a);
+  }
+
+  model(id) {
+    if (this.models.has(id)) return this.models.get(id);
+    const gun = buildGun(id);
+    const pistolLike = id === 'pistol';
+    this.arm(gun.group, gun.grips.r, [0.32, 0.42, 0]);
+    this.arm(gun.group, gun.grips.l, pistolLike ? [0.45, -0.45, 0.15] : [0.62, -0.42, 0]);
+    const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), new THREE.MeshBasicMaterial({
+      map: this.flashTex, color: W[id].tracer, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    flash.visible = false;
+    gun.muzzle.add(flash);
+    if (pistolLike) gun.group.position.set(-0.02, 0.02, 0.06);
+    gun.group.traverse((o) => { o.frustumCulled = false; o.castShadow = false; });
+    gun.flash = flash;
+    gun.pumpZ = gun.parts.pump?.position.z ?? 0;
+    this.models.set(id, gun);
+    this.vm.add(gun.group);
+    return gun;
+  }
+
+  equip() {
+    for (const m of this.models.values()) m.group.visible = false;
+    this.gun = this.model(this.w.id);
+    this.gun.group.visible = true;
+    this.muzzleLight.color.setHex(this.w.def.tracer);
   }
 
   setSkin(skin) {
+    this.skin = skin;
     const sm = skinMaterials(skin);
     for (const m of this.skinMeshes) m.material = sm[m.userData.role];
   }
 
-  showModel() {
-    this.rifleModel.visible = this.current === 0;
-    this.pistolModel.visible = this.current === 1;
-  }
-
   muzzle() {
-    return (this.current === 0 ? this.rifleMuzzle : this.pistolMuzzle).getWorldPosition(_m);
-  }
-
-  get pvp() {
-    return this.ctx.game.mode === 'dm';
+    return this.gun.muzzle.getWorldPosition(_m);
   }
 
   targets() {
@@ -181,18 +175,28 @@ export class Arsenal {
   }
 
   spread() {
-    const p = this.ctx.player;
+    const p = this.ctx.player, d = this.w.def;
     const moving = Math.hypot(p.vel.x, p.vel.z) > 1 ? 0.008 : 0;
     const air = p.onGround ? 0 : 0.02;
     const crouch = p.crouching ? 0.6 : 1;
-    return this.current === 0 ? (R.spread + this.spray + moving + air) * crouch : PI.spread + air * 0.5;
+    if (this.zoom > 1 && d.zoomSpread !== undefined) return d.zoomSpread + air;
+    const base = d.spread + (d.sprayGrow ? this.spray : 0) + moving + air;
+    return base * crouch * (this.zoom > 1 ? 0.5 : 1);
   }
 
-  // --- Acciones ---
-  addAmmo(n) {
-    if (this.reserve >= R.maxReserve) return false;
-    this.reserve = Math.min(R.maxReserve, this.reserve + n);
-    return true;
+  // --- Munición y cambios de arma ---
+  wantsAmmo() {
+    return this.slots.some((s) => s.def.mag && s.reserve < s.def.maxReserve);
+  }
+
+  addAmmo(mult = 1) {
+    let any = false;
+    for (const s of this.slots) {
+      if (!s.def.mag || s.reserve >= s.def.maxReserve) continue;
+      s.reserve = Math.min(s.def.maxReserve, s.reserve + Math.ceil(s.def.pickup * mult));
+      any = true;
+    }
+    return any;
   }
 
   addGrenade(n) {
@@ -201,30 +205,78 @@ export class Arsenal {
     return true;
   }
 
+  has(id) {
+    return this.slots.some((s) => s.id === id);
+  }
+
+  // Arma nueva (caja misteriosa): si ya la tienes, munición llena; si no, sustituye la que llevas en la mano.
+  give(id) {
+    const own = this.slots.find((s) => s.id === id);
+    if (own) {
+      own.reserve = own.def.maxReserve ?? 0;
+      own.mag = own.def.mag ?? 0;
+      own.heat = 0;
+      own.overT = 0;
+      return 'ammo';
+    }
+    if (this.slots.length < 2) {
+      this.slots.push(new Slot(id));
+      this.current = this.slots.length - 1;
+    } else {
+      this.slots[this.current] = new Slot(id);
+    }
+    this.reloadT = 0;
+    this.burstLeft = 0;
+    this.zoom = 1;
+    this.swapT = CFG.swapTime;
+    this.equip();
+    return 'new';
+  }
+
   swap(to) {
+    if (this.slots.length < 2) return;
     if (to === undefined) to = 1 - this.current;
-    if (to === this.current || this.swapT > 0) return;
+    if (to === this.current || this.swapT > 0 || !this.slots[to]) return;
     this.current = to;
     this.reloadT = 0;
+    this.burstLeft = 0;
+    this.zoom = 1;
     this.swapT = CFG.swapTime;
     this.ctx.sfx.swap();
-    this.showModel();
+    this.equip();
+  }
+
+  toggleZoom() {
+    if (!this.w.def.zoom || this.reloadT > 0 || this.swapT > 0) return;
+    this.zoom = this.zoom > 1 ? 1 : this.w.def.zoom;
+    this.ctx.sfx.zoom();
   }
 
   startReload() {
-    if (this.current !== 0 || this.reloadT > 0 || this.swapT > 0 || this.mag >= R.mag || this.reserve <= 0) return;
-    this.reloadT = R.reload;
-    this.ctx.sfx.reload();
+    const s = this.w, d = s.def;
+    if (!d.mag || this.reloadT > 0 || this.swapT > 0 || s.mag >= d.mag || s.reserve <= 0) return;
+    this.reloadT = d.reload;
+    this.zoom = 1;
+    this.ctx.sfx.reload(d.shellReload);
   }
 
   finishReload() {
-    const take = Math.min(R.mag - this.mag, this.reserve);
-    this.mag += take;
-    this.reserve -= take;
+    const s = this.w, d = s.def;
+    if (d.shellReload) {
+      s.mag++;
+      s.reserve--;
+      // Cartucho a cartucho: continúa salvo que el jugador quiera disparar.
+      if (s.mag < d.mag && s.reserve > 0 && !this.trigger) { this.reloadT = d.reload; this.ctx.sfx.shell(); }
+      return;
+    }
+    const take = Math.min(d.mag - s.mag, s.reserve);
+    s.mag += take;
+    s.reserve -= take;
   }
 
-  hitscan(spread, damage, range, opts, color) {
-    const { camera, fx, hud, sfx, game } = this.ctx;
+  // --- Disparo ---
+  castRay(spread, range) {
+    const { camera } = this.ctx;
     camera.getWorldPosition(_o);
     camera.getWorldDirection(_d);
     _d.x += rand(-1, 1) * spread;
@@ -234,74 +286,226 @@ export class Arsenal {
     this.ray.set(_o, _d);
     this.ray.far = range;
     const hit = this.ray.intersectObjects(this.targets(), false)[0];
-    const end = hit ? hit.point : _o.clone().addScaledVector(_d, range);
-    if (hit) {
-      const e = hit.object.userData.enemy, r = hit.object.userData.remote;
-      if (r) {
-        this.hitRemote(r, damage, opts, hit.object.userData.part, _o);
-        fx.sparks(hit.point, r.shield > 0 ? 0x7fe7ff : 0xffb347);
-      } else if (e) {
-        const res = e.takeDamage(damage, { ...opts, part: hit.object.userData.part });
-        hud.hitMarker(res.killed);
-        fx.sparks(hit.point, res.shieldHit ? e.cfg.glow : 0xffb347);
-        sfx.hit();
-        if (res.killed) {
-          sfx.kill();
-          if (res.head && game.mode === 'sp') { game.score += 25; hud.toast('DISPARO A LA CABEZA +25'); }
+    return { hit, end: hit ? hit.point.clone() : _o.clone().addScaledVector(_d, range), dist: hit ? hit.distance : range };
+  }
+
+  applyHit(hit, damage, d) {
+    const { fx, hud, sfx, game } = this.ctx;
+    const e = hit.object.userData.enemy, r = hit.object.userData.remote;
+    const opts = { shieldMult: d.shieldMult ?? 1, headMult: d.headMult ?? 1 };
+    if (r) {
+      this.hitRemote(r, damage, opts, hit.object.userData.part, _o);
+      fx.sparks(hit.point, r.shield > 0 ? 0x7fe7ff : 0xffb347);
+    } else if (e) {
+      const res = e.takeDamage(damage, { ...opts, part: hit.object.userData.part });
+      hud.hitMarker(res.killed);
+      fx.sparks(hit.point, res.shieldHit ? e.cfg.glow : 0xffb347);
+      sfx.hit();
+      if (res.killed) {
+        sfx.kill();
+        if (res.head && game.mode === 'sp') { game.score += 25; hud.toast('DISPARO A LA CABEZA +25'); }
+      }
+    } else {
+      _n.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
+      fx.impact(hit.point, _n);
+    }
+  }
+
+  fire() {
+    const { player, sfx, hud, fx, net } = this.ctx;
+    const s = this.w, d = s.def;
+    if (d.heat && s.overT > 0) { if (this.pressed) sfx.empty(); return; }
+    if (d.mag) {
+      if (this.reloadT > 0) {
+        // La escopeta puede interrumpir la recarga para disparar.
+        if (!(d.shellReload && s.mag > 0)) return;
+        this.reloadT = 0;
+      }
+      if (s.mag <= 0) {
+        if (s.reserve > 0) this.startReload(); else if (this.pressed) sfx.empty();
+        return;
+      }
+      s.mag--;
+    }
+    this.cooldown = d.interval;
+    const muzzle = this.muzzle().clone();
+    const ends = [];
+    if (d.kind === 'pellets') {
+      for (let i = 0; i < d.pellets; i++) {
+        const { hit, end, dist } = this.castRay(this.spread(), d.range);
+        const [near, far] = d.falloff;
+        const k = dist <= near ? 1 : Math.max(0.3, 1 - ((dist - near) / (far - near)) * 0.7);
+        if (hit) this.applyHit(hit, d.damage * k, d);
+        ends.push(end);
+      }
+      this.pumpT = 1;
+    } else if (d.kind === 'projectile') {
+      this.launch(d, s.id);
+    } else {
+      const { hit, end } = this.castRay(this.spread(), d.range);
+      if (hit) this.applyHit(hit, d.damage, d);
+      ends.push(end);
+      if (d.burst && !this.burstFiring) { this.burstLeft = d.burst - 1; this.burstT = d.burstGap; }
+    }
+    for (const e of ends) fx.tracer(muzzle, e, d.tracer);
+    if (net.active && ends.length) net.bcast('fx', { w: s.id, a: v3(muzzle), bs: ends.map(v3) });
+
+    if (d.sprayGrow) this.spray = Math.min(d.sprayMax, this.spray + d.sprayGrow);
+    if (d.heat) {
+      s.heat += d.heat.perShot;
+      if (s.heat >= 1) { s.heat = 1; s.overT = d.heat.overheat; sfx.overheat(); hud.toast('SOBRECALENTADA'); }
+    }
+    this.recoil = Math.min(1, this.recoil + Math.min(1, d.recoil * 60));
+    player.addRecoil((d.recoil * (0.8 + Math.random() * 0.4)) / Math.sqrt(this.zoom), rand(-0.3, 0.3) * d.recoil);
+    this.flash();
+    sfx.shot(d.sound);
+  }
+
+  flash() {
+    this.flashT = 0.05;
+    this.gun.flash.rotation.z = Math.random() * Math.PI;
+  }
+
+  // --- Proyectiles (agujas y cañón de arco) ---
+  launch(d, id) {
+    const { camera, net } = this.ctx;
+    camera.getWorldPosition(_o);
+    camera.getWorldDirection(_d);
+    // Objetivo para el guiado: lo que haya en la mira.
+    this.ray.set(_o, _d);
+    this.ray.far = 80;
+    const aim = this.ray.intersectObjects(this.targets(), false)[0];
+    const target = aim?.object.userData.enemy ?? aim?.object.userData.remote ?? null;
+    const dir = _d.clone();
+    dir.x += rand(-1, 1) * d.spread;
+    dir.y += rand(-1, 1) * d.spread;
+    dir.normalize();
+    const from = this.muzzle().clone().lerp(_o, 0.4);
+    const shot = this.spawnShot(from, dir.multiplyScalar(d.projSpeed), id, null);
+    shot.target = target;
+    if (net.active) net.bcast('pshot', { p: v3(from), v: v3(shot.vel), w: id });
+  }
+
+  spawnShot(pos, vel, id, owner) {
+    const d = W[id];
+    const mesh = new THREE.Mesh(this.shotGeo, new THREE.MeshBasicMaterial({ color: d.tracer }));
+    mesh.scale.setScalar(d.splash ? 2.2 : 1);
+    mesh.position.copy(pos);
+    mesh.lookAt(_c.copy(pos).add(vel));
+    this.ctx.scene.add(mesh);
+    const shot = { mesh, vel, life: d.life, def: d, id, owner, target: null };
+    this.shots.push(shot);
+    return shot;
+  }
+
+  // Proyectil de otro jugador: solo visual (el daño lo calcula quien dispara).
+  remoteShot(m) {
+    this.spawnShot(new THREE.Vector3().fromArray(m.p), new THREE.Vector3().fromArray(m.v), m.w, m.from);
+  }
+
+  updateShots(dt) {
+    const { world, director, remotes, fx } = this.ctx;
+    for (let i = this.shots.length - 1; i >= 0; i--) {
+      const s = this.shots[i], d = s.def, p = s.mesh.position;
+      s.life -= dt;
+      // Guiado suave hacia el objetivo fijado.
+      const t = s.target;
+      if (d.homing && t && (t.alive || t.dead === false)) {
+        const c = t.center ? t.center(_c) : _c.set(t.pos.x, t.pos.y + 1.1, t.pos.z);
+        const speed = s.vel.length();
+        _d.subVectors(c, p).normalize().multiplyScalar(speed);
+        s.vel.lerp(_d, Math.min(1, d.homing * dt)).setLength(speed);
+      }
+      let done = false;
+      for (let k = 0; k < 3 && !done; k++) {
+        p.addScaledVector(s.vel, dt / 3);
+        if (s.owner === null) {
+          for (const e of director.enemies) {
+            if (e.dead || e.center(_c).distanceTo(p) > e.radius + 0.35) continue;
+            this.shotHit(s, e, null);
+            done = true;
+            break;
+          }
+          if (!done && this.pvp) {
+            for (const r of remotes.alive()) {
+              if (_c.set(r.pos.x, r.pos.y + 1, r.pos.z).distanceTo(p) > 0.6) continue;
+              this.shotHit(s, null, r);
+              done = true;
+              break;
+            }
+          }
         }
-      } else {
-        _n.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
-        fx.impact(hit.point, _n);
+        if (!done && world.pointInSolid(p)) {
+          if (d.splash) this.splash(p, d, s.owner); else fx.sparks(p, d.tracer);
+          done = true;
+        }
+      }
+      s.mesh.lookAt(_c.copy(p).add(s.vel));
+      if (done || s.life <= 0) {
+        if (!done && d.splash) this.splash(p, d, s.owner);
+        this.ctx.scene.remove(s.mesh);
+        s.mesh.material.dispose();
+        this.shots.splice(i, 1);
       }
     }
-    const muzzle = this.muzzle();
-    fx.tracer(muzzle, end, color);
-    if (this.ctx.net.active) this.ctx.net.bcast('fx', { w: this.current, a: v3(muzzle), b: v3(end) });
   }
 
-  fireRifle() {
-    const { player, sfx } = this.ctx;
-    this.mag--;
-    this.cooldown = R.interval;
-    this.hitscan(this.spread(), R.damage, R.range, { shieldMult: R.shieldMult, headMult: R.headMult }, 0xffe3a0);
-    this.spray = Math.min(R.sprayMax, this.spray + R.sprayGrow);
-    this.recoil = Math.min(1, this.recoil + 0.35);
-    player.addRecoil(0.004 + Math.random() * 0.003, rand(-0.002, 0.002));
-    this.flash(0xffd08a);
-    sfx.rifle();
-  }
-
-  firePistol() {
-    const { player, sfx, hud } = this.ctx;
-    if (this.overT > 0) { sfx.empty(); return; }
-    this.cooldown = PI.interval;
-    this.heat += PI.heatPerShot;
-    this.hitscan(this.spread(), PI.damage, PI.range, { shieldMult: PI.shieldMult, headMult: PI.headMult }, 0x6ff5ff);
-    this.recoil = Math.min(1, this.recoil + 0.6);
-    player.addRecoil(0.012, 0);
-    this.flash(0x7ff2ff);
-    sfx.pistol();
-    if (this.heat >= 1) {
-      this.heat = 1;
-      this.overT = PI.overheat;
-      sfx.overheat();
-      hud.toast('SOBRECALENTADA');
+  shotHit(s, enemy, remote) {
+    const { fx, hud, sfx } = this.ctx;
+    const d = s.def, p = s.mesh.position;
+    if (d.splash) { this.splash(p, d, null); return; }
+    if (enemy) {
+      const res = enemy.takeDamage(d.damage, { shieldMult: d.shieldMult, headMult: d.headMult, part: 'body' });
+      hud.hitMarker(res.killed);
+      sfx.hit();
+      if (res.killed) sfx.kill();
+      fx.sparks(p, d.tracer);
+    } else if (remote) {
+      this.hitRemote(remote, d.damage, d, 'body', p);
+      fx.sparks(p, d.tracer);
     }
   }
 
-  flash(color) {
-    this.flashT = 0.05;
-    this.muzzleLight.color.setHex(color);
-    const f = this.current === 0 ? this.rifleFlash : this.pistolFlash;
-    f.rotation.z = Math.random() * Math.PI;
+  // Explosión del cañón de arco. Solo el que dispara (owner null) aplica daño.
+  splash(p, d, owner) {
+    const { fx, sfx, player, director, remotes, world, hud } = this.ctx;
+    fx.explosion(p, d.splash);
+    sfx.explosion(p.distanceTo(player.pos));
+    if (owner !== null) return;
+    let hits = 0, kills = 0;
+    const eye = _m.copy(p).setY(p.y + 0.3);
+    for (const e of director.enemies) {
+      if (e.dead) continue;
+      const c = e.center(new THREE.Vector3());
+      const dist = c.distanceTo(p);
+      if (dist > d.splash || !world.lineOfSight(eye, c)) continue;
+      const res = e.takeDamage(d.damage * (0.25 + 0.75 * (1 - dist / d.splash)), { part: 'body' });
+      hits++;
+      if (res.killed) kills++;
+    }
+    if (this.pvp) {
+      for (const r of remotes.alive()) {
+        const dist = _c.set(r.pos.x, r.pos.y + 1, r.pos.z).distanceTo(p);
+        if (dist < d.splash) this.hitRemote(r, d.damage * (0.25 + 0.75 * (1 - dist / d.splash)), {}, 'body', p);
+      }
+    }
+    const pc = _c.set(player.pos.x, player.pos.y + 0.9, player.pos.z), dist = pc.distanceTo(p);
+    if (dist < d.splash && player.alive) {
+      player.damage(d.damage * 0.5 * (1 - dist / d.splash), p);
+      player.shake = 1;
+    }
+    if (hits) { hud.hitMarker(kills > 0); sfx.hit(); }
+    if (kills) sfx.kill();
   }
 
+  // --- Granadas ---
   throwGrenade() {
     const { camera, scene, player, sfx } = this.ctx;
     if (this.grenades <= 0 || this.throwT > 0 || this.swapT > 0) return;
     this.grenades--;
     this.throwT = 0.6;
     this.reloadT = 0;
+    this.zoom = 1;
     camera.getWorldPosition(_o);
     camera.getWorldDirection(_d);
     const mesh = new THREE.Mesh(this.grenadeGeo, new THREE.MeshStandardMaterial({ color: 0x3f5a2c, emissive: 0x000000, roughness: 0.5 }));
@@ -386,6 +590,7 @@ export class Arsenal {
     if (this.meleeT > 0 || this.swapT > 0) return;
     this.meleeT = M.cooldown;
     this.reloadT = 0;
+    this.zoom = 1;
     sfx.melee();
     const fwd = player.forward(_d);
     player.vel.addScaledVector(fwd, M.lunge);
@@ -423,66 +628,81 @@ export class Arsenal {
   }
 
   update(dt) {
-    const { player, camera, sfx } = this.ctx;
+    const { player, camera } = this.ctx;
+    const s = this.w, d = s.def;
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.meleeT = Math.max(0, this.meleeT - dt);
     this.throwT = Math.max(0, this.throwT - dt);
     this.swapT = Math.max(0, this.swapT - dt);
+    this.pumpT = Math.max(0, this.pumpT - dt * 2.2);
     this.spray = Math.max(0, this.spray - dt * (this.trigger ? 0.02 : 0.15));
-    if (this.overT > 0) {
-      this.overT -= dt;
-      this.heat = Math.max(0, this.overT / PI.overheat);
-      if (this.overT <= 0) { this.overT = 0; this.heat = 0; }
-    } else {
-      this.heat = Math.max(0, this.heat - PI.cool * dt);
+    // Todas las armas de calor se enfrían, también la que no está en la mano.
+    for (const sl of this.slots) {
+      if (!sl.def.heat) continue;
+      if (sl.overT > 0) {
+        sl.overT -= dt;
+        sl.heat = Math.max(0, sl.overT / sl.def.heat.overheat);
+        if (sl.overT <= 0) { sl.overT = 0; sl.heat = 0; }
+      } else {
+        sl.heat = Math.max(0, sl.heat - sl.def.heat.cool * dt);
+      }
     }
     if (this.reloadT > 0) {
       this.reloadT -= dt;
       if (this.reloadT <= 0) { this.reloadT = 0; this.finishReload(); }
     }
+    if (!player.alive || player.sprinting) this.zoom = 1;
 
     const busy = this.swapT > 0 || this.meleeT > M.cooldown - 0.35 || this.throwT > 0.3;
-    if (this.trigger && !busy && this.cooldown <= 0 && player.alive) {
-      if (this.current === 0) {
-        if (this.reloadT > 0) { /* recargando */ }
-        else if (this.mag > 0) this.fireRifle();
-        else if (this.reserve > 0) this.startReload();
-        else if (this.pressed) sfx.empty();
-      } else if (this.pressed) {
-        this.firePistol();
+    // Ráfagas (DMR): las balas restantes salen solas.
+    if (this.burstLeft > 0 && !busy) {
+      this.burstT -= dt;
+      if (s.mag <= 0) this.burstLeft = 0;
+      else if (this.burstT <= 0) {
+        this.burstLeft--;
+        this.burstT = d.burstGap;
+        this.burstFiring = true;
+        this.fire();
+        this.burstFiring = false;
       }
+    } else if (this.trigger && !busy && this.cooldown <= 0 && player.alive && (d.auto || this.pressed)) {
+      this.fire();
     }
     this.pressed = false;
     this.updateGrenades(dt);
+    this.updateShots(dt);
 
     // Animación del arma: balanceo, retroceso, cambio, recarga, golpe y sprint.
     const sp = Math.hypot(player.vel.x, player.vel.z);
     this.bobT += dt * sp * 1.4;
-    const bob = Math.min(sp / 9, 1) * (player.onGround ? 1 : 0.3);
+    const bob = Math.min(sp / 9, 1) * (player.onGround ? 1 : 0.3) * (this.zoom > 1 ? 0.2 : 1);
     this.recoil = Math.max(0, this.recoil - dt * 8);
     const swap = this.swapT / CFG.swapTime;
-    const rl = this.reloadT > 0 ? Math.sin((1 - this.reloadT / R.reload) * Math.PI) : 0;
+    const rl = this.reloadT > 0 && d.reload ? Math.sin((1 - this.reloadT / d.reload) * Math.PI) * (d.shellReload ? 0.4 : 1) : 0;
     const mel = this.meleeT > 0 ? Math.sin((1 - this.meleeT / M.cooldown) * Math.PI) ** 2 : 0;
     const sprint = player.sprinting ? 1 : 0;
     this.sprintK = (this.sprintK ?? 0) + (sprint - (this.sprintK ?? 0)) * Math.min(1, dt * 8);
+    this.aimK = (this.aimK ?? 0) + ((this.zoom > 1 ? 1 : 0) - (this.aimK ?? 0)) * Math.min(1, dt * 12);
     this.vm.position.set(
-      0.28 + Math.sin(this.bobT) * 0.012 * bob - mel * 0.18,
-      -0.26 + Math.abs(Math.cos(this.bobT)) * 0.012 * bob - swap * 0.35 - rl * 0.08 - this.sprintK * 0.04,
+      0.28 * (1 - this.aimK) + Math.sin(this.bobT) * 0.012 * bob - mel * 0.18,
+      -0.26 + this.aimK * 0.1 + Math.abs(Math.cos(this.bobT)) * 0.012 * bob - swap * 0.35 - rl * 0.08 - this.sprintK * 0.04,
       -0.62 + this.recoil * 0.06 - mel * 0.25,
     );
     this.vm.rotation.set(this.recoil * 0.08 - rl * 0.6 - this.sprintK * 0.25, mel * 0.6 + this.sprintK * 0.5, rl * 0.3);
+    // Con mira telescópica no se ve el arma.
+    this.vm.visible = !(d.scope && this.zoom > 1);
+    if (this.gun.parts.pump) this.gun.parts.pump.position.z = this.gun.pumpZ + Math.sin(this.pumpT * Math.PI) * 0.09;
+    if (this.gun.parts.coil) this.gun.parts.coil.material.color.setRGB(0.37 + s.heat * 0.63, 0.91 - s.heat * 0.6, 1 - s.heat * 0.8);
 
     this.flashT = Math.max(0, this.flashT - dt);
-    this.rifleFlash.visible = this.flashT > 0 && this.current === 0;
-    this.pistolFlash.visible = this.flashT > 0 && this.current === 1;
+    this.gun.flash.visible = this.flashT > 0;
     this.muzzleLight.intensity = this.flashT > 0 ? 6 : 0;
-    this.coilMat.color.setRGB(0.37 + this.heat * 0.63, 0.91 - this.heat * 0.6, 1 - this.heat * 0.8);
 
     // ¿Apunta a un enemigo? (retícula roja)
     camera.getWorldPosition(_o);
     camera.getWorldDirection(_d);
     this.ray.set(_o, _d);
-    this.ray.far = this.current === 0 ? R.range * 0.6 : PI.range * 0.6;
+    this.ray.far = Math.min(150, d.range ?? 80) * 0.7;
     const hit = this.ray.intersectObjects(this.targets(), false)[0];
     this.aimEnemy = !!(hit?.object.userData.enemy || hit?.object.userData.remote);
   }

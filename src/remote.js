@@ -41,7 +41,7 @@ class RemotePlayer {
     this.alive = false;
     this.yaw = 0;
     this.pitch = 0;
-    this.weapon = 0;
+    this.weapon = 'rifle';
     this.health = 100;
     this.shield = 100;
     this.buf = [];
@@ -74,6 +74,7 @@ class RemotePlayer {
     this.vel.fromArray(s.v);
     this.alive = !!s.a;
     this.weapon = s.w;
+    if (typeof s.w === 'string') this.avatar.setWeapon(s.w);
     this.health = s.hp;
     this.shield = s.sh;
   }

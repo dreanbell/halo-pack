@@ -1,11 +1,11 @@
 import { CFG } from './config.js';
 
 const IDS = [
-  'hud', 'menu', 'pause', 'gameover', 'lobby', 'armory', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
+  'hud', 'menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
   'crosshair', 'hitmarker', 'weapon-name', 'ammo', 'ammo-mag', 'ammo-res', 'heat', 'heat-fill',
   'grenades', 'radar', 'score', 'banner', 'banner-title', 'banner-sub',
   'toast', 'hint', 'vignette', 'dmg-dir', 'go-stats', 'go-title', 'btn-retry', 'feed', 'scoreboard', 'sb-title',
-  'sb-table', 'wave-info', 'score-label',
+  'sb-table', 'wave-info', 'score-label', 'weapon-alt', 'scope',
 ];
 const RADAR_RANGE = 30;
 
@@ -33,8 +33,8 @@ export class Hud {
   }
 
   showOverlay(name) {
-    for (const n of ['menu', 'pause', 'gameover', 'lobby', 'armory']) this.toggle(n, 'hidden', n !== name);
-    this.toggle('hud', 'hidden', name === 'menu' || name === 'lobby' || name === 'armory');
+    for (const n of ['menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout']) this.toggle(n, 'hidden', n !== name);
+    this.toggle('hud', 'hidden', ['menu', 'lobby', 'armory', 'loadout'].includes(name));
   }
 
   reset() {
@@ -129,17 +129,18 @@ export class Hud {
     this.style('health-fill', 'width', `${((p.health / P.maxHealth) * 100).toFixed(1)}%`);
     this.toggle('health-bar', 'low', p.health < 35);
 
-    const rifle = a.current === 0;
-    this.text('weapon-name', rifle ? CFG.rifle.name : CFG.pistol.name);
-    this.toggle('ammo', 'hidden', !rifle);
-    this.toggle('heat', 'hidden', rifle);
-    if (rifle) {
-      this.text('ammo-mag', a.mag);
-      this.text('ammo-res', `/ ${a.reserve}`);
-      this.toggle('ammo', 'low', a.mag <= 8);
+    const sl = a.w, wd = sl.def, other = a.slots[1 - a.current];
+    this.text('weapon-name', wd.name);
+    this.text('weapon-alt', other ? `${other.def.name} [Q]` : '');
+    this.toggle('ammo', 'hidden', !wd.mag);
+    this.toggle('heat', 'hidden', !wd.heat);
+    if (wd.mag) {
+      this.text('ammo-mag', sl.mag);
+      this.text('ammo-res', `/ ${sl.reserve}`);
+      this.toggle('ammo', 'low', sl.mag <= Math.ceil(wd.mag / 4));
     } else {
-      this.style('heat-fill', 'width', `${(a.heat * 100).toFixed(1)}%`);
-      this.toggle('heat', 'over', a.overT > 0);
+      this.style('heat-fill', 'width', `${(sl.heat * 100).toFixed(1)}%`);
+      this.toggle('heat', 'over', sl.overT > 0);
     }
     this.text('grenades', '◆'.repeat(a.grenades) + '◇'.repeat(CFG.grenade.max - a.grenades));
     if (g.mode === 'dm') {
@@ -150,21 +151,26 @@ export class Hud {
       this.text('wave-info', lead ? `LÍDER: ${lead.name.toUpperCase()} · ${lead.kills}` : '');
     } else {
       this.text('score', g.score.toLocaleString('es-ES'));
-      this.text('score-label', g.mode === 'coop' ? `EQUIPO · TUS BAJAS ${g.kills}` : '');
+      this.text('score-label', g.mode === 'coop' ? `CRÉDITOS ${d.credits()} · TUS BAJAS ${g.kills}` : '');
       this.text('wave-info', `OLEADA ${Math.max(1, g.wave)} · ${d.state === 'combat' ? `${d.remaining()} HOSTILES` : 'PREPARANDO…'}`);
     }
 
-    this.toggle('crosshair', 'pistol', !rifle);
+    const scoped = wd.scope && a.zoom > 1;
+    this.toggle('scope', 'hidden', !scoped);
+    this.toggle('crosshair', 'hidden', scoped);
+    this.toggle('crosshair', 'pistol', !wd.auto);
     this.toggle('crosshair', 'enemy', a.aimEnemy);
-    this.style('crosshair', '--s', `${(rifle ? 12 + a.spread() * 300 : 7).toFixed(1)}px`);
+    this.style('crosshair', '--s', `${(wd.kind === 'pellets' ? 22 : 7 + a.spread() * 300).toFixed(1)}px`);
 
     let hint = '';
+    const box = g.mode === 'coop' ? d.boxPrompt() : '';
     if (!p.alive && g.respawnIn > 0) hint = `REAPARECES EN ${Math.ceil(g.respawnIn)}`;
     else if (!p.alive && g.mode === 'coop') hint = 'CAÍDO · REAPARECES EN LA PRÓXIMA OLEADA';
+    else if (box) hint = box;
     else if (a.reloadT > 0) hint = 'RECARGANDO';
-    else if (!rifle && a.overT > 0) hint = 'SOBRECALENTADA';
-    else if (rifle && a.mag === 0 && a.reserve === 0) hint = 'SIN MUNICIÓN · CAMBIA DE ARMA [Q]';
-    else if (rifle && a.mag <= 6 && a.reserve > 0) hint = 'RECARGA [R]';
+    else if (wd.heat && sl.overT > 0) hint = 'SOBRECALENTADA';
+    else if (wd.mag && sl.mag === 0 && sl.reserve === 0) hint = 'SIN MUNICIÓN · CAMBIA DE ARMA [Q]';
+    else if (wd.mag && sl.mag <= Math.ceil(wd.mag / 5) && sl.reserve > 0) hint = 'RECARGA [R]';
     this.text('hint', hint);
 
     this.dmgFlash = Math.max(0, this.dmgFlash - dt * 1.8);

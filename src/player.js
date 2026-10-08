@@ -54,8 +54,9 @@ export class Player {
   }
 
   look(dx, dy) {
-    this.yaw.rotation.y -= dx * P.sensitivity;
-    this.pitch.rotation.x = clamp(this.pitch.rotation.x - dy * P.sensitivity, -1.5, 1.5);
+    const k = P.sensitivity / (this.ctx.arsenal?.zoom ?? 1); // más fino con mira
+    this.yaw.rotation.y -= dx * k;
+    this.pitch.rotation.x = clamp(this.pitch.rotation.x - dy * k, -1.5, 1.5);
   }
 
   addRecoil(up, side) {
@@ -133,9 +134,10 @@ export class Player {
     this.shake = Math.max(0, this.shake - dt * 2.5);
     const s = this.shake * this.shake * 0.25;
     cam.position.set((Math.random() - 0.5) * s, (Math.random() - 0.5) * s, 0);
-    const fov = this.sprinting ? 86 : 78;
+    const zoom = this.ctx.arsenal?.zoom ?? 1;
+    const fov = zoom > 1 ? 78 / zoom : this.sprinting ? 86 : 78;
     if (Math.abs(cam.fov - fov) > 0.05) {
-      cam.fov += (fov - cam.fov) * Math.min(1, dt * 8);
+      cam.fov += (fov - cam.fov) * Math.min(1, dt * 14);
       cam.updateProjectionMatrix();
     }
   }

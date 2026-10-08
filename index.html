@@ -25,11 +25,13 @@
     </div>
     <div id="feed"></div>
     <div id="scoreboard" class="hidden"><h3 id="sb-title"></h3><table id="sb-table"></table></div>
+    <div id="scope" class="hidden"></div>
     <div id="crosshair"></div>
     <div id="hitmarker"></div>
     <div id="dmg-dir"></div>
     <div id="hint"></div>
     <div id="weapon-panel">
+      <div id="weapon-alt"></div>
       <div id="weapon-name"></div>
       <div id="ammo"><span id="ammo-mag">32</span><span id="ammo-res">/ 192</span></div>
       <div id="heat" class="hidden"><div id="heat-fill"></div></div>
@@ -54,7 +56,9 @@
         <kbd>C / Ctrl</kbd><span>Agacharse</span>
         <kbd>R</kbd><span>Recargar</span>
         <kbd>Q / 1 / 2</kbd><span>Cambiar arma</span>
-        <kbd>G / Clic der.</kbd><span>Granada</span>
+        <kbd>Clic der.</kbd><span>Mira (DMR / francotirador) · si no, granada</span>
+        <kbd>G</kbd><span>Granada</span>
+        <kbd>E</kbd><span>Usar caja misteriosa (cooperativo)</span>
         <kbd>F</kbd><span>Golpe cuerpo a cuerpo (por la espalda = eliminación)</span>
         <kbd>Tab</kbd><span>Marcador (multijugador)</span>
         <kbd>Esc</kbd><span>Pausa</span>
@@ -64,7 +68,10 @@
         <button id="btn-start">UN JUGADOR</button>
         <button id="btn-mp">MULTIJUGADOR LAN</button>
       </div>
-      <button id="btn-armory" class="secondary">ARMERÍA · PERSONALIZAR SOLDADO</button>
+      <div class="row-buttons">
+        <button id="btn-loadout" class="secondary">ARMAS</button>
+        <button id="btn-armory" class="secondary">ARMERÍA · PERSONALIZAR SOLDADO</button>
+      </div>
       <p class="best">Récord: <b id="best">0</b></p>
       <p id="touch-warn" class="warn hidden">Esta demo requiere teclado y ratón.</p>
       <p class="note">Proyecto fan original. No usa assets, nombres ni código de ninguna franquicia comercial. <span class="build"></span></p>
@@ -120,6 +127,7 @@
         <p id="mp-wait" class="status"></p>
       </div>
       <div class="row-buttons">
+        <button id="btn-lobby-loadout" class="secondary">ARMAS</button>
         <button id="btn-lobby-armory" class="secondary">ARMERÍA</button>
         <button id="btn-lobby-back" class="secondary">VOLVER</button>
       </div>
@@ -145,7 +153,17 @@
     </div>
   </div>
 
+  <div id="loadout" class="overlay hidden">
+    <div class="panel loadout-panel">
+      <h2>ARMAS</h2>
+      <p class="tip">Elige tus dos armas para <b>un jugador</b> y <b>todos contra todos</b>. En <b>cooperativo</b> empiezas con carabina y pistola y el resto sale de la caja misteriosa.</p>
+      <h4>ARMA PRINCIPAL</h4><div class="weapon-grid" id="lo-0"></div>
+      <h4>ARMA SECUNDARIA</h4><div class="weapon-grid" id="lo-1"></div>
+      <button id="btn-loadout-done">LISTO</button>
+    </div>
+  </div>
+
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/main.js?v=1.3.0"></script>
+  <script type="module" src="src/main.js?v=1.4.0"></script>
 </body>
 </html>

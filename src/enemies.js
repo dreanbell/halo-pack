@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CFG, waveComposition, rand } from './config.js';
 import { v3 } from './net.js';
+import { MysteryBox } from './box.js';
 
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
@@ -337,12 +338,30 @@ export class Director {
     this.mode = mode;
     this.authority = authority;
     this.reset();
+    if (mode === 'coop') this.boxes = CFG.box.spots.map((spot, i) => new MysteryBox(this.ctx, i, this.freeSpot(spot)));
+  }
+
+  // Sitio libre para una caja cerca del punto pedido (las cajas del mapa son aleatorias).
+  freeSpot([x, y, z, rot]) {
+    const { colliders } = this.ctx.world;
+    const box = new THREE.Box3();
+    for (let r = 0; r <= 8; r++) {
+      for (let a = 0; a < (r ? 12 : 1); a++) {
+        const px = x + Math.cos((a / 12) * Math.PI * 2) * r, pz = z + Math.sin((a / 12) * Math.PI * 2) * r;
+        box.min.set(px - 1.1, y + 0.02, pz - 0.8);
+        box.max.set(px + 1.1, y + 1.5, pz + 0.8);
+        if (!colliders.some((c) => c.intersectsBox(box))) return [px, y, pz, rot];
+      }
+    }
+    return [x, y, z, rot];
   }
 
   reset() {
     for (const e of this.enemies) e.dispose();
     for (const p of this.projectiles) this.ctx.scene.remove(p.mesh);
     for (const p of this.pickups) this.ctx.scene.remove(p.mesh);
+    for (const b of this.boxes ?? []) b.dispose();
+    this.boxes = [];
     this.enemies.length = this.projectiles.length = this.pickups.length = this.queue.length = 0;
     this.byId = new Map();
     this.scores = new Map();
@@ -383,7 +402,7 @@ export class Director {
   }
 
   score(id) {
-    if (!this.scores.has(id)) this.scores.set(id, { kills: 0, score: 0 });
+    if (!this.scores.has(id)) this.scores.set(id, { kills: 0, score: 0, credits: 0 });
     return this.scores.get(id);
   }
 
@@ -408,6 +427,9 @@ export class Director {
     this.state = 'intermission';
     this.timer = CFG.waves.intermission;
     game.score += game.wave * 100;
+    // Créditos por oleada para todo el equipo (los caídos también).
+    const ids = this.online ? [...this.net.players.keys()] : [this.myId()];
+    for (const id of ids) this.score(id).credits += CFG.box.waveBonus;
     this.onWave({ k: 'clear', n: game.wave });
     if (this.online) this.net.bcast('wave', { k: 'clear', n: game.wave });
   }
@@ -422,7 +444,7 @@ export class Director {
       sfx.wave();
       game.onWaveStart?.();
     } else {
-      arsenal.addAmmo(64);
+      arsenal.addAmmo(1.5);
       arsenal.addGrenade(1);
       hud.banner('OLEADA SUPERADA', `+${m.n * 100} PTS · MUNICIÓN Y GRANADA`, 2.6);
       sfx.pickup();
@@ -455,6 +477,7 @@ export class Director {
     const s = this.score(killer);
     s.kills++;
     s.score += e.cfg.score;
+    s.credits += e.cfg.score;
     game.score += e.cfg.score;
     if (killer === me) game.kills++;
     if (this.online) {
@@ -533,7 +556,7 @@ export class Director {
       w: game.wave, st: this.state, tm: +this.timer.toFixed(2), q: this.queue, sc: game.score,
       e: this.enemies.map((e) => [e.id, TYPES.indexOf(e.type), ...v3(e.pos), +e.group.rotation.y.toFixed(3), Math.round(e.hp), Math.round(e.shield), e.dead ? 1 : 0]),
       p: this.pickups.map((p) => [p.id, p.kind, ...v3(p.mesh.position)]),
-      s: [...this.scores].map(([id, s]) => [id, s.kills, s.score]),
+      s: [...this.scores].map(([id, s]) => [id, s.kills, s.score, s.credits]),
     };
   }
 
@@ -545,7 +568,7 @@ export class Director {
     this.state = s.st;
     this.timer = s.tm;
     this.queueN = s.q.length;
-    this.scores = new Map(s.s.map(([id, kills, score]) => [id, { kills, score }]));
+    this.scores = new Map(s.s.map(([id, kills, score, credits]) => [id, { kills, score, credits }]));
     game.kills = this.scores.get(this.net.id)?.kills ?? 0;
 
     const seen = new Set();
@@ -587,6 +610,75 @@ export class Director {
     this.net.to(m.from, 'grant', { kind: p.kind });
   }
 
+  // --- Caja misteriosa ---
+  credits() {
+    return this.scores.get(this.myId())?.credits ?? 0;
+  }
+
+  boxPool() {
+    const wave = Math.max(1, this.ctx.game.wave);
+    return CFG.box.pool.filter((p) => p.wave <= wave).flatMap((p) => p.ids);
+  }
+
+  nearBox() {
+    const p = this.ctx.player;
+    if (!p.alive) return null;
+    return this.boxes.find((b) => Math.hypot(b.pos.x - p.pos.x, b.pos.z - p.pos.z) < CFG.box.range && Math.abs(b.pos.y - p.pos.y) < 1.5) ?? null;
+  }
+
+  // Texto de ayuda cuando estás junto a una caja.
+  boxPrompt() {
+    const b = this.nearBox();
+    if (!b) return '';
+    if (b.takeable(this.myId())) return `E · COGER ${CFG.weapons[b.weapon].name}`;
+    if (b.state !== 'idle') return 'CAJA EN USO';
+    const c = CFG.box.cost;
+    return this.credits() >= c ? `E · CAJA MISTERIOSA (${c} CRÉDITOS)` : `CAJA MISTERIOSA · NECESITAS ${c} CRÉDITOS`;
+  }
+
+  // Tecla E del jugador local.
+  interact() {
+    const b = this.nearBox();
+    if (!b) return false;
+    const me = this.myId();
+    if (b.takeable(me)) {
+      const id = b.weapon;
+      const res = this.ctx.arsenal.give(id);
+      this.ctx.hud.toast(res === 'ammo' ? `MUNICIÓN LLENA · ${CFG.weapons[id].name}` : CFG.weapons[id].name);
+      this.ctx.sfx.pickup();
+      b.close();
+      if (this.online) this.net.bcast('boxTake', { id: b.id });
+      return true;
+    }
+    if (b.state !== 'idle') return true;
+    if (this.authority) this.useBox(b.id, me);
+    else this.net.to(this.net.hostId, 'boxUse', { id: b.id });
+    return true;
+  }
+
+  // Anfitrión: valida créditos, cobra y decide el arma.
+  useBox(boxId, playerId) {
+    const b = this.boxes[boxId];
+    const s = this.score(playerId);
+    let reason = null;
+    if (!b || b.state !== 'idle') reason = 'CAJA EN USO';
+    else if (s.credits < CFG.box.cost) reason = `NECESITAS ${CFG.box.cost} CRÉDITOS`;
+    if (reason) {
+      if (playerId === this.myId()) { this.ctx.hud.toast(reason); this.ctx.sfx.deny(); }
+      else this.net.to(playerId, 'boxDeny', { reason });
+      return;
+    }
+    s.credits -= CFG.box.cost;
+    const pool = this.boxPool();
+    const w = pool[(Math.random() * pool.length) | 0];
+    b.start(w, playerId, pool);
+    if (this.online) this.net.bcast('box', { id: boxId, by: playerId, w, pool });
+  }
+
+  onBox(m) {
+    this.boxes[m.id]?.start(m.w, m.by, m.pool);
+  }
+
   // Migración: el anfitrión se fue y ahora simulamos nosotros.
   promote() {
     if (this.authority) return;
@@ -614,6 +706,7 @@ export class Director {
 
   update(dt) {
     if (this.mode === 'dm') return;
+    for (const b of this.boxes) b.update(dt);
     const { game, player, world, fx, arsenal } = this.ctx;
     const W = CFG.waves;
     this.collectTargets();
@@ -685,7 +778,7 @@ export class Director {
       p.mesh.rotation.y += dt * 2;
       p.mesh.position.y = p.mesh.position.y * 0.9 + (world.groundHeightAt(p.mesh.position.x, p.mesh.position.z, 0.1, p.mesh.position.y) + 0.45 + Math.sin(p.t * 3) * 0.1) * 0.1;
       const near = player.alive && p.mesh.position.distanceTo(_a.set(player.pos.x, player.pos.y + 0.6, player.pos.z)) < 1.5;
-      const wanted = p.kind === 'ammo' ? arsenal.reserve < CFG.rifle.maxReserve : arsenal.grenades < CFG.grenade.max;
+      const wanted = p.kind === 'ammo' ? arsenal.wantsAmmo() : arsenal.grenades < CFG.grenade.max;
       if (this.authority) {
         p.life -= dt;
         let taken = false;
@@ -700,7 +793,7 @@ export class Director {
 
   grant(kind) {
     const { arsenal, hud, sfx } = this.ctx;
-    if (kind === 'ammo' && arsenal.addAmmo(48)) hud.toast('+48 MUNICIÓN');
+    if (kind === 'ammo' && arsenal.addAmmo(1)) hud.toast('+MUNICIÓN');
     if (kind === 'grenade' && arsenal.addGrenade(1)) hud.toast('+1 GRANADA');
     sfx.pickup();
   }
