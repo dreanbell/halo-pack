@@ -91,6 +91,28 @@ export class Effects {
     this.lightT = 0.35;
   }
 
+  // Anillo de onda expansiva sobre el suelo.
+  shockwave(pos, radius, color = 0xff6a3d) {
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48).rotateX(-Math.PI / 2), mat);
+    ring.position.set(pos.x, pos.y + 0.08, pos.z);
+    this.add(ring, 0.6, (it, k) => {
+      ring.scale.setScalar(Math.max(0.05, radius * (1 - k * k)));
+      mat.opacity = k;
+    });
+    const dust = new THREE.MeshStandardMaterial({ color: 0x6a6a5a, transparent: true, opacity: 0.5, depthWrite: false, roughness: 1 });
+    const cloud = new THREE.Mesh(new THREE.TorusGeometry(1, 0.35, 8, 32).rotateX(Math.PI / 2), dust);
+    cloud.position.copy(ring.position);
+    this.add(cloud, 1.1, (it, k) => {
+      cloud.scale.set(radius * (1 - k * 0.6), 1 + (1 - k), radius * (1 - k * 0.6));
+      cloud.position.y = pos.y + 0.3 + (1 - k) * 0.6;
+      dust.opacity = 0.5 * k;
+    });
+    this.burst(new THREE.Vector3(pos.x, pos.y + 0.3, pos.z), color, 40, 10, 0.7, 0.14, 12);
+    this.light.position.set(pos.x, pos.y + 1, pos.z);
+    this.lightT = 0.35;
+  }
+
   clear() {
     for (const it of this.items) this.dispose(it);
     for (const d of this.decals) this.scene.remove(d);

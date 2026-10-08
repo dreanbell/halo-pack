@@ -36,6 +36,21 @@ No necesita build ni dependencias: three.js y PeerJS van incluidos en `vendor/`.
 python3 -m http.server 8000   # o: node server.js 8000 → http://localhost:8000
 ```
 
+## Enemigos
+
+| Enemigo | Desde | Comportamiento |
+|---|---|---|
+| Skitter | Oleada 1 | Bípedo rápido con pistola de plasma |
+| Warden | Oleada 2 | Blindado con escudo de energía, ráfagas de 3 |
+| Drone | Oleada 2 | Vuela en grupo, te rodea y dispara |
+| Ravager | Oleada 3 | Bestia cuerpo a cuerpo que carga |
+| Stalker | Oleada 4 | Camuflado e invisible en el radar; salta sobre ti y se revela al atacar o recibir daño |
+| Bombardier | Oleada 6 | Artillería: morteros en parábola con daño en área, desde lejos |
+| **WARLORD** (jefe) | Oleadas 5, 15, 25… | Abanico de plasma, salto con onda expansiva, embestida con aviso, refuerzos al 50 % y 25 %, furia en la 2.ª fase |
+| **OVERSEER** (jefe) | Oleadas 10, 20… | Vuela; lluvia de orbes explosivos, bombardeo de morteros, picados con onda expansiva y drones de refuerzo |
+
+**Dificultad:** cada oleada trae más enemigos, con +12 % de vida y +5 % de daño, aparecen más rápido y hay más a la vez (hasta 26). En cooperativo escala además con el número de jugadores. Los jefes son más duros cada vez que vuelven y sueltan munición y granadas al morir.
+
 ## Armas
 
 | Arma | Tipo | Notas |
@@ -127,6 +142,7 @@ src/skins.js        Opciones de armadura y validación
 src/armory.js       Pantalla de armería con vista previa 3D
 src/guns.js         Modelos de las armas
 src/box.js          Caja misteriosa del cooperativo
+src/aliens.js       Modelos y animación de los alienígenas (quitina, escudos de energía)
 src/config.js       Tuning: armas, enemigos, oleadas
 src/world.js        Arena procedural, cielo con anillo y colisiones AABB
 src/nav.js          Rejilla de navegación + campo de flujo

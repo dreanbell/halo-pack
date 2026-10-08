@@ -5,7 +5,7 @@ const IDS = [
   'crosshair', 'hitmarker', 'weapon-name', 'ammo', 'ammo-mag', 'ammo-res', 'heat', 'heat-fill',
   'grenades', 'radar', 'score', 'banner', 'banner-title', 'banner-sub',
   'toast', 'hint', 'vignette', 'dmg-dir', 'go-stats', 'go-title', 'btn-retry', 'feed', 'scoreboard', 'sb-title',
-  'sb-table', 'wave-info', 'score-label', 'weapon-alt', 'scope',
+  'sb-table', 'wave-info', 'score-label', 'weapon-alt', 'scope', 'boss', 'boss-name', 'boss-hp', 'boss-sh',
 ];
 const RADAR_RANGE = 30;
 
@@ -177,6 +177,14 @@ export class Hud {
     const low = p.health < 40 ? (1 - p.health / 40) * 0.7 : 0;
     this.style('vignette', 'opacity', Math.max(this.dmgFlash, low).toFixed(2));
 
+    // Barra del jefe.
+    const boss = d.enemies.find((e) => e.cfg.boss && !e.dead);
+    this.toggle('boss', 'hidden', !boss);
+    if (boss) {
+      this.text('boss-name', `${boss.cfg.label}${(boss.flags & 4) ? ' · FURIA' : ''}`);
+      this.style('boss-hp', 'width', `${Math.max(0, (boss.hp / boss.maxHp) * 100).toFixed(1)}%`);
+      this.style('boss-sh', 'width', `${boss.maxShield ? Math.max(0, (boss.shield / boss.maxShield) * 100).toFixed(1) : 0}%`);
+    }
     this.drawRadar(p, d.enemies, ctx.remotes.list(), g.mode);
   }
 
@@ -191,7 +199,8 @@ export class Hud {
     c.beginPath(); c.moveTo(cx, cx - R); c.lineTo(cx, cx + R); c.moveTo(cx - R, cx); c.lineTo(cx + R, cx); c.stroke();
 
     const s = Math.sin(p.yaw.rotation.y), co = Math.cos(p.yaw.rotation.y);
-    const blips = enemies.filter((e) => !e.dead).map((e) => ({ pos: e.pos, big: e.cfg.scale > 1.1, color: '#ff4d5e' }));
+    // Los Stalker camuflados no aparecen en el radar.
+    const blips = enemies.filter((e) => !e.dead && (e.flags & 1)).map((e) => ({ pos: e.pos, big: e.cfg.scale > 1.1, color: e.cfg.boss ? '#ffb340' : '#ff4d5e' }));
     const now = performance.now();
     for (const r of remotes) {
       if (!r.alive) continue;

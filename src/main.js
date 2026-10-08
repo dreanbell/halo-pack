@@ -424,6 +424,11 @@ net.on('pshot', (m) => {
   arsenal.remoteShot(m);
   sfx.shot(CFG.weapons[m.w].sound, Math.max(1, vec(m.p).distanceTo(player.pos)));
 });
+net.on('efx', (m) => {
+  if (!inMatch()) return;
+  if (m.k === 'ring') director.shockwave(vec(m.p), m.r, 0, m.c, false);
+  else if (m.k === 'toast') hud.toast(m.text);
+});
 net.on('box', (m) => { if (inMatch() && game.mode === 'coop') director.onBox(m); });
 net.on('boxUse', (m) => { if (inMatch() && director.authority) director.useBox(m.id, m.from); });
 net.on('boxDeny', (m) => { hud.toast(m.reason); sfx.deny(); });
@@ -468,7 +473,7 @@ net.on('snap', (m) => {
   if (inMatch() && game.mode === 'coop' && !director.authority && m.from === net.hostId) director.applySnapshot(m);
 });
 net.on('proj', (m) => {
-  if (inMatch() && game.mode === 'coop' && !director.authority) director.spawnProjectile(vec(m.p), vec(m.v), m.d, m.c, false);
+  if (inMatch() && game.mode === 'coop' && !director.authority) director.spawnProjectile(vec(m.p), vec(m.v), m.d, m.c, false, { gravity: m.g, splash: m.s, size: m.z });
 });
 net.on('wave', (m) => { if (inMatch() && !director.authority) director.onWave(m); });
 net.on('hurt', (m) => {

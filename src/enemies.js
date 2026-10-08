@@ -1,35 +1,52 @@
 import * as THREE from 'three';
-import { CFG, waveComposition, rand } from './config.js';
+import { CFG, waveComposition, difficulty, rand } from './config.js';
 import { v3 } from './net.js';
 import { MysteryBox } from './box.js';
+import { buildAlien } from './aliens.js';
 
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _f = { x: 0, z: 0 };
+const _c = new THREE.Vector3();
+const _d = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
 const TYPES = Object.keys(CFG.enemies);
 const SNAP_RATE = 1 / 12;
 
+const GRAV = 22;
+const MORTAR_G = 16;
+const pick = (list) => list[(Math.random() * list.length) | 0];
+
 class Enemy {
   // replica = true: copia de un enemigo simulado por el anfitrión (coop, cliente).
-  constructor(ctx, type, pos, id, replica = false) {
+  constructor(ctx, type, pos, id, replica = false, scale = {}) {
     this.ctx = ctx;
     this.id = id;
     this.type = type;
     this.replica = replica;
     this.cfg = CFG.enemies[type];
     const c = this.cfg;
+    this.dmgMult = scale.dmg ?? 1;
+    this.maxHp = c.hp * (scale.hp ?? 1);
+    this.maxShield = c.shield * (scale.hp ?? 1);
+    this.hp = this.maxHp;
+    this.shield = this.maxShield;
     this.pos = pos.clone();
-    this.netPos = pos.clone();
+    this.flying = !!c.fly;
+    this.altitude = c.fly ? rand(...c.fly) : 0;
+    if (this.flying && !replica) this.pos.y = Math.max(this.pos.y, this.altitude);
+    this.netPos = this.pos.clone();
     this.netRot = 0;
     this.vel = new THREE.Vector3();
-    this.hp = c.hp;
-    this.shield = c.shield;
+    this.vy = 0;
+    this.onGround = true;
     this.sinceHit = 99;
     this.cool = rand(1.2, 2.4);
     this.burstLeft = 0;
     this.burstTimer = 0;
     this.strafeDir = Math.random() < 0.5 ? -1 : 1;
     this.strafeTimer = rand(1, 3);
+    this.orbitA = Math.random() * Math.PI * 2;
     this.losTimer = 0;
     this.los = false;
     this.target = null;
@@ -42,55 +59,36 @@ class Enemy {
     this.spawnT = 0;
     this.flash = 0;
     this.hitT = 0;
-    this.t = Math.random() * 10;
+    this.attackT = 0;
+    this.revealT = 0;
+    this.revealK = 0;
+    this.leapCD = rand(2, 4);
+    this.flags = 0;
+    // Jefes
+    this.bstate = 'walk';
+    this.bT = 2.5;
+    this.summoned = 0;
+    this.enraged = false;
+    this.telegraph = false;
     this.radius = 0.45 * c.scale;
-    this.height = 1.6 * c.scale;
+    this.height = (this.flying ? 0.8 : 1.6) * c.scale;
+    this.t = Math.random() * 10;
     this.build();
   }
 
   build() {
-    const c = this.cfg, s = c.scale;
-    const g = (this.group = new THREE.Group());
-    this.bodyMat = new THREE.MeshStandardMaterial({ color: c.body, roughness: 0.45, metalness: 0.35, emissive: 0x000000 });
-    const glowMat = new THREE.MeshBasicMaterial({ color: c.glow });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x22262b, metalness: 0.6, roughness: 0.4 });
-    const mesh = (geo, mat, x, y, z) => {
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(x * s, y * s, z * s);
-      m.castShadow = true;
-      g.add(m);
-      return m;
-    };
-    const body = mesh(new THREE.CapsuleGeometry(0.38 * s, 0.6 * s, 4, 10), this.bodyMat, 0, 0.75, 0);
-    const head = mesh(new THREE.SphereGeometry(0.24 * s, 14, 10), this.bodyMat, 0, 1.42, 0.04);
-    mesh(new THREE.BoxGeometry(0.3 * s, 0.06 * s, 0.06 * s), glowMat, 0, 1.45, 0.24);
-    mesh(new THREE.BoxGeometry(0.5 * s, 0.55 * s, 0.25 * s), this.bodyMat, 0, 0.95, -0.35);
-    mesh(new THREE.BoxGeometry(0.36 * s, 0.08 * s, 0.05 * s), glowMat, 0, 1.05, -0.48);
-    if (c.melee) {
-      for (const sx of [-1, 1]) mesh(new THREE.ConeGeometry(0.09 * s, 0.6 * s, 6).rotateX(Math.PI / 2), glowMat, sx * 0.42, 0.85, 0.35);
-    } else {
-      mesh(new THREE.BoxGeometry(0.12 * s, 0.12 * s, 0.55 * s), darkMat, 0.32, 0.95, 0.3);
-    }
-    this.muzzle = new THREE.Object3D();
-    this.muzzle.position.set(0.32 * s, 0.95 * s, 0.6 * s);
-    g.add(this.muzzle);
-    body.userData = { enemy: this, part: 'body' };
-    head.userData = { enemy: this, part: 'head' };
-    this.hitMeshes = [body, head];
-    if (c.shield > 0) {
-      this.bubbleMat = new THREE.MeshBasicMaterial({ color: c.glow, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
-      const bubble = new THREE.Mesh(new THREE.SphereGeometry(0.75 * s, 16, 12), this.bubbleMat);
-      bubble.scale.y = 1.3;
-      bubble.position.y = 0.85 * s;
-      g.add(bubble);
-    }
-    g.position.copy(this.pos);
-    g.scale.setScalar(0.01);
-    this.ctx.scene.add(g);
+    const rig = (this.rig = buildAlien(this.type));
+    this.group = rig.root;
+    for (const m of rig.hitMeshes) m.userData = { enemy: this, part: m.userData.part };
+    this.hitMeshes = rig.hitMeshes;
+    this.muzzle = rig.muzzle;
+    rig.body.scale.setScalar(0.01);
+    this.group.position.copy(this.pos);
+    this.ctx.scene.add(this.group);
   }
 
   center(out = _b) {
-    return out.set(this.pos.x, this.pos.y + this.height * 0.55, this.pos.z);
+    return out.set(this.pos.x, this.pos.y + (this.flying ? 0 : this.height * 0.55), this.pos.z);
   }
 
   facing() {
@@ -101,22 +99,40 @@ class Enemy {
   // Efectos visuales comunes; devuelve false cuando el cadáver ya puede retirarse.
   animate(dt) {
     this.t += dt;
+    this.hitT = Math.max(0, this.hitT - dt * 5);
+    this.flash = Math.max(0, this.flash - dt * 3);
     if (this.dead) {
+      if (this.deathT === 0) this.ctx.fx.burst(this.center(_a).clone(), this.cfg.glow, this.cfg.boss ? 90 : 28, this.cfg.boss ? 14 : 6, 0.9, 0.14, 6);
       this.deathT += dt;
-      this.group.rotation.x = -Math.min(this.deathT * 3, Math.PI / 2);
-      this.group.position.y = this.pos.y - Math.max(0, this.deathT - 0.8) * 0.8;
+      const body = this.rig.body;
+      if (this.flying) {
+        this.vy -= GRAV * dt;
+        this.pos.y = Math.max(0.3, this.pos.y + this.vy * dt);
+        body.rotation.z += dt * 6;
+        this.group.position.copy(this.pos);
+      } else {
+        body.rotation.x = -Math.min(this.deathT * 3, Math.PI / 2);
+        this.group.position.y = this.pos.y - Math.max(0, this.deathT - 0.8) * 0.8;
+      }
+      this.rig.animate(dt, { speed: 0, hit: 1 - Math.min(1, this.deathT), shield: 0 });
       return this.deathT < 2;
     }
     if (this.spawnT < 1) {
       this.spawnT = Math.min(1, this.spawnT + dt * 2.5);
-      this.group.scale.setScalar(this.spawnT);
+      this.rig.body.scale.setScalar(this.spawnT);
     }
-    if (this.bubbleMat) {
-      this.flash = Math.max(0, this.flash - dt * 3);
-      this.bubbleMat.opacity = this.flash * 0.55;
-    }
-    this.hitT = Math.max(0, this.hitT - dt * 5);
-    this.bodyMat.emissive.setRGB(this.hitT * 0.8, this.hitT * 0.15, 0);
+    const revealed = (this.flags & 1) !== 0;
+    this.revealK += ((revealed ? 1 : 0) - this.revealK) * Math.min(1, dt * 6);
+    this.rig.animate(dt, {
+      speed: Math.hypot(this.vel.x, this.vel.z),
+      attack: (this.flags & 8) !== 0,
+      telegraph: (this.flags & 2) !== 0,
+      enraged: (this.flags & 4) !== 0,
+      hit: this.hitT,
+      shield: this.shield,
+      flash: this.flash,
+      cloak: this.cfg.ai === 'stalker' ? this.revealK : undefined,
+    });
     return true;
   }
 
@@ -129,8 +145,7 @@ class Enemy {
     this.vel.set((this.pos.x - px) / dt, 0, (this.pos.z - pz) / dt);
     const r = this.group.rotation.y;
     this.group.rotation.y = r + Math.atan2(Math.sin(this.netRot - r), Math.cos(this.netRot - r)) * k;
-    const bob = Math.sin(this.t * 9) * 0.04 * Math.min(1, Math.hypot(this.vel.x, this.vel.z) / 3);
-    this.group.position.set(this.pos.x, this.pos.y + Math.abs(bob), this.pos.z);
+    this.group.position.copy(this.pos);
     this.group.updateMatrixWorld(true);
     return true;
   }
@@ -148,11 +163,14 @@ class Enemy {
     if (this.replica) return this.updateReplica(dt);
     if (!this.animate(dt)) return false;
     if (this.dead) return true;
-    const { world, director, nav } = this.ctx;
+    const { world } = this.ctx;
     const c = this.cfg;
 
     this.sinceHit += dt;
-    if (c.shield > 0 && this.sinceHit > 5) this.shield = Math.min(c.shield, this.shield + 30 * dt);
+    if (this.maxShield > 0 && this.sinceHit > (c.boss ? 8 : 5)) this.shield = Math.min(this.maxShield, this.shield + this.maxShield * (c.boss ? 0.08 : 0.4) * dt);
+    this.attackT = Math.max(0, this.attackT - dt);
+    this.revealT = Math.max(0, this.revealT - dt);
+    this.leapCD -= dt;
 
     this.targetT -= dt;
     if (this.targetT <= 0 || !this.target?.alive) {
@@ -162,56 +180,55 @@ class Enemy {
       this.targetT = 0.6;
     }
     const tg = this.target;
-
-    const eye = _a.set(this.pos.x, this.pos.y + this.height * 0.9, this.pos.z);
     this.losTimer -= dt;
     if (this.losTimer <= 0 && tg) {
       this.losTimer = 0.2 + Math.random() * 0.15;
+      const eye = this.flying ? this.center(_a) : _a.set(this.pos.x, this.pos.y + this.height * 0.9, this.pos.z);
       this.los = world.lineOfSight(eye, tg.eye());
     }
     if (!tg) this.los = false;
+    this.cool = Math.max(-1, this.cool - dt);
 
-    const dx = tg ? tg.pos.x - this.pos.x : 0, dz = tg ? tg.pos.z - this.pos.z : 1;
+    if (c.ai === 'flyer') this.flyAI(dt, tg);
+    else if (c.ai === 'warlord') this.warlordAI(dt, tg);
+    else if (c.ai === 'overseer') this.overseerAI(dt, tg);
+    else this.groundAI(dt, tg);
+
+    if (c.ai === 'stalker') {
+      const near = tg && Math.hypot(tg.pos.x - this.pos.x, tg.pos.z - this.pos.z) < 3.2;
+      if (near) this.revealT = Math.max(this.revealT, 0.3);
+    }
+    this.flags = (this.revealT > 0 || c.ai !== 'stalker' ? 1 : 0) | (this.telegraph ? 2 : 0) | (this.enraged ? 4 : 0) | (this.attackT > 0 ? 8 : 0);
+    if (tg && this.bstate !== 'charge') this.group.rotation.y = Math.atan2(tg.pos.x - this.pos.x, tg.pos.z - this.pos.z);
+    this.group.position.copy(this.pos);
+    this.group.updateMatrixWorld(true);
+    return true;
+  }
+
+  toTarget(tg) {
+    if (!tg) return { dist: 999, fx: 0, fz: 1, dy: 0 };
+    const dx = tg.pos.x - this.pos.x, dz = tg.pos.z - this.pos.z;
     const dist = Math.hypot(dx, dz) || 0.001;
-    const fx = dx / dist, fz = dz / dist;
+    return { dist, fx: dx / dist, fz: dz / dist, dy: tg.pos.y - this.pos.y };
+  }
 
-    // --- Movimiento ---
-    let mx = 0, mz = 0;
-    const [near, far] = c.range;
-    const direct = c.melee ? this.los && dist < 4 : this.los && dist <= far;
-    if (!direct) {
-      // Ruta por el campo de flujo; si no hay ruta, línea recta.
-      const fdir = nav.flowDir(this.pos, _f);
-      mx = fdir ? fdir.x : fx;
-      mz = fdir ? fdir.z : fz;
-    } else if (c.melee) { mx = fx; mz = fz; }
-    else if (dist < near) { mx = -fx; mz = -fz; }
-    if (this.los && !c.melee) {
-      this.strafeTimer -= dt;
-      if (this.strafeTimer <= 0) { this.strafeDir *= -1; this.strafeTimer = rand(0.8, 2.6); }
-      mx += -fz * this.strafeDir * 0.8;
-      mz += fx * this.strafeDir * 0.8;
-    }
-    if (this.detourT > 0) {
-      // Rodeo dominante: perpendicular al objetivo, con leve avance.
-      this.detourT -= dt;
-      mx = -fz * this.detour + fx * 0.2;
-      mz = fx * this.detour + fz * 0.2;
-    }
-    for (const o of director.enemies) {
-      if (o === this || o.dead) continue;
-      const ox = this.pos.x - o.pos.x, oz = this.pos.z - o.pos.z, d2 = ox * ox + oz * oz;
-      if (d2 < 4 && d2 > 1e-4) {
-        const d = Math.sqrt(d2);
-        mx += (ox / d) * (2 - d);
-        mz += (oz / d) * (2 - d);
+  // Desplazamiento con colisiones, rodeo de obstáculos y gravedad (enemigos de suelo).
+  move(dt, mx, mz, speed, ignoreSeparation = false) {
+    const { world, director } = this.ctx;
+    if (!ignoreSeparation) {
+      for (const o of director.enemies) {
+        if (o === this || o.dead || o.flying !== this.flying) continue;
+        const ox = this.pos.x - o.pos.x, oz = this.pos.z - o.pos.z, d2 = ox * ox + oz * oz, min = this.radius + o.radius + 0.6;
+        if (d2 < min * min && d2 > 1e-4) {
+          const d = Math.sqrt(d2);
+          mx += (ox / d) * (min - d);
+          mz += (oz / d) * (min - d);
+        }
       }
     }
-    if (!tg) { mx = 0; mz = 0; }
     const ml = Math.hypot(mx, mz);
-    if (ml > 0.01) { mx /= ml; mz /= ml; }
-    const speed = c.speed * (c.melee && this.los && dist < 10 ? 1.35 : !this.los ? 1.2 : 1) * this.spawnT;
-    const k = 1 - Math.exp(-8 * dt);
+    if (ml > 1) { mx /= ml; mz /= ml; }
+    const k = 1 - Math.exp(-(this.onGround ? 8 : 0.6) * dt);
     this.vel.x += (mx * speed - this.vel.x) * k;
     this.vel.z += (mz * speed - this.vel.z) * k;
     const px = this.pos.x, pz = this.pos.z;
@@ -220,11 +237,22 @@ class Enemy {
     world.resolveHorizontal(this.pos, this.radius, this.pos.y, this.pos.y + this.height);
     world.clampToArena(this.pos, this.radius);
     const gh = world.groundHeightAt(this.pos.x, this.pos.z, this.radius * 0.5, this.pos.y);
-    this.pos.y += (gh - this.pos.y) * Math.min(1, dt * 10);
-
-    // Si apenas avanza, rodea el obstáculo durante un rato.
+    if (this.vy !== 0 || this.pos.y > gh + 0.6) {
+      this.vy -= GRAV * dt;
+      this.pos.y += this.vy * dt;
+      this.onGround = false;
+      if (this.pos.y <= gh) {
+        this.pos.y = gh;
+        this.vy = 0;
+        this.onGround = true;
+        this.onLand?.();
+      }
+    } else {
+      this.pos.y += (gh - this.pos.y) * Math.min(1, dt * 10);
+      this.onGround = true;
+    }
     const moved = Math.hypot(this.pos.x - px, this.pos.z - pz);
-    if (ml > 0.01 && moved < speed * dt * 0.35) this.stuck += dt;
+    if (ml > 0.01 && this.onGround && moved < speed * dt * 0.35) this.stuck += dt;
     else this.stuck = Math.max(0, this.stuck - dt);
     if (this.stuck > 0.35) {
       // Atascado otra vez durante un rodeo (rincón cóncavo) -> invierte el sentido.
@@ -232,51 +260,317 @@ class Enemy {
       this.detourT = 1;
       this.stuck = 0;
     }
-
-    const bob = Math.sin(this.t * 9) * 0.04 * Math.min(1, Math.hypot(this.vel.x, this.vel.z) / 3);
-    this.group.position.set(this.pos.x, this.pos.y + Math.abs(bob), this.pos.z);
-    if (tg) this.group.rotation.y = Math.atan2(fx, fz);
-    this.group.updateMatrixWorld(true);
-
-    // --- Ataque ---
-    this.cool = Math.max(-1, this.cool - dt);
-    if (!tg) return true;
-    if (c.melee) {
-      if (dist < c.range[1] + 0.3 && Math.abs(tg.pos.y - this.pos.y) < 1.5 && this.cool <= 0) {
-        this.cool = rand(...c.interval);
-        director.hurtTarget(tg, c.dmg, this.pos, fx * 6, fz * 6);
-      }
-    } else if (this.los && dist < 50) {
-      if (this.burstLeft > 0) {
-        this.burstTimer -= dt;
-        if (this.burstTimer <= 0) { this.fire(tg); this.burstLeft--; this.burstTimer = c.gap; }
-      } else if (this.cool <= 0) {
-        this.burstLeft = c.burst;
-        this.burstTimer = 0;
-        this.cool = rand(...c.interval);
-      }
-    }
-    return true;
   }
 
-  fire(tg) {
+  // Dirección de avance: directa con visión, si no por el campo de flujo; con rodeo si se atasca.
+  steer(dt, tg, direct, fx, fz) {
+    let mx = fx, mz = fz;
+    if (!direct) {
+      const fdir = this.ctx.nav.flowDir(this.pos, _f);
+      if (fdir) { mx = fdir.x; mz = fdir.z; }
+    }
+    if (this.detourT > 0) {
+      this.detourT -= dt;
+      mx = -fz * this.detour + fx * 0.2;
+      mz = fx * this.detour + fz * 0.2;
+    }
+    return [mx, mz];
+  }
+
+  groundAI(dt, tg) {
     const c = this.cfg;
+    const { dist, fx, fz, dy } = this.toTarget(tg);
+    const [near, far] = c.range;
+    const melee = !!c.melee;
+    const direct = melee ? this.los && dist < 4 : this.los && dist <= far;
+    let [mx, mz] = tg ? this.steer(dt, tg, direct, fx, fz) : [0, 0];
+    if (direct && !melee && dist < near) { mx = -fx; mz = -fz; }
+    if (this.los && !melee) {
+      this.strafeTimer -= dt;
+      if (this.strafeTimer <= 0) { this.strafeDir *= -1; this.strafeTimer = rand(0.8, 2.6); }
+      const st = c.ai === 'artillery' ? 0.4 : 0.8;
+      mx += -fz * this.strafeDir * st;
+      mz += fx * this.strafeDir * st;
+    }
+    if (!tg) { mx = 0; mz = 0; }
+    // Stalker: salto de emboscada.
+    if (c.ai === 'stalker' && tg && this.los && this.onGround && this.leapCD <= 0 && dist > 3 && dist < 10) {
+      this.vel.set(fx * c.leap, 0, fz * c.leap);
+      this.vy = 6.5;
+      this.onGround = false;
+      this.leapCD = rand(3, 5);
+      this.revealT = 1.2;
+      this.attackT = 0.6;
+      this.ctx.sfx.enemyMelee(this.pos.distanceTo(this.ctx.player.pos));
+    }
+    const speed = c.speed * (melee && this.los && dist < 10 ? 1.35 : !this.los ? 1.2 : 1) * this.spawnT;
+    this.move(dt, mx, mz, speed);
+    if (!tg) return;
+    if (melee) {
+      const reach = c.range[1] + 0.3 + (this.onGround ? 0 : 0.8);
+      if (dist < reach && Math.abs(dy) < 1.6 && this.cool <= 0) {
+        this.cool = rand(...c.interval);
+        this.attackT = 0.4;
+        this.revealT = Math.max(this.revealT, 1.5);
+        this.ctx.director.hurtTarget(tg, c.dmg * this.dmgMult, this.pos, fx * 6, fz * 6);
+      }
+    } else if (this.los && dist < (c.ai === 'artillery' ? 60 : 50)) {
+      this.burstFire(dt, tg);
+    }
+  }
+
+  burstFire(dt, tg) {
+    const c = this.cfg;
+    if (this.burstLeft > 0) {
+      this.burstTimer -= dt;
+      if (this.burstTimer <= 0) {
+        if (c.ai === 'artillery') this.mortar(tg, c.dmg, c.splash);
+        else this.fire(tg);
+        this.burstLeft--;
+        this.burstTimer = c.gap;
+        this.attackT = 0.3;
+      }
+    } else if (this.cool <= 0) {
+      this.burstLeft = c.burst ?? 1;
+      this.burstTimer = 0;
+      this.cool = rand(...c.interval);
+    }
+  }
+
+  // Vuelo: órbita alrededor del objetivo a cierta altura.
+  flyAI(dt, tg) {
+    const c = this.cfg;
+    const { dist } = this.toTarget(tg);
+    const mid = (c.range[0] + c.range[1]) / 2;
+    this.orbitA += dt * 0.5 * this.strafeDir;
+    this.strafeTimer -= dt;
+    if (this.strafeTimer <= 0) { this.strafeDir *= -1; this.strafeTimer = rand(2, 5); }
+    const goal = _c.set(0, this.altitude, 0);
+    if (tg) goal.set(tg.pos.x + Math.cos(this.orbitA) * mid, tg.pos.y + this.altitude, tg.pos.z + Math.sin(this.orbitA) * mid);
+    this.flyTo(dt, goal, c.speed * this.spawnT);
+    if (tg && this.los && dist < 40) this.burstFire(dt, tg);
+  }
+
+  flyTo(dt, goal, speed, k = 2.5) {
+    const { world } = this.ctx;
+    _d.subVectors(goal, this.pos);
+    const d = _d.length();
+    if (d > 0.5) _d.multiplyScalar(Math.min(1, d / 3) * speed / d); else _d.set(0, 0, 0);
+    const a = 1 - Math.exp(-k * dt);
+    this.vel.lerp(_d, a);
+    this.pos.addScaledVector(this.vel, dt);
+    // No atravesar estructuras: si choca, sube.
+    if (world.pointInSolid(this.pos)) {
+      this.pos.y += 4 * dt * speed * 0.3;
+      this.vel.y = Math.max(this.vel.y, 2);
+    }
+    world.clampToArena(this.pos, this.radius);
+    const floor = world.groundHeightAt(this.pos.x, this.pos.z, this.radius, 99, 99) + 1.2;
+    this.pos.y = Math.min(16, Math.max(floor, this.pos.y));
+  }
+
+  fire(tg, opts = {}) {
+    const c = this.cfg;
+    this.group.updateMatrixWorld(true);
     const origin = this.muzzle.getWorldPosition(new THREE.Vector3());
+    const speed = opts.speed ?? c.projSpeed;
     const target = tg.eye().clone();
     target.y -= 0.35;
-    target.addScaledVector(tg.vel, (origin.distanceTo(target) / c.projSpeed) * 0.6);
+    target.addScaledVector(tg.vel, (origin.distanceTo(target) / speed) * 0.6);
     const dir = target.sub(origin).normalize();
-    dir.x += (Math.random() - 0.5) * c.spread * 2;
-    dir.y += (Math.random() - 0.5) * c.spread * 2;
-    dir.z += (Math.random() - 0.5) * c.spread * 2;
-    dir.normalize().multiplyScalar(c.projSpeed);
-    this.ctx.director.spawnProjectile(origin, dir, c.dmg, c.glow, true);
+    if (opts.yaw) dir.applyAxisAngle(UP, opts.yaw);
+    const sp = opts.spread ?? c.spread;
+    dir.x += (Math.random() - 0.5) * sp * 2;
+    dir.y += (Math.random() - 0.5) * sp * 2;
+    dir.z += (Math.random() - 0.5) * sp * 2;
+    dir.normalize().multiplyScalar(speed);
+    this.ctx.director.spawnProjectile(origin, dir, (opts.dmg ?? c.dmg) * this.dmgMult, c.glow, true, opts);
+  }
+
+  // Mortero en parábola hacia donde estará el objetivo.
+  mortar(tg, dmg, splash, at = null) {
+    this.group.updateMatrixWorld(true);
+    const o = this.muzzle.getWorldPosition(new THREE.Vector3());
+    const t = at ?? tg.pos.clone();
+    const T = Math.min(2.6, Math.max(1.1, o.distanceTo(t) / 15));
+    if (!at) t.addScaledVector(tg.vel, T * 0.5);
+    const v = new THREE.Vector3((t.x - o.x) / T, (t.y + 0.2 - o.y + 0.5 * MORTAR_G * T * T) / T, (t.z - o.z) / T);
+    this.ctx.director.spawnProjectile(o, v, dmg * this.dmgMult, this.cfg.glow, true, { gravity: MORTAR_G, splash, size: 2.2 });
+  }
+
+  // --- Jefe de tierra: abanico de plasma, salto con onda expansiva, embestida, refuerzos ---
+  warlordAI(dt, tg) {
+    const c = this.cfg, director = this.ctx.director;
+    const { dist, fx, fz } = this.toTarget(tg);
+    this.enraged = this.hp < this.maxHp * 0.5;
+    const rage = this.enraged ? 1.35 : 1;
+    this.summonCheck(['skitter', 'skitter', 'ravager', 'warden']);
+    this.bT -= dt * rage;
+    this.telegraph = this.bstate === 'leapPrep' || this.bstate === 'chargePrep';
+    switch (this.bstate) {
+      case 'walk': {
+        const [mx, mz] = tg ? this.steer(dt, tg, this.los && dist < 30, fx, fz) : [0, 0];
+        this.move(dt, dist < 7 ? 0 : mx, dist < 7 ? 0 : mz, c.speed * rage * this.spawnT, true);
+        if (this.bT <= 0 && tg) {
+          const opts = this.los ? ['barrage', 'leapPrep', 'chargePrep'] : ['leapPrep'];
+          this.bstate = pick(opts);
+          this.bT = this.bstate === 'barrage' ? 1.5 : this.bstate === 'leapPrep' ? 0.55 : 0.75;
+          this.volley = 0;
+          this.volleyT = 0;
+        }
+        break;
+      }
+      case 'barrage':
+        this.move(dt, 0, 0, 0, true);
+        this.volleyT -= dt;
+        if (this.volleyT <= 0 && this.volley < 3 && tg) {
+          for (let i = -3; i <= 3; i++) this.fire(tg, { yaw: i * 0.12, spread: 0.01 });
+          this.volley++;
+          this.volleyT = 0.45 / rage;
+          this.attackT = 0.3;
+        }
+        if (this.bT <= 0) this.endAttack();
+        break;
+      case 'leapPrep':
+        this.move(dt, 0, 0, 0, true);
+        if (this.bT <= 0 && tg) {
+          const T = 1.0;
+          const land = tg.pos.clone().addScaledVector(tg.vel, 0.4);
+          this.vel.set((land.x - this.pos.x) / T, 0, (land.z - this.pos.z) / T);
+          this.vy = (land.y - this.pos.y + 0.5 * GRAV * T * T) / T;
+          this.onGround = false;
+          this.bstate = 'air';
+          this.onLand = () => {
+            this.onLand = null;
+            director.shockwave(this.pos.clone(), c.slamRadius, c.slamDmg * this.dmgMult, c.glow);
+            this.bstate = 'recover';
+            this.bT = 0.9;
+          };
+        }
+        break;
+      case 'air':
+        this.move(dt, 0, 0, 0, true);
+        break;
+      case 'chargePrep':
+        this.move(dt, 0, 0, 0, true);
+        if (this.bT <= 0 && tg) {
+          this.chargeDir = new THREE.Vector3(fx, 0, fz);
+          this.group.rotation.y = Math.atan2(fx, fz);
+          this.bstate = 'charge';
+          this.bT = 1.2;
+          this.vel.set(fx * 17, 0, fz * 17); // arranca ya a toda velocidad
+          this.hitSet = new Set();
+        }
+        break;
+      case 'charge': {
+        const before = this.pos.clone();
+        this.move(dt, this.chargeDir.x, this.chargeDir.z, 17, true);
+        this.attackT = 0.2;
+        for (const t of director.targets) {
+          if (this.hitSet.has(t) || Math.hypot(t.pos.x - this.pos.x, t.pos.z - this.pos.z) > 2.8) continue;
+          this.hitSet.add(t);
+          director.hurtTarget(t, c.chargeDmg * this.dmgMult, this.pos, this.chargeDir.x * 14, this.chargeDir.z * 14);
+        }
+        // Termina por tiempo o al chocar contra un muro.
+        if (this.bT <= 0 || (this.bT < 1.0 && before.distanceTo(this.pos) < 17 * dt * 0.25)) { this.bstate = 'recover'; this.bT = 1.0; }
+        break;
+      }
+      default: // recover
+        this.move(dt, 0, 0, 0, true);
+        if (this.bT <= 0) this.endAttack();
+    }
+  }
+
+  endAttack() {
+    this.bstate = 'walk';
+    this.bT = rand(1.4, 2.6);
+    this.telegraph = false;
+  }
+
+  summonCheck(types) {
+    const th = [0.5, 0.25];
+    if (this.summoned < th.length && this.hp < this.maxHp * th[this.summoned]) {
+      this.summoned++;
+      this.ctx.director.summon(types, this.pos);
+    }
+  }
+
+  // --- Jefe volador: lluvia de orbes, bombardeo de morteros, drones y picados ---
+  overseerAI(dt, tg) {
+    const c = this.cfg, director = this.ctx.director;
+    this.enraged = this.hp < this.maxHp * 0.5;
+    const rage = this.enraged ? 1.35 : 1;
+    this.summonCheck(['drone', 'drone', 'drone', 'drone']);
+    this.bT -= dt * rage;
+    this.telegraph = this.bstate === 'divePrep';
+    const hover = () => {
+      this.orbitA += dt * 0.35;
+      const goal = _c.set(Math.cos(this.orbitA) * 18, this.altitude, Math.sin(this.orbitA) * 18);
+      if (tg) goal.set(tg.pos.x + Math.cos(this.orbitA) * 16, tg.pos.y + this.altitude, tg.pos.z + Math.sin(this.orbitA) * 16);
+      this.flyTo(dt, goal, c.speed * rage, 1.5);
+    };
+    switch (this.bstate) {
+      case 'walk':
+        hover();
+        if (this.bT <= 0 && tg) {
+          this.bstate = pick(this.los ? ['orbs', 'mortar', 'divePrep'] : ['mortar', 'divePrep']);
+          this.bT = this.bstate === 'divePrep' ? 0.8 : 2;
+          this.volley = 0;
+          this.volleyT = 0;
+        }
+        break;
+      case 'orbs':
+        hover();
+        this.volleyT -= dt;
+        if (this.volleyT <= 0 && this.volley < 3 && tg) {
+          for (let i = -4; i <= 4; i++) this.fire(tg, { yaw: i * 0.16, spread: 0.02, splash: 2.2, size: 2.4 });
+          this.volley++;
+          this.volleyT = 0.55 / rage;
+          this.attackT = 0.3;
+        }
+        if (this.bT <= 0) this.endAttack();
+        break;
+      case 'mortar':
+        hover();
+        this.volleyT -= dt;
+        if (this.volleyT <= 0 && this.volley < 7 && tg) {
+          const at = tg.pos.clone().add(_d.set(rand(-6, 6), 0, rand(-6, 6)));
+          if (this.volley === 0) at.copy(tg.pos);
+          this.mortar(tg, c.mortarDmg, c.splash, at);
+          this.volley++;
+          this.volleyT = 0.22;
+          this.attackT = 0.3;
+        }
+        if (this.bT <= 0) this.endAttack();
+        break;
+      case 'divePrep':
+        this.flyTo(dt, _c.copy(this.pos), 0.1);
+        if (this.bT <= 0 && tg) {
+          this.diveTo = tg.pos.clone().setY(tg.pos.y + 1.6);
+          this.bstate = 'dive';
+          this.bT = 1.4;
+        }
+        break;
+      case 'dive':
+        this.flyTo(dt, this.diveTo, 22, 6);
+        this.attackT = 0.2;
+        if (this.pos.distanceTo(this.diveTo) < 1.5 || this.bT <= 0) {
+          director.shockwave(this.pos.clone().setY(this.diveTo.y - 1.6), 6, c.diveDmg * this.dmgMult, c.glow);
+          this.bstate = 'recover';
+          this.bT = 1.2;
+        }
+        break;
+      default:
+        this.flyTo(dt, _c.set(this.pos.x, (tg?.pos.y ?? 0) + this.altitude, this.pos.z), c.speed);
+        if (this.bT <= 0) this.endAttack();
+    }
   }
 
   // by: id del jugador que causa el daño (null = jugador local en un jugador).
   takeDamage(dmg, { shieldMult = 1, headMult = 1, part = 'body', by = null } = {}) {
     if (this.dead) return { killed: false };
     this.hitT = 1;
+    this.revealT = Math.max(this.revealT, 1.5);
     if (this.shield > 0) this.flash = 1;
     if (this.replica) {
       // El anfitrión decide; aquí solo hay respuesta visual inmediata.
@@ -304,12 +598,7 @@ class Enemy {
   }
 
   dispose() {
-    this.ctx.scene.remove(this.group);
-    this.group.traverse((o) => {
-      if (!o.isMesh) return;
-      o.geometry.dispose();
-      o.material.dispose();
-    });
+    this.rig.dispose();
   }
 }
 
@@ -410,12 +699,15 @@ export class Director {
   startWave() {
     const { game } = this.ctx;
     game.wave++;
-    const comp = waveComposition(game.wave);
+    const comp = waveComposition(game.wave, this.playerCount());
     for (const [type, n] of Object.entries(comp)) for (let i = 0; i < n; i++) this.queue.push(type);
     for (let i = this.queue.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
       [this.queue[i], this.queue[j]] = [this.queue[j], this.queue[i]];
     }
+    // El jefe sale el primero.
+    const bi = this.queue.findIndex((t) => CFG.enemies[t].boss);
+    if (bi > 0) this.queue.unshift(...this.queue.splice(bi, 1));
     this.state = 'combat';
     this.spawnTimer = 0.5;
     this.onWave({ k: 'start', n: game.wave, comp });
@@ -439,8 +731,10 @@ export class Director {
     const { hud, sfx, arsenal, game } = this.ctx;
     if (m.k === 'start') {
       game.wave = m.n;
-      const parts = Object.entries(m.comp).filter(([, n]) => n > 0).map(([t, n]) => `${n} ${CFG.enemies[t].label.toUpperCase()}`);
-      hud.banner(`OLEADA ${m.n}`, parts.join(' · '));
+      const parts = Object.entries(m.comp).filter(([t, n]) => n > 0 && !CFG.enemies[t].boss).map(([t, n]) => `${n} ${CFG.enemies[t].label.toUpperCase()}`);
+      const boss = Object.keys(m.comp).find((t) => CFG.enemies[t].boss);
+      if (boss) { hud.banner(`OLEADA ${m.n} · ¡JEFE!`, `${CFG.enemies[boss].label} · ${parts.join(' · ')}`, 3.5); sfx.boss(); }
+      else hud.banner(`OLEADA ${m.n}`, parts.join(' · '));
       sfx.wave();
       game.onWaveStart?.();
     } else {
@@ -458,13 +752,58 @@ export class Director {
     const pos = pool[(Math.random() * pool.length) | 0].clone();
     pos.x += rand(-1.5, 1.5);
     pos.z += rand(-1.5, 1.5);
-    const e = this.addEnemy(type, pos, this.nextId++, false);
-    fx.burst(e.center(), e.cfg.glow, 18, 4, 0.5, 0.1, 2);
+    const e = this.addEnemy(type, pos, this.nextId++, false, this.scaling(type));
+    fx.burst(e.center(), e.cfg.glow, e.cfg.boss ? 80 : 18, e.cfg.boss ? 10 : 4, 0.8, 0.12, 2);
     sfx.spawn(pos.distanceTo(player.pos));
   }
 
-  addEnemy(type, pos, id, replica) {
-    const e = new Enemy(this.ctx, type, pos, id, replica);
+  playerCount() {
+    return this.online ? Math.max(1, this.net.players.size) : 1;
+  }
+
+  // Multiplicadores de vida y daño según oleada, jugadores y (para jefes) cuántos llevamos.
+  scaling(type) {
+    const wave = Math.max(1, this.ctx.game.wave);
+    const d = difficulty(wave, this.playerCount());
+    const bossK = CFG.enemies[type].boss ? 1 + 0.3 * Math.max(0, Math.floor(wave / 5) - 1) : 1;
+    return { hp: d.hp * bossK, dmg: d.dmg };
+  }
+
+  // Refuerzos invocados por un jefe alrededor de su posición.
+  summon(types, around) {
+    const { fx, hud, sfx, player } = this.ctx;
+    for (const type of types) {
+      const a = Math.random() * Math.PI * 2, r = rand(3, 6);
+      const pos = around.clone().add(_a.set(Math.cos(a) * r, 0, Math.sin(a) * r));
+      this.ctx.world.clampToArena(pos, 1);
+      pos.y = CFG.enemies[type].fly ? around.y : this.ctx.world.groundHeightAt(pos.x, pos.z, 0.3, around.y + 1);
+      const e = this.addEnemy(type, pos, this.nextId++, false, this.scaling(type));
+      fx.burst(e.center(), e.cfg.glow, 22, 5, 0.6, 0.12, 2);
+    }
+    hud.toast('¡REFUERZOS!');
+    sfx.spawn(around.distanceTo(player.pos));
+    if (this.online) this.net.bcast('efx', { k: 'toast', text: '¡REFUERZOS!' });
+  }
+
+  // Onda expansiva (golpe de jefe): daña a los jugadores en el suelo dentro del radio.
+  shockwave(pos, radius, dmg, color, broadcast = true) {
+    const { fx, sfx, player, remotes, net } = this.ctx;
+    fx.shockwave(pos, radius, color);
+    sfx.explosion(pos.distanceTo(player.pos));
+    if (!broadcast) return;
+    if (this.online) net.bcast('efx', { k: 'ring', p: v3(pos), r: radius, c: color });
+    const hits = [player, ...(this.online ? remotes.alive() : [])];
+    for (const t of hits) {
+      if (!t.alive) continue;
+      const dx = t.pos.x - pos.x, dz = t.pos.z - pos.z, d = Math.hypot(dx, dz);
+      if (d > radius || t.pos.y - pos.y > 2.2) continue;
+      const k = 1 - (d / radius) * 0.5;
+      this.hurtTarget(t, dmg * k, pos, (dx / (d || 1)) * 12 * k, (dz / (d || 1)) * 12 * k);
+    }
+  }
+
+  addEnemy(type, pos, id, replica, scale = {}) {
+    const e = new Enemy(this.ctx, type, pos, id, replica, scale);
     this.enemies.push(e);
     this.byId.set(id, e);
     return e;
@@ -485,9 +824,14 @@ export class Director {
       net.bcast('ekill', msg);
       net.emit('ekill', { ...msg, t: 'ekill', from: net.id }); // también en el registro del anfitrión
     }
-    if (Math.random() < e.cfg.drop) {
+    if (e.cfg.boss) {
+      for (const [i, kind] of ['ammo', 'ammo', 'ammo', 'grenade', 'grenade'].entries()) {
+        const a = (i / 5) * Math.PI * 2;
+        this.addPickup(this.nextId++, kind, e.pos.x + Math.cos(a) * 1.5, e.pos.y + 0.4, e.pos.z + Math.sin(a) * 1.5);
+      }
+    } else if (Math.random() < e.cfg.drop) {
       const kind = Math.random() < 0.25 && arsenal.grenades < CFG.grenade.max ? 'grenade' : 'ammo';
-      this.addPickup(this.nextId++, kind, e.pos.x, e.pos.y + 0.4, e.pos.z);
+      this.addPickup(this.nextId++, kind, e.pos.x, e.flying ? 0.4 : e.pos.y + 0.4, e.pos.z);
     }
   }
 
@@ -519,15 +863,29 @@ export class Director {
     }
   }
 
-  spawnProjectile(origin, vel, dmg, color, broadcast = false) {
+  // opts: gravity (mortero), splash (radio de explosión), size (escala visual).
+  spawnProjectile(origin, vel, dmg, color, broadcast = false, opts = {}) {
     if (!this.projMats.has(color)) this.projMats.set(color, new THREE.MeshBasicMaterial({ color }));
     const mesh = new THREE.Mesh(this.projGeo, this.projMats.get(color));
     mesh.position.copy(origin);
     mesh.lookAt(_a.copy(origin).add(vel));
+    if (opts.size) mesh.scale.setScalar(opts.size);
     this.ctx.scene.add(mesh);
-    this.projectiles.push({ mesh, vel: vel.clone(), dmg, color, life: 3 });
-    this.ctx.sfx.enemyShot(origin.distanceTo(this.ctx.player.pos));
-    if (broadcast && this.online) this.net.bcast('proj', { p: v3(origin), v: v3(vel), d: dmg, c: color });
+    const gravity = opts.gravity ?? 0, splash = opts.splash ?? 0;
+    this.projectiles.push({ mesh, vel: vel.clone(), dmg, color, life: gravity ? 6 : 3.5, gravity, splash });
+    const dist = origin.distanceTo(this.ctx.player.pos);
+    if (gravity) this.ctx.sfx.mortar(dist); else this.ctx.sfx.enemyShot(dist);
+    if (broadcast && this.online) this.net.bcast('proj', { p: v3(origin), v: v3(vel), d: dmg, c: color, g: gravity, s: splash, z: opts.size ?? 0 });
+  }
+
+  // Explosión de proyectil enemigo: cada equipo calcula solo el daño a su jugador.
+  projExplode(pos, p) {
+    const { fx, sfx, player } = this.ctx;
+    fx.explosion(pos, p.splash);
+    sfx.explosion(pos.distanceTo(player.pos));
+    if (!player.alive) return;
+    const d = _b.set(player.pos.x, player.pos.y + 0.9, player.pos.z).distanceTo(pos);
+    if (d < p.splash) player.damage(p.dmg * (1 - (d / p.splash) * 0.7), pos.clone());
   }
 
   damageRadius(center, radius, damage, by = null) {
@@ -554,7 +912,7 @@ export class Director {
     const { game } = this.ctx;
     return {
       w: game.wave, st: this.state, tm: +this.timer.toFixed(2), q: this.queue, sc: game.score,
-      e: this.enemies.map((e) => [e.id, TYPES.indexOf(e.type), ...v3(e.pos), +e.group.rotation.y.toFixed(3), Math.round(e.hp), Math.round(e.shield), e.dead ? 1 : 0]),
+      e: this.enemies.map((e) => [e.id, TYPES.indexOf(e.type), ...v3(e.pos), +e.group.rotation.y.toFixed(3), Math.round(e.hp), Math.round(e.shield), e.dead ? 1 : 0, Math.round(e.maxHp), Math.round(e.maxShield), e.flags]),
       p: this.pickups.map((p) => [p.id, p.kind, ...v3(p.mesh.position)]),
       s: [...this.scores].map(([id, s]) => [id, s.kills, s.score, s.credits]),
     };
@@ -572,7 +930,7 @@ export class Director {
     game.kills = this.scores.get(this.net.id)?.kills ?? 0;
 
     const seen = new Set();
-    for (const [id, ti, x, y, z, rot, hp, sh, dead] of s.e) {
+    for (const [id, ti, x, y, z, rot, hp, sh, dead, maxHp, maxSh, flags] of s.e) {
       let e = this.byId.get(id);
       if (!e) {
         if (dead) continue;
@@ -582,8 +940,12 @@ export class Director {
       seen.add(id);
       e.netPos.set(x, y, z);
       e.netRot = rot;
+      if (sh < e.shield) e.flash = 1;
       e.hp = hp;
       e.shield = sh;
+      e.maxHp = maxHp;
+      e.maxShield = maxSh;
+      e.flags = flags;
       if (dead && !e.dead) { e.dead = true; e.deathT = 0; }
     }
     for (const e of this.enemies) if (!seen.has(e.id) && !e.dead) { e.dead = true; e.deathT = 1; }
@@ -708,7 +1070,6 @@ export class Director {
     if (this.mode === 'dm') return;
     for (const b of this.boxes) b.update(dt);
     const { game, player, world, fx, arsenal } = this.ctx;
-    const W = CFG.waves;
     this.collectTargets();
 
     if (this.authority) {
@@ -719,9 +1080,10 @@ export class Director {
       } else {
         this.spawnTimer -= dt;
         const aliveCount = this.enemies.reduce((n, e) => n + (e.dead ? 0 : 1), 0);
-        if (this.queue.length && this.spawnTimer <= 0 && aliveCount < W.maxAlive) {
+        const diff = difficulty(Math.max(1, game.wave), this.playerCount());
+        if (this.queue.length && this.spawnTimer <= 0 && aliveCount < diff.maxAlive) {
           this.spawnOne(this.queue.shift());
-          this.spawnTimer = W.spawnGap;
+          this.spawnTimer = diff.gap;
         }
         if (!this.queue.length && aliveCount === 0 && this.targets.length) this.clearWave();
       }
@@ -750,21 +1112,27 @@ export class Director {
       p.life -= dt;
       let hit = false;
       const pos = p.mesh.position;
+      if (p.gravity) {
+        p.vel.y -= p.gravity * dt;
+        p.mesh.lookAt(_a.copy(pos).add(p.vel));
+      }
       for (let s = 0; s < 3 && !hit; s++) {
         pos.addScaledVector(p.vel, dt / 3);
         if (player.alive) {
           const cy = Math.min(Math.max(pos.y, player.pos.y + 0.2), player.pos.y + player.height - 0.1);
-          if (Math.hypot(pos.x - player.pos.x, pos.y - cy, pos.z - player.pos.z) < P.radius + 0.12) {
-            player.damage(p.dmg, _b.copy(pos).addScaledVector(p.vel, -0.1));
+          if (Math.hypot(pos.x - player.pos.x, pos.y - cy, pos.z - player.pos.z) < P.radius + 0.12 * (p.mesh.scale.x || 1)) {
+            if (p.splash) this.projExplode(pos, p);
+            else player.damage(p.dmg, _b.copy(pos).addScaledVector(p.vel, -0.1));
             hit = true;
             break;
           }
         }
         if (world.pointInSolid(pos)) {
-          fx.sparks(pos, p.color);
+          if (p.splash) this.projExplode(pos, p); else fx.sparks(pos, p.color);
           hit = true;
         }
       }
+      if (!hit && p.life <= 0 && p.splash) this.projExplode(pos, p);
       if (hit || p.life <= 0) {
         this.ctx.scene.remove(p.mesh);
         this.projectiles.splice(i, 1);

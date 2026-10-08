@@ -230,3 +230,10 @@ code { font-family: ui-monospace, monospace; color: #e9fbff; background: rgba(0,
 .wcard.selected { background: rgba(127, 231, 255, 0.22); border-color: var(--hud); }
 .wcard:disabled { opacity: 0.3; }
 #btn-loadout-done { display: block; margin: 20px auto 0; }
+
+/* ---------- Jefe ---------- */
+#boss { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); width: min(560px, 80vw); text-align: center; }
+#boss-name { font-size: 18px; font-weight: 700; letter-spacing: 0.4em; color: #ffb3a8; text-shadow: 0 0 12px rgba(255, 60, 40, 0.8); margin-bottom: 4px; }
+.boss-bar { position: relative; height: 12px; border: 1px solid rgba(255, 120, 100, 0.7); background: rgba(30, 0, 0, 0.5); }
+#boss-hp { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #ff3b2f, #ff9a3d); transition: width 0.15s; }
+#boss-sh { position: absolute; left: 0; bottom: -5px; height: 3px; background: #7fe7ff; box-shadow: 0 0 6px #7fe7ff; transition: width 0.15s; }

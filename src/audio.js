@@ -129,6 +129,15 @@ export class Sfx {
     this.tone({ freq: 784, dur: 0.15, type: 'triangle', gain: 0.14, delay: 0.1 });
     this.tone({ freq: 1047, dur: 0.4, type: 'triangle', gain: 0.14, delay: 0.2 });
   }
+  mortar(dist = 0) {
+    const v = Sfx.falloff(dist, 80);
+    this.noise({ dur: 0.25, freq: 500, freqEnd: 150, type: 'lowpass', gain: 0.35 * v });
+    this.tone({ freq: 300, freqEnd: 900, dur: 0.6, type: 'sine', gain: 0.05 * v, delay: 0.1 });
+  }
+  boss() {
+    [110, 98, 82, 73].forEach((f, i) => this.tone({ freq: f, dur: 0.6, type: 'sawtooth', gain: 0.16, delay: i * 0.35 }));
+    this.noise({ dur: 1.6, freq: 200, type: 'lowpass', gain: 0.3 });
+  }
   deny() { this.tone({ freq: 220, freqEnd: 160, dur: 0.18, type: 'square', gain: 0.08 }); }
   overheat() {
     this.noise({ dur: 0.7, freq: 5000, freqEnd: 700, type: 'bandpass', q: 2, gain: 0.25 });
