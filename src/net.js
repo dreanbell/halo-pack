@@ -15,9 +15,22 @@ export const normalizeCode = (s) => String(s ?? '').toUpperCase().replace(/[^A-Z
 
 // Opciones del servidor de emparejamiento: por defecto el público de PeerJS.
 // Para uno propio: ?peerhost=mi-equipo&peerport=9000&peerpath=/
+const ICE = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    {
+      // Relés públicos de PeerJS (UDP y TCP) por si la red aísla los equipos entre sí.
+      urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478', 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'],
+      username: 'peerjs',
+      credential: 'peerjsp',
+    },
+  ],
+  sdpSemantics: 'unified-plan',
+};
+
 function peerOptions() {
   const q = new URLSearchParams(location.search);
-  const o = { debug: 0 };
+  const o = { debug: 0, config: ICE };
   if (q.get('peerhost')) {
     o.host = q.get('peerhost');
     o.port = Number(q.get('peerport') || 9000);
@@ -26,6 +39,13 @@ function peerOptions() {
   }
   return o;
 }
+
+// Mensaje según la fase en la que se agota el tiempo.
+const STUCK = {
+  broker: 'No se pudo contactar con el servidor de emparejamiento. Comprueba internet; en Brave, baja los escudos para esta página',
+  room: 'La sala no responde. Comprueba el código y que el anfitrión siga con la sala abierta',
+  ice: 'No se pudo abrir la conexión directa entre los equipos. En Brave, baja los escudos para esta página o prueba con Chrome/Edge',
+};
 
 const PEER_ERRORS = {
   'peer-unavailable': 'Sala no encontrada. Revisa el código',
@@ -80,7 +100,7 @@ export class Net {
   waitWelcome() {
     return new Promise((resolve, reject) => {
       this.pending = { resolve, reject };
-      this.pendingTimer = setTimeout(() => this.fail(new Error('Tiempo de espera agotado')), TIMEOUT);
+      this.pendingTimer = setTimeout(() => this.fail(new Error(STUCK[this.phase] ?? 'Tiempo de espera agotado')), TIMEOUT);
     });
   }
 
@@ -126,6 +146,11 @@ export class Net {
     try { peer?.destroy(); } catch { /* ya destruido */ }
   }
 
+  progress(phase, text) {
+    this.phase = phase;
+    this.emit('progress', { phase, text });
+  }
+
   // --- Transportes ---
   hostP2P(name) {
     if (!window.Peer) return Promise.reject(new Error('No se pudo cargar PeerJS'));
@@ -134,6 +159,7 @@ export class Net {
     const room = (this.room = new Room({ fixedHost: true }));
     const peer = (this.peer = new window.Peer(PEER_PREFIX + code, peerOptions()));
     this.kind = 'p2p-host';
+    this.progress('broker', 'Conectando con el servidor de emparejamiento…');
     // El propio anfitrión entra a la sala sin red (entrega asíncrona para evitar reentradas).
     const self = { send: (m) => queueMicrotask(() => this.handle(m)), close() {} };
     this.link = { send: (m) => room.message(self, m), close: () => room.leave(self), open: () => !!this.peer && !this.peer.destroyed };
@@ -167,13 +193,22 @@ export class Net {
     const done = this.waitWelcome();
     const peer = (this.peer = new window.Peer(peerOptions()));
     this.kind = 'p2p';
+    this.progress('broker', 'Conectando con el servidor de emparejamiento…');
     peer.on('open', () => {
+      this.progress('room', `Buscando la sala ${normalizeCode(code)}…`);
       const dc = peer.connect(PEER_PREFIX + normalizeCode(code), { serialization: 'json', reliable: true });
+      dc.on('iceStateChanged', (st) => {
+        if (st === 'checking' && this.id === null) this.progress('ice', 'Sala encontrada. Abriendo conexión directa…');
+        if (st === 'failed' && this.id === null) this.fail(new Error(STUCK.ice));
+      });
       this.link = { send: (m) => { if (dc.open) dc.send(m); }, close: () => dc.close(), open: () => dc.open };
       dc.on('open', () => dc.send({ t: 'hello', name }));
       dc.on('data', (m) => this.handle(m));
       dc.on('close', () => this.lost('El anfitrión cerró la sala o se perdió la conexión'));
-      dc.on('error', () => this.lost('Se perdió la conexión con el anfitrión'));
+      dc.on('error', () => {
+        if (this.id === null) this.fail(new Error(STUCK[this.phase] ?? STUCK.ice));
+        else this.lost('Se perdió la conexión con el anfitrión');
+      });
     });
     peer.on('error', (e) => {
       if (this.id === null) this.fail(new Error(PEER_ERRORS[e.type] ?? e.message));

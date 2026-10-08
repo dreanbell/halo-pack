@@ -272,6 +272,7 @@ const playerName = (id) => net.players.get(id)?.name ?? remotes.get(id)?.name ??
 const playerColor = (id) => net.players.get(id)?.color ?? '#ffffff';
 
 net.on('lobby', () => { if (game.state === 'lobby') renderLobby(); });
+net.on('progress', (m) => { if (game.state === 'lobby' && !net.active) renderLobby(m.text); });
 net.on('join', (m) => {
   if (!inMatch()) return;
   remotes.sync([...net.players.values()], net.id);
