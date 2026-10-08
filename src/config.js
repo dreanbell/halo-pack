@@ -123,8 +123,6 @@ export const CFG = {
 
   waves: { intermission: 4, spawnGap: 0.7, maxAlive: 12 },
 
-  // Multijugador: el daño entre jugadores se escala para que los duelos no se eternicen.
-  pvp: { damageMult: 1.6, respawn: 3 },
   net: { stateRate: 1 / 20 },
 };
 
@@ -145,12 +143,10 @@ export function bossFor(n) {
   return (n / 5) % 2 === 1 ? 'warlord' : 'overseer';
 }
 
-export function waveComposition(n, players = 1) {
-  const k = difficulty(n, players).count;
-  const boss = bossFor(n);
-  const f = boss ? 0.5 : 1; // en oleadas de jefe, menos escolta
-  const c = (v) => Math.max(0, Math.round(v * k * f));
-  const comp = {
+// Tropas de la oleada n con multiplicador k.
+function troops(n, k) {
+  const c = (v) => Math.max(0, Math.round(v * k));
+  return {
     skitter: c(Math.min(18, 4 + n * 2)),
     warden: c(Math.min(8, Math.floor(n * 0.6))),
     ravager: n >= 3 ? c(Math.min(5, Math.floor((n - 1) / 2))) : 0,
@@ -158,6 +154,19 @@ export function waveComposition(n, players = 1) {
     stalker: n >= 4 ? c(Math.min(5, Math.floor((n - 2) / 2))) : 0,
     bombardier: n >= 6 ? c(Math.min(4, Math.floor((n - 4) / 2))) : 0,
   };
+}
+
+// set: 'classic' (jefe cada 5) | 'bosses' (jefe en cada oleada; desde la 6.ª, los dos cada tres).
+export function waveComposition(n, players = 1, set = 'classic') {
+  const k = difficulty(n, players).count;
+  if (set === 'bosses') {
+    const comp = troops(n * 2, k * 0.35);
+    comp[n % 2 ? 'warlord' : 'overseer'] = 1;
+    if (n >= 6 && n % 3 === 0) comp.warlord = comp.overseer = 1;
+    return comp;
+  }
+  const boss = bossFor(n);
+  const comp = troops(n, k * (boss ? 0.5 : 1)); // en oleadas de jefe, menos escolta
   if (boss) comp[boss] = 1;
   return comp;
 }

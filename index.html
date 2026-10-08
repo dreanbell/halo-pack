@@ -22,6 +22,7 @@
       <div id="score">0</div>
       <div id="score-label"></div>
       <div id="wave-info"></div>
+      <div id="timer" class="hidden"></div>
     </div>
     <div id="boss" class="hidden">
       <div id="boss-name"></div>
@@ -106,7 +107,7 @@
         <kbd>Q / 1 / 2</kbd><span>Cambiar arma</span>
         <kbd>Clic der.</kbd><span>Apuntar con la mira (mantener) · visor en DMR y francotirador</span>
         <kbd>G</kbd><span>Granada</span>
-        <kbd>E</kbd><span>Usar caja misteriosa (cooperativo)</span>
+        <kbd>E</kbd><span>Usar caja misteriosa (si la partida tiene cajas)</span>
         <kbd>F</kbd><span>Golpe cuerpo a cuerpo (por la espalda = eliminación)</span>
         <kbd>Tab</kbd><span>Marcador (multijugador)</span>
         <kbd>Esc</kbd><span>Pausa</span>
@@ -170,7 +171,7 @@
           <button class="mode" data-mode="coop">COOPERATIVO</button>
           <button class="mode" data-mode="dm">TODOS CONTRA TODOS</button>
         </div>
-        <p id="mp-mode-desc" class="tip"></p>
+        <div id="mp-rules" class="rules"></div>
         <button id="btn-mp-start">INICIAR PARTIDA</button>
         <p id="mp-wait" class="status"></p>
       </div>
@@ -178,6 +179,19 @@
         <button id="btn-lobby-loadout" class="secondary">ARMAS</button>
         <button id="btn-lobby-armory" class="secondary">ARMERÍA</button>
         <button id="btn-lobby-back" class="secondary">VOLVER</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="setup" class="overlay hidden">
+    <div class="panel rules-panel">
+      <h2>UN JUGADOR</h2>
+      <div id="sp-rules" class="rules"></div>
+      <button id="btn-sp-play">JUGAR</button>
+      <div class="row-buttons">
+        <button id="btn-setup-loadout" class="secondary">ARMAS</button>
+        <button id="btn-setup-reset" class="secondary">RESTABLECER</button>
+        <button id="btn-setup-back" class="secondary">VOLVER</button>
       </div>
     </div>
   </div>
@@ -204,7 +218,7 @@
   <div id="loadout" class="overlay hidden">
     <div class="panel loadout-panel">
       <h2>ARMAS</h2>
-      <p class="tip">Elige tus dos armas para <b>un jugador</b> y <b>todos contra todos</b>. En <b>cooperativo</b> empiezas con carabina y pistola y el resto sale de la caja misteriosa.</p>
+      <p class="tip">Tus dos armas para las partidas con <b>armas iniciales: a elegir</b>. Si la partida fija las armas (cooperativo clásico, Francotiradores, Swat…), se usan esas.</p>
       <div class="lo-slots" id="lo-slots"></div>
       <div class="lo-main">
         <div class="lo-view">
@@ -224,6 +238,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/main.js?v=1.7.0"></script>
+  <script type="module" src="src/main.js?v=1.8.0"></script>
 </body>
 </html>

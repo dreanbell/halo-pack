@@ -2,11 +2,11 @@ import { CFG } from './config.js';
 import { gunThumbnails } from './gunview.js';
 
 const IDS = [
-  'hud', 'menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
+  'hud', 'menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout', 'setup', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
   'crosshair', 'hitmarker', 'weapon-name', 'ammo', 'ammo-mag', 'ammo-res', 'heat', 'heat-fill',
   'grenades', 'radar', 'score', 'banner', 'banner-title', 'banner-sub',
   'toast', 'hint', 'vignette', 'dmg-dir', 'go-stats', 'go-title', 'btn-retry', 'feed', 'scoreboard', 'sb-title',
-  'sb-table', 'wave-info', 'score-label', 'weapon-alt', 'scope', 'boss', 'boss-name', 'boss-hp', 'boss-sh',
+  'sb-table', 'wave-info', 'score-label', 'weapon-alt', 'scope', 'boss', 'boss-name', 'boss-hp', 'boss-sh', 'timer',
   'weapon-icon', 'reload', 'reload-fill', 'scope-zoom', 'scope-range',
   'spectate', 'spec-name', 'spec-sub',
 ];
@@ -42,8 +42,8 @@ export class Hud {
   }
 
   showOverlay(name) {
-    for (const n of ['menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout']) this.toggle(n, 'hidden', n !== name);
-    this.toggle('hud', 'hidden', ['menu', 'lobby', 'armory', 'loadout'].includes(name));
+    for (const n of ['menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout', 'setup']) this.toggle(n, 'hidden', n !== name);
+    this.toggle('hud', 'hidden', ['menu', 'lobby', 'armory', 'loadout', 'setup'].includes(name));
   }
 
   reset() {
@@ -141,14 +141,16 @@ export class Hud {
   }
 
   update(ctx, dt) {
-    const { player: p, arsenal: a, director: d, game: g } = ctx;
+    const { player: p, arsenal: a, director: d, game: g, rules: r } = ctx;
     const P = CFG.player;
     const sp = this.spec;
     // Espectando: las barras muestran el estado del jugador observado.
     const shield = sp ? sp.shield : p.shield, health = sp ? sp.health : p.health;
 
-    this.style('shield-fill', 'width', `${((shield / P.maxShield) * 100).toFixed(1)}%`);
-    this.toggle('shield-bar', 'low', shield < P.maxShield * 0.25);
+    const maxShield = sp ? (r.shields ? P.maxShield : 0) : p.maxShield;
+    this.toggle('shield-bar', 'hidden', !maxShield);
+    if (maxShield) this.style('shield-fill', 'width', `${((shield / maxShield) * 100).toFixed(1)}%`);
+    this.toggle('shield-bar', 'low', shield < maxShield * 0.25);
     this.toggle('shield-bar', 'charging', !sp && p.recharging);
     this.style('health-fill', 'width', `${((health / P.maxHealth) * 100).toFixed(1)}%`);
     this.toggle('health-bar', 'low', health < 35);
@@ -168,7 +170,7 @@ export class Hud {
     this.toggle('heat', 'hidden', !wd.heat);
     if (wd.mag) {
       this.text('ammo-mag', sl.mag);
-      this.text('ammo-res', `/ ${sl.reserve}`);
+      this.text('ammo-res', a.infinite ? '/ ∞' : `/ ${sl.reserve}`);
       this.toggle('ammo', 'low', sl.mag <= Math.ceil(wd.mag / 4));
     } else {
       this.style('heat-fill', 'width', `${(sl.heat * 100).toFixed(1)}%`);
@@ -178,13 +180,14 @@ export class Hud {
     if (g.mode === 'dm') {
       const net = ctx.net, me = net.players.get(net.id);
       const lead = [...net.players.values()].sort((x, y) => y.kills - x.kills)[0];
-      this.text('score', `${me?.kills ?? 0} / ${net.scoreLimit}`);
+      this.text('score', `${me?.kills ?? 0} / ${r.scoreLimit}`);
       this.text('score-label', 'BAJAS');
       this.text('wave-info', lead ? `LÍDER: ${lead.name.toUpperCase()} · ${lead.kills}` : '');
     } else {
       this.text('score', g.score.toLocaleString('es-ES'));
       this.text('score-label', g.mode === 'coop' ? `CRÉDITOS ${d.credits()} · TUS BAJAS ${g.kills}` : '');
-      this.text('wave-info', `OLEADA ${Math.max(1, g.wave)} · ${d.state === 'combat' ? `${d.remaining()} HOSTILES` : 'PREPARANDO…'}`);
+      const lives = r.lives ? ` · VIDAS ${d.lives}` : '';
+      this.text('wave-info', `OLEADA ${d.state === 'combat' ? g.wave : g.wave + 1} · ${d.state === 'combat' ? `${d.remaining()} HOSTILES` : 'PREPARANDO…'}${lives}`);
     }
 
     // Visor (DMR / francotirador) con telémetro; retícula propia de cada arma al disparar desde la cadera.
@@ -203,9 +206,10 @@ export class Hud {
     this.style('crosshair', '--s', `${(wd.kind === 'pellets' ? 22 : 5 + a.spread() * 280).toFixed(1)}px`);
 
     let hint = '';
-    const box = g.mode === 'coop' ? d.boxPrompt() : '';
+    const box = d.boxes.length ? d.boxPrompt() : '';
     if (!p.alive && g.respawnIn > 0) hint = `REAPARECES EN ${Math.ceil(g.respawnIn)}`;
-    else if (!p.alive && g.mode === 'coop') hint = 'CAÍDO · REAPARECES EN LA PRÓXIMA OLEADA';
+    else if (!p.alive && g.lifePending) hint = 'CAÍDO';
+    else if (!p.alive && g.mode === 'coop') hint = r.lives ? 'SIN VIDAS · ESPERA A QUE EL EQUIPO GANE UNA' : 'CAÍDO · REAPARECES EN LA PRÓXIMA OLEADA';
     else if (box) hint = box;
     else if (a.reloadT > 0) hint = 'RECARGANDO';
     else if (wd.heat && sl.overT > 0) hint = 'SOBRECALENTADA';
@@ -225,8 +229,18 @@ export class Hud {
       this.style('boss-hp', 'width', `${Math.max(0, (boss.hp / boss.maxHp) * 100).toFixed(1)}%`);
       this.style('boss-sh', 'width', `${boss.maxShield ? Math.max(0, (boss.shield / boss.maxShield) * 100).toFixed(1) : 0}%`);
     }
+    // Tiempo restante.
+    const tl = g.timeLeft;
+    this.toggle('timer', 'hidden', !Number.isFinite(tl));
+    if (Number.isFinite(tl)) {
+      this.text('timer', `${Math.floor(tl / 60)}:${String(Math.floor(tl % 60)).padStart(2, '0')}`);
+      this.toggle('timer', 'low', tl < 30);
+    }
+
+    this.toggle('radar', 'hidden', !r.radar);
+    if (!r.radar) return;
     const view = sp ? ctx.remotes.get(sp.id) : null;
-    if (view) this.drawRadar(view.pos, view.yaw, d.enemies, ctx.remotes.list().filter((r) => r !== view), g.mode);
+    if (view) this.drawRadar(view.pos, view.yaw, d.enemies, ctx.remotes.list().filter((x) => x !== view), g.mode);
     else this.drawRadar(p.pos, p.yaw.rotation.y, d.enemies, ctx.remotes.list(), g.mode);
   }
 
@@ -281,13 +295,13 @@ export class Hud {
     this.showOverlay('gameover');
   }
 
-  showGameOver({ wave, kills, score, best, time }) {
-    this.el['go-title'].textContent = 'FIN DE LA PARTIDA';
+  showGameOver({ wave, kills, score, best, time, title = 'FIN DE LA PARTIDA', recordLabel = 'Récord' }) {
+    this.el['go-title'].textContent = title;
     this.el['btn-retry'].textContent = 'REINTENTAR';
     const m = Math.floor(time / 60), s = String(Math.floor(time % 60)).padStart(2, '0');
     const rows = [
       ['Oleada alcanzada', wave], ['Bajas', kills], ['Tiempo', `${m}:${s}`],
-      ['Puntuación', score.toLocaleString('es-ES')], ['Récord', best.toLocaleString('es-ES')],
+      ['Puntuación', score.toLocaleString('es-ES')], ...(best === null ? [] : [[recordLabel, best.toLocaleString('es-ES')]]),
     ];
     this.el['go-stats'].replaceChildren(...rows.flatMap(([k, v]) => {
       const a = document.createElement('span'); a.textContent = k;
