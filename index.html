@@ -92,12 +92,22 @@
       <h2>MULTIJUGADOR LAN</h2>
       <div id="lobby-connect">
         <label class="field">Tu nombre <input id="mp-name" maxlength="16" autocomplete="off" spellcheck="false" /></label>
-        <button id="btn-connect">CONECTAR</button>
+        <button id="btn-host">CREAR SALA</button>
+        <div class="join-row">
+          <input id="mp-code" maxlength="5" placeholder="CÓDIGO" autocomplete="off" spellcheck="false" aria-label="Código de sala" />
+          <button id="btn-join">UNIRSE</button>
+        </div>
+        <button id="btn-lan" class="secondary hidden">SERVIDOR LAN DE ESTE EQUIPO</button>
         <p id="mp-status" class="status"></p>
-        <p class="note">Un jugador ejecuta <code>node server.js</code> en su equipo y comparte la dirección que aparece en la consola (p. ej. <code>http://192.168.1.20:8080</code>). Los demás la abren en el navegador, conectados a la misma red.</p>
+        <p class="note">Uno crea la sala y comparte el código (o el enlace). Los demás lo escriben aquí. La partida va directa entre los equipos de la red; solo hace falta internet para emparejarse al entrar.</p>
       </div>
       <div id="lobby-room" class="hidden">
-        <p class="address">Para unirse: <b id="mp-address"></b></p>
+        <div id="room-code-box" class="hidden">
+          <p class="address">Código de sala</p>
+          <div id="room-code" class="room-code"></div>
+          <button id="btn-copy" class="secondary">COPIAR ENLACE</button>
+        </div>
+        <p id="room-address" class="address hidden">Para unirse: <b id="mp-address"></b></p>
         <ul id="mp-players"></ul>
         <div class="modes">
           <button class="mode" data-mode="coop">COOPERATIVO</button>
@@ -111,6 +121,7 @@
     </div>
   </div>
 
+  <script src="vendor/peerjs/peerjs.min.js"></script>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

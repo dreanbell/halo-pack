@@ -142,6 +142,14 @@ button:disabled { opacity: 0.4; cursor: default; background: transparent; }
 .status { margin-top: 12px; min-height: 1.2em; color: #ffd36b; }
 code { font-family: ui-monospace, monospace; color: #e9fbff; background: rgba(0, 0, 0, 0.35); padding: 1px 5px; }
 .address { font-size: 18px; margin-bottom: 12px; }
+.join-row { display: flex; gap: 10px; justify-content: center; margin: 14px 0 4px; flex-wrap: wrap; }
+#mp-code {
+  font-family: var(--font); font-size: 22px; font-weight: 700; letter-spacing: 0.35em; text-align: center; text-transform: uppercase;
+  width: 170px; padding: 8px 10px; background: rgba(0, 0, 0, 0.35); color: #e9fbff; border: 1px solid var(--hud-dim); outline: none;
+}
+#mp-code:focus { border-color: var(--hud); }
+.room-code { font-size: clamp(40px, 10vw, 64px); font-weight: 700; letter-spacing: 0.3em; margin-right: -0.3em; color: #e9fbff; text-shadow: 0 0 18px var(--hud); line-height: 1.1; user-select: all; }
+#btn-copy { margin: 8px 0 18px; }
 .address b { color: #e9fbff; user-select: all; }
 #mp-players { list-style: none; display: grid; gap: 6px; margin: 0 auto 18px; max-width: 360px; text-align: left; font-size: 19px; font-weight: 700; }
 #mp-players li { display: flex; justify-content: space-between; padding: 4px 12px; background: rgba(0, 0, 0, 0.3); }

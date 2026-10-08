@@ -8,7 +8,7 @@ import { Hud } from './hud.js';
 import { Sfx } from './audio.js';
 import { Effects } from './effects.js';
 import { NavGrid } from './nav.js';
-import { Net, v3 } from './net.js';
+import { Net, v3, normalizeCode } from './net.js';
 import { RemotePlayers } from './remote.js';
 
 const BEST_KEY = 'ringfall.best';
@@ -145,7 +145,7 @@ function gameOver() {
 }
 
 function toMenu() {
-  if (net.active) net.disconnect();
+  net.disconnect();
   remotes.clear();
   director.configure('sp', true);
   fx.clear();
@@ -178,6 +178,10 @@ function renderLobby(status) {
   $('lobby-room').classList.toggle('hidden', !connected);
   if (status !== undefined) $('mp-status').textContent = status;
   if (!connected) return;
+  const p2p = net.kind !== 'lan';
+  $('room-code-box').classList.toggle('hidden', !p2p || !net.code);
+  $('room-address').classList.toggle('hidden', p2p);
+  $('room-code').textContent = net.code ?? '';
   $('mp-address').textContent = `${location.protocol}//${location.host}`;
   $('mp-players').replaceChildren(...[...net.players.values()].map((p) => {
     const li = document.createElement('li');
@@ -199,35 +203,68 @@ function renderLobby(status) {
   $('mp-wait').textContent = net.isHost ? '' : net.state === 'playing' ? 'Partida en curso…' : 'Esperando a que el anfitrión inicie la partida…';
 }
 
-$('btn-mp').addEventListener('click', () => {
+function roomLink(code) {
+  return `${location.origin}${location.pathname}${location.search}#sala=${code}`;
+}
+
+function openLobby(code = '') {
   sfx.unlock();
   try { $('mp-name').value = localStorage.getItem(NAME_KEY) ?? ''; } catch { /* sin almacenamiento */ }
-  const offline = location.protocol !== 'http:' && !['localhost', '127.0.0.1'].includes(location.hostname);
-  toLobby(offline ? 'Para jugar en LAN descarga el repo y ejecuta "node server.js"; luego abre la dirección que muestra.' : '');
-  $('mp-name').focus();
-});
+  $('mp-code').value = code;
+  toLobby('');
+  // ¿Esta página la sirve server.js? Entonces también se puede jugar en LAN sin internet.
+  fetch('api/info', { cache: 'no-store' }).then((r) => r.json()).then((j) => {
+    $('btn-lan').classList.toggle('hidden', !j?.ringfall);
+  }).catch(() => $('btn-lan').classList.add('hidden'));
+  (code ? $('btn-join') : $('mp-name')).focus();
+}
 
-async function connect() {
+$('btn-mp').addEventListener('click', () => openLobby());
+
+function playerNameInput() {
   const name = $('mp-name').value.trim() || 'Jugador';
   try { localStorage.setItem(NAME_KEY, name); } catch { /* sin almacenamiento */ }
-  $('btn-connect').disabled = true;
-  renderLobby('Conectando…');
+  return name;
+}
+
+async function connectWith(label, fn) {
+  const buttons = ['btn-host', 'btn-join', 'btn-lan'].map($);
+  for (const b of buttons) b.disabled = true;
+  renderLobby(label);
   try {
-    await net.connect(name);
+    await fn(playerNameInput());
     renderLobby('');
+    if (net.code) history.replaceState(null, '', `#sala=${net.code}`);
     if (net.state === 'playing') startSession(net.mode); // entrar en una partida ya empezada
   } catch (e) {
-    renderLobby(`${e.message}. ¿Está en marcha "node server.js" y has abierto su dirección?`);
+    renderLobby(`${e.message}.`);
   } finally {
-    $('btn-connect').disabled = false;
+    for (const b of buttons) b.disabled = false;
   }
 }
 
-$('btn-connect').addEventListener('click', connect);
-$('mp-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') connect(); });
+$('btn-host').addEventListener('click', () => connectWith('Creando sala…', (name) => net.hostP2P(name)));
+function join() {
+  const code = normalizeCode($('mp-code').value);
+  if (code.length !== 5) { renderLobby('El código tiene 5 caracteres.'); $('mp-code').focus(); return; }
+  connectWith('Uniéndose…', async (name) => { await net.joinP2P(name, code); net.code = code; });
+}
+$('btn-join').addEventListener('click', join);
+$('mp-code').addEventListener('input', () => { $('mp-code').value = normalizeCode($('mp-code').value); });
+$('mp-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+$('mp-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') (normalizeCode($('mp-code').value).length === 5 ? join() : $('btn-host').click()); });
+$('btn-lan').addEventListener('click', () => connectWith('Conectando…', (name) => net.joinLan(name)));
+$('btn-copy').addEventListener('click', async () => {
+  const link = roomLink(net.code);
+  try { await navigator.clipboard.writeText(link); renderLobby('Enlace copiado. Envíalo a los demás jugadores.'); } catch { renderLobby(link); }
+});
 for (const b of document.querySelectorAll('.mode')) b.addEventListener('click', () => net.send('mode', { mode: b.dataset.mode }));
 $('btn-mp-start').addEventListener('click', () => net.send('start'));
-$('btn-lobby-back').addEventListener('click', toMenu);
+$('btn-lobby-back').addEventListener('click', () => { history.replaceState(null, '', location.pathname + location.search); toMenu(); });
+
+// Enlace de invitación: …#sala=ABCDE
+const invite = normalizeCode(new URLSearchParams(location.hash.slice(1)).get('sala'));
+if (invite.length === 5) openLobby(invite);
 
 // --- Mensajes de red ---------------------------------------------------------
 const inMatch = () => game.mode !== 'sp' && (game.state === 'playing' || game.state === 'paused');
@@ -252,8 +289,8 @@ net.on('leave', (m) => {
   }
 });
 net.on('start', (m) => startSession(m.mode));
-net.on('disconnect', () => {
-  if (game.state !== 'menu') toLobby('Se perdió la conexión con el servidor.');
+net.on('disconnect', (m) => {
+  if (game.state !== 'menu') toLobby(`${m.reason ?? 'Se perdió la conexión'}.`);
 });
 
 net.on('st', (m) => remotes.onState(m));
@@ -381,7 +418,7 @@ addEventListener('resize', () => {
 });
 
 // --- Bucle -------------------------------------------------------------------
-let stateT = 0, boardT = 0, pingT = 0;
+let stateT = 0, boardT = 0;
 function netTick(dt) {
   stateT -= dt;
   if (stateT <= 0) {
@@ -391,8 +428,6 @@ function netTick(dt) {
       h: +player.height.toFixed(2), a: player.alive ? 1 : 0, w: arsenal.current, hp: Math.round(player.health), sh: Math.round(player.shield),
     });
   }
-  pingT -= dt;
-  if (pingT <= 0) { pingT = 2; net.send('ping', { ts: performance.now() }); }
 }
 
 function tick(dt) {

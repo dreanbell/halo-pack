@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 // Servidor LAN de Ringfall: sirve el juego por HTTP y retransmite mensajes por WebSocket.
 // Sin dependencias (Node >= 18). Uso: node server.js [puerto]
-'use strict';
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
-const os = require('os');
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { Room } from './src/room.js';
 
 const PORT = Number(process.env.PORT || process.argv[2] || 8080);
-const ROOT = __dirname;
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const MAX_PLAYERS = 8;
 const SCORE_LIMIT = 15;
 const MAX_FRAME = 1 << 20;
-const COLORS = ['#3ad0ff', '#ff5a5a', '#7dff6a', '#ffc23a', '#c77dff', '#ff8ad8', '#5affd6', '#f0f0f0'];
 const MIME = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8',
 };
 
@@ -23,6 +23,11 @@ const MIME = {
 const server = http.createServer((req, res) => {
   let rel;
   try { rel = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { res.writeHead(400).end(); return; }
+  if (rel === '/api/info') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ ringfall: true, players: room.players.size, state: room.state }));
+    return;
+  }
   if (rel.endsWith('/')) rel += 'index.html';
   const file = path.join(ROOT, path.normalize(rel));
   // Nada fuera del repo ni ficheros/carpetas ocultos (.git, .github…).
@@ -103,8 +108,7 @@ class Conn {
     this.socket.write(Buffer.concat([head, payload]));
   }
 
-  sendText(text) { this.frame(0x1, Buffer.from(text, 'utf8')); }
-  send(obj) { this.sendText(JSON.stringify(obj)); }
+  send(obj) { this.frame(0x1, Buffer.from(JSON.stringify(obj), 'utf8')); }
 
   close(code = 1000) {
     if (this.closed) return;
@@ -124,113 +128,12 @@ class Conn {
 }
 
 // --- Sala única --------------------------------------------------------------
-const players = new Map();
-let nextId = 1;
-let hostId = null;
-let mode = 'coop';
-let state = 'lobby';
-
-const pub = (p) => ({ id: p.id, name: p.name, color: p.color, kills: p.kills, deaths: p.deaths });
-const roster = () => [...players.values()].map(pub);
-const lobbyMsg = () => ({ t: 'lobby', players: roster(), hostId, mode, state, scoreLimit: SCORE_LIMIT });
-
-function broadcast(msg, exceptId) {
-  const text = JSON.stringify(msg);
-  for (const p of players.values()) if (p.id !== exceptId) p.conn.sendText(text);
-}
-
-function pickHost() {
-  hostId = players.size ? Math.min(...players.keys()) : null;
-}
-
-function endMatch(winner, summary) {
-  state = 'lobby';
-  broadcast({ t: 'matchEnd', mode, winner, summary: summary ?? null, players: roster() });
-  broadcast(lobbyMsg());
-  log(`Fin de partida${winner ? ` · ganador: ${players.get(winner)?.name}` : ''}`);
-}
-
-function join(conn, m) {
-  if (players.size >= MAX_PLAYERS) { conn.send({ t: 'error', msg: 'Partida llena' }); conn.close(); return; }
-  const name = String(m.name ?? '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 16) || `Jugador${nextId}`;
-  const used = new Set([...players.values()].map((p) => p.color));
-  const p = {
-    id: nextId++, name, color: COLORS.find((c) => !used.has(c)) ?? COLORS[0],
-    conn, kills: 0, deaths: 0,
-  };
-  players.set(p.id, p);
-  conn.player = p;
-  if (hostId === null) hostId = p.id;
-  conn.send({ ...lobbyMsg(), t: 'welcome', id: p.id });
-  broadcast({ t: 'join', player: pub(p) }, p.id);
-  broadcast(lobbyMsg(), p.id);
-  log(`+ ${name} (#${p.id}) · ${players.size} jugador(es)`);
-}
+const room = new Room({ maxPlayers: MAX_PLAYERS, scoreLimit: SCORE_LIMIT, log });
 
 function onMessage(conn, raw) {
   let m;
   try { m = JSON.parse(raw); } catch { return; }
-  if (!m || typeof m.t !== 'string') return;
-  const me = conn.player;
-  if (!me) { if (m.t === 'hello') join(conn, m); return; }
-
-  switch (m.t) {
-    case 'st': // estado del jugador → resto
-      m.id = me.id;
-      broadcast(m, me.id);
-      break;
-    case 'b': // difusión genérica
-      if (m.m && typeof m.m.t === 'string') broadcast({ ...m.m, from: me.id }, me.id);
-      break;
-    case 'to': { // mensaje directo
-      const target = players.get(m.to);
-      if (target && m.m && typeof m.m.t === 'string') target.conn.send({ ...m.m, from: me.id });
-      break;
-    }
-    case 'mode':
-      if (me.id === hostId && state === 'lobby' && (m.mode === 'coop' || m.mode === 'dm')) {
-        mode = m.mode;
-        broadcast(lobbyMsg());
-      }
-      break;
-    case 'start':
-      if (me.id === hostId && state === 'lobby') {
-        state = 'playing';
-        for (const p of players.values()) { p.kills = 0; p.deaths = 0; }
-        broadcast({ t: 'start', mode, hostId, players: roster() });
-        log(`Partida iniciada · ${mode === 'coop' ? 'Cooperativo' : 'Todos contra todos'}`);
-      }
-      break;
-    case 'kill': { // DM: la víctima informa de su muerte
-      if (state !== 'playing' || mode !== 'dm') break;
-      const killer = players.get(m.killer);
-      me.deaths++;
-      if (killer && killer !== me) killer.kills++;
-      else me.kills--; // suicidio
-      broadcast({ t: 'feed', killer: killer && killer !== me ? killer.id : null, victim: me.id, head: !!m.head, players: roster() });
-      if (killer && killer !== me && killer.kills >= SCORE_LIMIT) endMatch(killer.id);
-      break;
-    }
-    case 'end': // coop: el anfitrión cierra la partida
-      if (me.id === hostId && state === 'playing') endMatch(null, m.summary);
-      break;
-    case 'ping':
-      conn.send({ t: 'pong', ts: m.ts });
-      break;
-    default:
-      break;
-  }
-}
-
-function onClose(conn) {
-  const p = conn.player;
-  if (!p) return;
-  players.delete(p.id);
-  if (p.id === hostId) pickHost();
-  if (!players.size) state = 'lobby';
-  broadcast({ t: 'leave', id: p.id, hostId });
-  broadcast(lobbyMsg());
-  log(`- ${p.name} (#${p.id}) · ${players.size} jugador(es)${players.size ? ` · anfitrión: ${players.get(hostId)?.name}` : ''}`);
+  room.message(conn, m);
 }
 
 server.on('upgrade', (req, socket) => {
@@ -241,7 +144,7 @@ server.on('upgrade', (req, socket) => {
   const accept = crypto.createHash('sha1').update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
   socket.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${accept}`, '', ''].join('\r\n'));
   socket.setNoDelay(true);
-  conns.add(new Conn(socket, onMessage, (c) => { conns.delete(c); onClose(c); }));
+  conns.add(new Conn(socket, onMessage, (c) => { conns.delete(c); room.leave(c); }));
 });
 
 // Latido: detecta clientes caídos (pestaña cerrada sin cierre limpio, Wi-Fi perdido…).
