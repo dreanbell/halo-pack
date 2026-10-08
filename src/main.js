@@ -8,12 +8,14 @@ import { Hud } from './hud.js';
 import { Sfx } from './audio.js';
 import { Effects } from './effects.js';
 import { NavGrid } from './nav.js';
-import { Net, v3, normalizeCode } from './net.js';
+import { Net, v3, normalizeCode, BUILD, DEBUG } from './net.js';
 import { RemotePlayers } from './remote.js';
 
 const BEST_KEY = 'ringfall.best';
 const NAME_KEY = 'ringfall.name';
 const $ = (id) => document.getElementById(id);
+for (const el of document.querySelectorAll('.build')) el.textContent = `v${BUILD}${DEBUG ? ' · diagnóstico' : ''}`;
+console.info(`Ringfall v${BUILD}`);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -213,9 +215,12 @@ function openLobby(code = '') {
   $('mp-code').value = code;
   toLobby('');
   // ¿Esta página la sirve server.js? Entonces también se puede jugar en LAN sin internet.
-  fetch('api/info', { cache: 'no-store' }).then((r) => r.json()).then((j) => {
-    $('btn-lan').classList.toggle('hidden', !j?.ringfall);
-  }).catch(() => $('btn-lan').classList.add('hidden'));
+  // Solo tiene sentido si la página la sirve server.js (no en GitHub Pages).
+  if (!location.hostname.endsWith('github.io')) {
+    fetch('api/info', { cache: 'no-store' }).then((r) => r.json()).then((j) => {
+      $('btn-lan').classList.toggle('hidden', !j?.ringfall);
+    }).catch(() => $('btn-lan').classList.add('hidden'));
+  }
   (code ? $('btn-join') : $('mp-name')).focus();
 }
 

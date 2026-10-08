@@ -10,6 +10,9 @@ const TIMEOUT = 15000;
 const HEARTBEAT = 2000; // ms entre pings
 const SILENCE = 9000; // ms sin mensajes = conexión perdida
 
+export const BUILD = '1.2.2';
+export const DEBUG = new URLSearchParams(location.search).has('debug');
+
 export const makeCode = () => Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
 export const normalizeCode = (s) => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
 
@@ -30,7 +33,7 @@ const ICE = {
 
 function peerOptions() {
   const q = new URLSearchParams(location.search);
-  const o = { debug: 0, config: ICE };
+  const o = { debug: DEBUG ? 2 : 0, config: ICE };
   if (q.get('peerhost')) {
     o.host = q.get('peerhost');
     o.port = Number(q.get('peerport') || 9000);
@@ -105,6 +108,7 @@ export class Net {
   }
 
   fail(err) {
+    if (DEBUG) console.warn('[ringfall] fallo en fase', this.phase, err);
     clearTimeout(this.pendingTimer);
     const p = this.pending;
     this.pending = null;
@@ -183,9 +187,14 @@ export class Net {
     // Si se cae el servidor de emparejamiento, las conexiones ya hechas siguen; reintenta para nuevas.
     peer.on('disconnected', () => { if (!peer.destroyed) setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 2000); });
     peer.on('error', (e) => {
-      if (this.id === null) this.fail(new Error(PEER_ERRORS[e.type] ?? e.message));
+      if (this.id === null) this.fail(new Error(this.explain(e)));
     });
     return done;
+  }
+
+  explain(e) {
+    const msg = PEER_ERRORS[e.type] ?? e.message;
+    return DEBUG ? `${msg} [${e.type}: ${e.message}]` : msg;
   }
 
   joinP2P(name, code) {
@@ -211,7 +220,7 @@ export class Net {
       });
     });
     peer.on('error', (e) => {
-      if (this.id === null) this.fail(new Error(PEER_ERRORS[e.type] ?? e.message));
+      if (this.id === null) this.fail(new Error(this.explain(e)));
     });
     return done;
   }
