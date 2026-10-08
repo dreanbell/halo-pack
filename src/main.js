@@ -11,6 +11,8 @@ import { NavGrid } from './nav.js';
 import { Net, v3, normalizeCode, BUILD, DEBUG } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { Armory } from './armory.js';
+import { LoadoutMenu } from './loadout.js';
+import { gunThumbnails } from './gunview.js';
 import { DEFAULT_SKIN, sanitizeSkin } from './skins.js';
 import { skyEnvironment } from './world.js';
 
@@ -83,56 +85,25 @@ function loadoutFor(mode) {
   return mode === 'coop' ? CFG.defaultLoadout : ctx.loadout;
 }
 
-const STAT_MAX = { dps: 230, range: 400, mob: 1 };
-function weaponStats(w) {
-  const shots = w.kind === 'pellets' ? w.pellets : w.burst ?? 1;
-  const dps = (w.damage * shots) / (w.interval + (w.burst ? w.burstGap * (w.burst - 1) : 0));
-  const range = w.kind === 'projectile' ? w.projSpeed * w.life : w.range;
-  return [['DAÑO', Math.min(1, dps / STAT_MAX.dps)], ['ALCANCE', Math.min(1, range / STAT_MAX.range)], ['CADENCIA', Math.min(1, 0.05 / w.interval * 1.4)]];
-}
-
-function renderLoadout() {
-  for (const slot of [0, 1]) {
-    $(`lo-${slot}`).replaceChildren(...Object.entries(CFG.weapons).map(([id, w]) => {
-      const b = document.createElement('button');
-      b.className = `wcard${w.alien ? ' alien' : ''}${ctx.loadout[slot] === id ? ' selected' : ''}`;
-      b.disabled = ctx.loadout[1 - slot] === id;
-      const name = document.createElement('b');
-      name.textContent = w.name;
-      const kind = document.createElement('small');
-      kind.textContent = `${w.alien ? 'ALIENÍGENA · ' : ''}${w.heat ? 'CALOR' : `CARGADOR ${w.mag}`}${w.zoom ? ` · MIRA x${w.zoom}` : ''}`;
-      const bars = document.createElement('div');
-      bars.className = 'bars';
-      for (const [label, v] of weaponStats(w)) {
-        const l = document.createElement('span');
-        l.textContent = label;
-        const bar = document.createElement('div');
-        bar.className = 'bar';
-        const fill = document.createElement('i');
-        fill.style.width = `${Math.round(v * 100)}%`;
-        bar.append(fill);
-        bars.append(l, bar);
-      }
-      b.append(name, kind, bars);
-      b.addEventListener('click', () => {
-        ctx.loadout[slot] = id;
-        try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(ctx.loadout)); } catch { /* sin almacenamiento */ }
-        renderLoadout();
-      });
-      return b;
-    }));
-  }
-}
-
+const loadoutMenu = new LoadoutMenu({
+  get: () => ctx.loadout,
+  set: (l) => {
+    ctx.loadout = l;
+    try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(l)); } catch { /* sin almacenamiento */ }
+  },
+});
+// Miniaturas de armas (menú y HUD): se generan en segundo plano mientras se está en el menú.
+setTimeout(() => { if (game.state !== 'playing') gunThumbnails(); }, 1200);
 let loadoutReturn = 'menu';
 function openLoadout(from) {
   loadoutReturn = from;
-  renderLoadout();
   hud.showOverlay('loadout');
+  loadoutMenu.open();
 }
 $('btn-loadout').addEventListener('click', () => openLoadout('menu'));
 $('btn-lobby-loadout').addEventListener('click', () => openLoadout('lobby'));
 $('btn-loadout-done').addEventListener('click', () => {
+  loadoutMenu.close();
   hud.showOverlay(loadoutReturn);
   if (loadoutReturn === 'lobby') renderLobby();
 });
@@ -227,7 +198,7 @@ function resume() {
 
 game.onPlayerDeath = (lastHit) => {
   game.deathT = 0;
-  arsenal.trigger = false;
+  arsenal.trigger = arsenal.aimHeld = false;
   sfx.death();
   if (game.mode === 'dm') {
     net.send('kill', { killer: lastHit?.by ?? null, head: !!lastHit?.head });
@@ -535,7 +506,7 @@ document.addEventListener('pointerlockchange', () => {
     hud.showOverlay(null);
   } else if (!locked && game.state === 'playing' && (player.alive || game.mode !== 'sp')) {
     game.state = 'paused';
-    arsenal.trigger = false;
+    arsenal.trigger = arsenal.aimHeld = false;
     player.keys.clear();
     hud.showOverlay('pause');
   }

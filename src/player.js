@@ -55,6 +55,8 @@ export class Player {
 
   look(dx, dy) {
     const k = P.sensitivity / (this.ctx.arsenal?.zoom ?? 1); // más fino con mira
+    this.lookDX = (this.lookDX ?? 0) + dx; // para la inercia del arma en mano
+    this.lookDY = (this.lookDY ?? 0) + dy;
     this.yaw.rotation.y -= dx * k;
     this.pitch.rotation.x = clamp(this.pitch.rotation.x - dy * k, -1.5, 1.5);
   }
@@ -93,7 +95,8 @@ export class Player {
     let wx = -sn * f + cs * s, wz = -cs * f - sn * s;
     const wl = Math.hypot(wx, wz);
     if (wl > 0) { wx /= wl; wz /= wl; }
-    const speed = this.crouching ? P.crouch : this.sprinting ? P.sprint : P.walk;
+    const aiming = (this.ctx.arsenal?.aimK ?? 0) > 0.5;
+    const speed = (this.crouching ? P.crouch : this.sprinting ? P.sprint : P.walk) * (aiming ? 0.72 : 1);
     const a = 1 - Math.exp(-(this.onGround ? P.groundAccel : P.airControl) * dt);
     this.vel.x += (wx * speed - this.vel.x) * a;
     this.vel.z += (wz * speed - this.vel.z) * a;

@@ -63,6 +63,33 @@ export class Effects {
     if (this.decals.length > MAX_DECALS) this.scene.remove(this.decals.shift());
   }
 
+  // Casquillo expulsado: cae, rebota una vez en floorY y desaparece. kind: rifle | small | big | shell.
+  casing(pos, vel, kind, floorY) {
+    if (!this.casingGeo) {
+      const c = (r, l) => new THREE.CylinderGeometry(r, r * 0.92, l, 8);
+      this.casingGeo = { rifle: c(0.0036, 0.026), small: c(0.003, 0.018), big: c(0.0052, 0.036), shell: c(0.0098, 0.032) };
+      this.casingMat = {
+        brass: new THREE.MeshStandardMaterial({ color: 0xd2a64e, metalness: 1, roughness: 0.28 }),
+        hull: new THREE.MeshStandardMaterial({ color: 0xb0261c, metalness: 0.1, roughness: 0.5 }),
+      };
+    }
+    const mesh = new THREE.Mesh(this.casingGeo[kind] ?? this.casingGeo.rifle, kind === 'shell' ? this.casingMat.hull : this.casingMat.brass);
+    mesh.position.copy(pos);
+    mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.PI / 2);
+    const spin = new THREE.Vector3((Math.random() - 0.5) * 30, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 30);
+    this.add(mesh, 1.1, (it, k, dt) => {
+      vel.y -= 9.8 * dt;
+      mesh.position.addScaledVector(vel, dt);
+      if (mesh.position.y < floorY + 0.01) {
+        mesh.position.y = floorY + 0.01;
+        if (vel.y < 0) { vel.y *= -0.3; vel.x *= 0.45; vel.z *= 0.45; spin.multiplyScalar(0.4); }
+      }
+      mesh.rotation.x += spin.x * dt;
+      mesh.rotation.y += spin.y * dt;
+      mesh.rotation.z += spin.z * dt;
+    }, 'all');
+  }
+
   sparks(point, color) {
     this.burst(point, color, 12, 6, 0.3, 0.09);
   }
@@ -125,7 +152,7 @@ export class Effects {
   dispose(it) {
     this.scene.remove(it.obj);
     if (!it.shared) it.obj.geometry.dispose();
-    it.obj.material.dispose();
+    if (it.shared !== 'all') it.obj.material.dispose();
   }
 
   update(dt) {

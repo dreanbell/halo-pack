@@ -65,7 +65,11 @@ python3 -m http.server 8000   # o: node server.js 8000 → http://localhost:8000
 | Needle Swarm 👽 | Alienígena | Agujas que persiguen al objetivo |
 | Arc Cannon 👽 | Alienígena | Proyectil explosivo con daño en área |
 
-- **Un jugador y todos contra todos:** eliges tus dos armas en **ARMAS** (menú o lobby).
+- **Un jugador y todos contra todos:** eliges tus dos armas en **ARMAS** (menú o lobby). El menú tiene vista previa 3D giratoria de cada arma (arrastra para girar, rueda para acercar), miniaturas, ficha técnica (daño, cadencia, modo, munición, recarga, alcance, mira, calibre, multiplicadores, peso) y barras comparativas.
+- **Apuntar:** mantén **clic derecho** para llevar el arma a la cara y alinear su mira (punto rojo, holográfica, miras de tritio, anillo fantasma o retícula alienígena). Al apuntar: menos dispersión, algo de aumento, movimiento más lento. El tiempo para apuntar depende del peso del arma. DMR y francotirador pasan a **visor** con retícula propia (BDC, mil-dots) y **telémetro**.
+- **Detalle de las armas:** modelos procedurales de 30–60 piezas (raíles, guardamanos con ranuras, ventana de expulsión, guardamonte, miras con lente y retícula luminosa, rótulos grabados) con un pack de texturas PBR generado por código: acero pavonado cepillado con arañazos, polímero granulado, cerakote con desconchones, nogal veteado, goma moleteada, fibra de carbono y caparazón alienígena iridiscente con venas luminosas. Las piezas estáticas se unen por material (pocas llamadas de dibujo).
+- **Animaciones:** el cargador cae y entra al recargar, corredera de la escopeta, cerrojo manual del francotirador, cerrojo que retrocede al disparar, inercia del arma al mover el ratón, cristales de la Needle Swarm que muestran la carga y núcleos de energía que laten. Fogonazo con estrella y llamas laterales, casquillos (latón o cartucho rojo) que rebotan y suenan.
+- **Retícula de cadera** distinta para cada arma; se abre con la dispersión y se pone roja sobre un enemigo.
 - **Cooperativo:** empiezas con carabina y pistola. Ganas **créditos** con cada baja y cada oleada superada. Las **cajas misteriosas** (una en la plataforma central y otra en el campo, marcadas con un haz de luz) cuestan 500 créditos: pulsa **E**, la caja se abre, van pasando armas y sale una al azar, que coges con **E** antes de 8 s. Sustituye al arma que llevas en la mano. Si ya la tenías, te llena la munición. Las mejores salen en rondas altas: francotirador y agujas desde la 3, cañón de arco desde la 5.
 
 ## Armería (skins)
@@ -95,7 +99,7 @@ El modelo del soldado es procedural (unas 40 piezas biseladas con materiales PBR
 | C / Ctrl | Agacharse (menos dispersión) |
 | R | Recargar |
 | Q / 1 / 2 / rueda | Cambiar arma |
-| Clic der. | Mira (DMR, francotirador); si el arma no tiene, granada |
+| Clic der. (mantener) | Apuntar con la mira del arma · visor en DMR y francotirador |
 | G | Granada |
 | E | Caja misteriosa (cooperativo) |
 | F | Golpe cuerpo a cuerpo (por la espalda = eliminación) |
@@ -138,6 +142,9 @@ src/main.js         Arranque, estados, lobby, mensajes de red y bucle
 src/net.js          Red: anfitrión/invitado P2P (WebRTC) y cliente LAN (WebSocket)
 src/remote.js       Otros jugadores: interpolación, impactos y etiqueta de nombre
 src/avatar.js       Modelo del soldado, materiales por skin, animación e IK de brazos
+src/guns.js         Modelos de armas, pack de texturas procedurales y fichas (GUN_INFO)
+src/gunview.js      Vista previa 3D del arma y miniaturas
+src/loadout.js      Menú de armas (ranuras, rejilla, ficha técnica)
 src/skins.js        Opciones de armadura y validación
 src/armory.js       Pantalla de armería con vista previa 3D
 src/guns.js         Modelos de las armas

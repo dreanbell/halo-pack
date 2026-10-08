@@ -1,4 +1,5 @@
 import { CFG } from './config.js';
+import { gunThumbnails } from './gunview.js';
 
 const IDS = [
   'hud', 'menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
@@ -6,6 +7,7 @@ const IDS = [
   'grenades', 'radar', 'score', 'banner', 'banner-title', 'banner-sub',
   'toast', 'hint', 'vignette', 'dmg-dir', 'go-stats', 'go-title', 'btn-retry', 'feed', 'scoreboard', 'sb-title',
   'sb-table', 'wave-info', 'score-label', 'weapon-alt', 'scope', 'boss', 'boss-name', 'boss-hp', 'boss-sh',
+  'weapon-icon', 'reload', 'reload-fill', 'scope-zoom', 'scope-range',
 ];
 const RADAR_RANGE = 30;
 
@@ -26,6 +28,11 @@ export class Hud {
   style(id, prop, v) {
     const key = `${id}.${prop}`;
     if (this.cache.get(key) !== v) { this.cache.set(key, v); this.el[id].style.setProperty(prop, v); }
+  }
+
+  attr(id, name, v) {
+    const key = `${id}@${name}`;
+    if (this.cache.get(key) !== v) { this.cache.set(key, v); this.el[id].setAttribute(name, v); }
   }
 
   toggle(id, cls, on) {
@@ -131,6 +138,14 @@ export class Hud {
 
     const sl = a.w, wd = sl.def, other = a.slots[1 - a.current];
     this.text('weapon-name', wd.name);
+    if (this.cache.get('icon') !== sl.id) {
+      this.cache.set('icon', sl.id);
+      const url = `url(${gunThumbnails()[sl.id]})`;
+      this.el['weapon-icon'].style.maskImage = this.el['weapon-icon'].style.webkitMaskImage = url;
+    }
+    const reloading = a.reloadT > 0 && wd.reload;
+    this.toggle('reload', 'hidden', !reloading);
+    if (reloading) this.style('reload-fill', 'width', `${((1 - a.reloadT / wd.reload) * 100).toFixed(1)}%`);
     this.text('weapon-alt', other ? `${other.def.name} [Q]` : '');
     this.toggle('ammo', 'hidden', !wd.mag);
     this.toggle('heat', 'hidden', !wd.heat);
@@ -155,12 +170,20 @@ export class Hud {
       this.text('wave-info', `OLEADA ${Math.max(1, g.wave)} · ${d.state === 'combat' ? `${d.remaining()} HOSTILES` : 'PREPARANDO…'}`);
     }
 
-    const scoped = wd.scope && a.zoom > 1;
+    // Visor (DMR / francotirador) con telémetro; retícula propia de cada arma al disparar desde la cadera.
+    const scoped = wd.scope && a.zoom > 1.5;
     this.toggle('scope', 'hidden', !scoped);
-    this.toggle('crosshair', 'hidden', scoped);
-    this.toggle('crosshair', 'pistol', !wd.auto);
+    if (scoped) {
+      this.attr('scope', 'data-k', wd.scope);
+      this.text('scope-zoom', `×${wd.zoom}`);
+      this.text('scope-range', a.aimDist ? `${Math.round(a.aimDist)} m` : '--- m');
+      this.toggle('scope', 'enemy', a.aimEnemy);
+    }
+    this.attr('crosshair', 'data-w', sl.id);
     this.toggle('crosshair', 'enemy', a.aimEnemy);
-    this.style('crosshair', '--s', `${(wd.kind === 'pellets' ? 22 : 7 + a.spread() * 300).toFixed(1)}px`);
+    const xo = Math.max(0, 1 - a.aimK * 2.2) * (1 - 0.6 * a.sprintK);
+    this.style('crosshair', 'opacity', xo.toFixed(2));
+    this.style('crosshair', '--s', `${(wd.kind === 'pellets' ? 22 : 5 + a.spread() * 280).toFixed(1)}px`);
 
     let hint = '';
     const box = g.mode === 'coop' ? d.boxPrompt() : '';
