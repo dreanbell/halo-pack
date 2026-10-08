@@ -18,6 +18,8 @@ La partida va **directa entre navegadores** (WebRTC). La sala vive en el navegad
 | Cooperativo | Oleadas contra la IA. Si caes, reapareces al empezar la siguiente oleada. Si cae todo el equipo, termina la partida. Sin fuego amigo. |
 | Todos contra todos | Gana el primero en llegar a 15 bajas. Reapareces a los 3 s, lejos de los rivales. El daño entre jugadores es ×1,6. El radar solo muestra a los rivales que corren o disparan. |
 
+**Modo espectador:** al caer, la cámara sigue en tercera persona a un jugador vivo (en todos contra todos, a quien te eliminó, hasta reaparecer). Clic izq./D: siguiente · Clic der./A: anterior · ratón: girar · rueda: distancia · R: centrar.
+
 ### Sin internet: servidor LAN (opcional)
 Si la red no tiene salida a internet, un equipo con **Node.js 18+** puede servir el juego:
 

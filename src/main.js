@@ -11,6 +11,7 @@ import { NavGrid } from './nav.js';
 import { Net, v3, normalizeCode, BUILD, DEBUG } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { Armory } from './armory.js';
+import { Spectator } from './spectator.js';
 import { DEFAULT_SKIN, sanitizeSkin } from './skins.js';
 import { skyEnvironment } from './world.js';
 
@@ -48,7 +49,8 @@ ctx.remotes = new RemotePlayers(ctx);
 ctx.player = new Player(ctx);
 ctx.director = new Director(ctx);
 ctx.arsenal = new Arsenal(ctx);
-const { sfx, hud, fx, player, director, arsenal, net, remotes, world } = ctx;
+ctx.spectator = new Spectator(ctx);
+const { sfx, hud, fx, player, director, arsenal, net, remotes, world, spectator } = ctx;
 const vec = (a) => new THREE.Vector3().fromArray(a);
 
 // --- Armadura del jugador ----------------------------------------------------
@@ -199,6 +201,7 @@ function startSession(mode) {
   arsenal.reset(loadoutFor(mode));
   fx.clear();
   hud.reset();
+  spectator.stop();
   remotes.clear();
   if (online) {
     remotes.sync([...net.players.values()], net.id);
@@ -215,6 +218,7 @@ function newGame() {
 }
 
 function respawn() {
+  spectator.stop();
   player.reset(...pickSpawn());
   arsenal.reset(loadoutFor(game.mode));
   game.respawnIn = 0;
@@ -232,7 +236,9 @@ game.onPlayerDeath = (lastHit) => {
   if (game.mode === 'dm') {
     net.send('kill', { killer: lastHit?.by ?? null, head: !!lastHit?.head });
     game.respawnIn = CFG.pvp.respawn;
+    spectator.start(lastHit?.by ?? null, 1.2); // sigue a quien te eliminó hasta reaparecer
   } else {
+    if (game.mode === 'coop') spectator.start(null, 1.8);
     hud.banner('HAS CAÍDO', '', 1.8);
   }
 };
@@ -257,6 +263,7 @@ function gameOver() {
 }
 
 function toMenu() {
+  spectator.stop();
   net.disconnect();
   remotes.clear();
   director.configure('sp', true);
@@ -269,6 +276,7 @@ function toMenu() {
 }
 
 function toLobby(status = '') {
+  spectator.stop();
   remotes.clear();
   director.configure('sp', true);
   fx.clear();
@@ -452,6 +460,7 @@ net.on('feed', (m) => {
 });
 net.on('matchEnd', (m) => {
   if (game.mode === 'sp') return;
+  spectator.stop();
   game.state = 'over';
   if (document.pointerLockElement) document.exitPointerLock();
   if (m.mode === 'dm') {
@@ -570,6 +579,7 @@ function tick(dt) {
     if (game.mode !== 'sp') remotes.update(dt);
     director.update(dt);
     arsenal.update(dt);
+    if (game.mode !== 'sp') spectator.update(dt);
     hud.update(ctx, dt);
     if (game.mode === 'sp') {
       if (game.deathT >= 0) {
