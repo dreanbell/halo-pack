@@ -35,6 +35,12 @@
     <div id="hitmarker"></div>
     <div id="dmg-dir"></div>
     <div id="hint"></div>
+    <div id="spectate" aria-live="polite">
+      <small>OBSERVANDO</small>
+      <b id="spec-name"></b>
+      <span id="spec-sub"></span>
+      <p class="spec-keys"><kbd>Clic izq. / D</kbd> siguiente · <kbd>Clic der. / A</kbd> anterior · <kbd>Ratón</kbd> girar · <kbd>Rueda</kbd> distancia · <kbd>R</kbd> centrar</p>
+    </div>
     <div id="weapon-panel">
       <div id="weapon-alt"></div>
       <div id="weapon-name"></div>
@@ -58,7 +64,7 @@
         <kbd>Ratón</kbd><span>Apuntar · Clic izq. dispara</span>
         <kbd>Shift</kbd><span>Esprintar</span>
         <kbd>Espacio</kbd><span>Saltar</span>
-        <kbd>C / Ctrl</kbd><span>Agacharse</span>
+        <kbd>C / Ctrl</kbd><span>Agacharse · corriendo: deslizarse</span>
         <kbd>R</kbd><span>Recargar</span>
         <kbd>Q / 1 / 2</kbd><span>Cambiar arma</span>
         <kbd>Clic der.</kbd><span>Mira (DMR / francotirador) · si no, granada</span>
@@ -182,6 +188,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/main.js?v=1.6.0"></script>
+  <script type="module" src="src/main.js?v=1.7.0"></script>
 </body>
 </html>

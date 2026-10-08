@@ -230,6 +230,7 @@ export class Avatar {
     this.airK = 0;
     this.deadK = 0;
     this.sprintK = 0;
+    this.slideK = 0;
     this.t = Math.random() * 10;
     this.root = new THREE.Group();
     this.build();
@@ -398,7 +399,7 @@ export class Avatar {
     for (const h of this.hitboxes) h.userData = { remote: owner, part: h.userData.part };
   }
 
-  // s: { speed, air, crouch (0..1), pitch, alive, sprint }
+  // s: { speed, air, crouch (0..1), pitch, alive, sprint, slide }
   animate(dt, s) {
     const k = 1 - Math.exp(-dt * 10);
     this.t += dt;
@@ -406,6 +407,7 @@ export class Avatar {
     this.crouchK += ((s.crouch ?? 0) - this.crouchK) * k;
     this.airK += ((s.air ? 1 : 0) - this.airK) * k;
     this.sprintK += ((s.sprint ? 1 : 0) - this.sprintK) * k;
+    this.slideK += ((s.slide ? 1 : 0) - this.slideK) * (1 - Math.exp(-dt * 14));
     this.deadK += ((s.alive === false ? 1 : 0) - this.deadK) * (1 - Math.exp(-dt * 5));
     const a = this.amp * (1 - this.airK);
     if (this.amp > 0.04) this.phase += dt * (3 + s.speed * 1.05);
@@ -419,12 +421,19 @@ export class Avatar {
       L.knee.rotation.x = -(Math.max(0, c1) * 1.05 * a + 0.04) - this.crouchK * 1.8 - this.airK * 1.0;
       L.ankle.rotation.x = -(L.hip.rotation.x + L.knee.rotation.x) * 0.85;
       L.hip.rotation.z = side * 0.03;
+      // Deslizamiento: pierna derecha estirada al frente, izquierda plegada debajo.
+      const sk = this.slideK;
+      if (sk > 0.01) {
+        L.hip.rotation.x += ((side > 0 ? 1.45 : 0.35) - L.hip.rotation.x) * sk;
+        L.knee.rotation.x += ((side > 0 ? -0.12 : -2.0) - L.knee.rotation.x) * sk;
+        L.ankle.rotation.x += ((side > 0 ? -0.5 : 0.9) - L.ankle.rotation.x) * sk;
+      }
     }
-    this.hips.position.y = HIP_Y - this.crouchK * 0.4 - Math.abs(sw) * 0.035 * a + breathe;
+    this.hips.position.y = HIP_Y - this.crouchK * 0.4 * (1 - this.slideK) - this.slideK * 0.62 - Math.abs(sw) * 0.035 * a * (1 - this.slideK) + breathe;
     this.hips.rotation.y = sw * 0.06 * a;
 
     const pitch = s.pitch ?? 0;
-    this.spine.rotation.x = pitch * 0.45 - this.sprintK * 0.22 * this.amp - this.crouchK * 0.12;
+    this.spine.rotation.x = pitch * 0.45 - this.sprintK * 0.22 * this.amp - this.crouchK * 0.12 * (1 - this.slideK) + this.slideK * 0.38;
     this.spine.rotation.y = -sw * 0.1 * a;
     this.head.rotation.x = pitch * 0.4;
 

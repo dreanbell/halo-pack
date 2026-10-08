@@ -50,6 +50,8 @@ Cada variante es un punto de partida: cualquier ajuste se puede cambiar (aparece
 
 El récord de un jugador se guarda por variante y solo cuenta con los ajustes de la variante sin tocar.
 
+**Modo espectador:** al caer, la cámara sigue en tercera persona a un jugador vivo (en todos contra todos, a quien te eliminó, hasta reaparecer). Clic izq./D: siguiente · Clic der./A: anterior · ratón: girar · rueda: distancia · R: centrar.
+
 ### Sin internet: servidor LAN (opcional)
 Si la red no tiene salida a internet, un equipo con **Node.js 18+** puede servir el juego:
 
@@ -124,7 +126,7 @@ El modelo del soldado es procedural (unas 40 piezas biseladas con materiales PBR
 | Ratón | Apuntar · clic izq. dispara |
 | Shift | Esprintar |
 | Espacio | Saltar |
-| C / Ctrl | Agacharse (menos dispersión) |
+| C / Ctrl | Agacharse (menos dispersión). Mientras esprintas: deslizarse (salta durante el deslizamiento para conservar la inercia) |
 | R | Recargar |
 | Q / 1 / 2 / rueda | Cambiar arma |
 | Clic der. | Mira (DMR, francotirador); si el arma no tiene, granada |
