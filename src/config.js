@@ -44,6 +44,10 @@ export const CFG = {
   },
 
   waves: { intermission: 4, spawnGap: 0.7, maxAlive: 12 },
+
+  // Multijugador: el daño entre jugadores se escala para que los duelos no se eternicen.
+  pvp: { damageMult: 1.6, respawn: 3 },
+  net: { stateRate: 1 / 20 },
 };
 
 export function waveComposition(n) {

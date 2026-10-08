@@ -20,8 +20,11 @@
     </div>
     <div id="topright">
       <div id="score">0</div>
-      <div id="wave-info">OLEADA <b id="wave-num">1</b> · <span id="enemies-left"></span></div>
+      <div id="score-label"></div>
+      <div id="wave-info"></div>
     </div>
+    <div id="feed"></div>
+    <div id="scoreboard" class="hidden"><h3 id="sb-title"></h3><table id="sb-table"></table></div>
     <div id="crosshair"></div>
     <div id="hitmarker"></div>
     <div id="dmg-dir"></div>
@@ -53,10 +56,14 @@
         <kbd>Q / 1 / 2</kbd><span>Cambiar arma</span>
         <kbd>G / Clic der.</kbd><span>Granada</span>
         <kbd>F</kbd><span>Golpe cuerpo a cuerpo (por la espalda = eliminación)</span>
+        <kbd>Tab</kbd><span>Marcador (multijugador)</span>
         <kbd>Esc</kbd><span>Pausa</span>
       </div>
       <p class="tip">La pistola de iones destroza escudos; la carabina remata. Los escudos se recargan si te cubres.</p>
-      <button id="btn-start">DESPLEGAR</button>
+      <div class="menu-buttons">
+        <button id="btn-start">UN JUGADOR</button>
+        <button id="btn-mp">MULTIJUGADOR LAN</button>
+      </div>
       <p class="best">Récord: <b id="best">0</b></p>
       <p id="touch-warn" class="warn hidden">Esta demo requiere teclado y ratón.</p>
       <p class="note">Proyecto fan original. No usa assets, nombres ni código de ninguna franquicia comercial.</p>
@@ -67,14 +74,40 @@
     <div class="panel">
       <h2>PAUSA</h2>
       <p>Haz clic para continuar</p>
+      <p id="pause-mp" class="status hidden">En multijugador la partida sigue en marcha.</p>
+      <button id="btn-quit" class="secondary">SALIR AL MENÚ</button>
     </div>
   </div>
 
   <div id="gameover" class="overlay hidden">
     <div class="panel">
-      <h2>FIN DE LA PARTIDA</h2>
+      <h2 id="go-title">FIN DE LA PARTIDA</h2>
       <div id="go-stats" class="stats"></div>
       <button id="btn-retry">REINTENTAR</button>
+    </div>
+  </div>
+
+  <div id="lobby" class="overlay hidden">
+    <div class="panel">
+      <h2>MULTIJUGADOR LAN</h2>
+      <div id="lobby-connect">
+        <label class="field">Tu nombre <input id="mp-name" maxlength="16" autocomplete="off" spellcheck="false" /></label>
+        <button id="btn-connect">CONECTAR</button>
+        <p id="mp-status" class="status"></p>
+        <p class="note">Un jugador ejecuta <code>node server.js</code> en su equipo y comparte la dirección que aparece en la consola (p. ej. <code>http://192.168.1.20:8080</code>). Los demás la abren en el navegador, conectados a la misma red.</p>
+      </div>
+      <div id="lobby-room" class="hidden">
+        <p class="address">Para unirse: <b id="mp-address"></b></p>
+        <ul id="mp-players"></ul>
+        <div class="modes">
+          <button class="mode" data-mode="coop">COOPERATIVO</button>
+          <button class="mode" data-mode="dm">TODOS CONTRA TODOS</button>
+        </div>
+        <p id="mp-mode-desc" class="tip"></p>
+        <button id="btn-mp-start">INICIAR PARTIDA</button>
+        <p id="mp-wait" class="status"></p>
+      </div>
+      <button id="btn-lobby-back" class="secondary">VOLVER</button>
     </div>
   </div>
 

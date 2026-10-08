@@ -29,8 +29,8 @@ export class Player {
     this.reset();
   }
 
-  reset() {
-    this.pos.copy(SPAWN);
+  reset(spawn = SPAWN, yaw = 0) {
+    this.pos.copy(spawn);
     this.vel.set(0, 0, 0);
     this.health = P.maxHealth;
     this.shield = P.maxShield;
@@ -42,7 +42,8 @@ export class Player {
     this.shake = 0;
     this.alarmT = 0;
     this.deathT = 0;
-    this.yaw.rotation.set(0, 0, 0);
+    this.lastHit = null;
+    this.yaw.rotation.set(0, yaw, 0);
     this.pitch.rotation.set(0, 0, 0);
     this.syncCamera(0);
   }
@@ -134,16 +135,26 @@ export class Player {
     }
   }
 
-  damage(amount, from) {
+  damage(amount, from, by = null) {
+    this.takeHit(amount, {}, from, by);
+  }
+
+  // shieldMult: multiplicador contra escudo; headMult: tiro a la cabeza sin escudo. by: id del atacante (red).
+  takeHit(amount, { shieldMult = 1, headMult = 1, part = 'body' } = {}, from = null, by = null) {
     if (!this.alive) return;
     const { sfx, hud } = this.ctx;
     this.sinceHit = 0;
     this.recharging = false;
+    this.lastHit = by !== null ? { by, head: false } : null;
     if (this.shield > 0) {
-      const absorbed = Math.min(this.shield, amount);
+      const sd = amount * shieldMult;
+      const absorbed = Math.min(this.shield, sd);
       this.shield -= absorbed;
-      amount -= absorbed;
+      amount = (sd - absorbed) / shieldMult;
       if (this.shield <= 0) sfx.shieldBreak(); else sfx.shieldHit();
+    } else if (part === 'head') {
+      amount *= headMult;
+      if (this.lastHit) this.lastHit.head = true;
     }
     if (amount > 0) { this.health -= amount; sfx.hurt(); }
     hud.damage(from ? this.localAngle(from) : null, amount > 0 ? 1 : 0.5);
@@ -152,7 +163,7 @@ export class Player {
       this.health = 0;
       this.alive = false;
       this.deathT = 0;
-      this.ctx.game.onPlayerDeath();
+      this.ctx.game.onPlayerDeath(this.lastHit);
     }
   }
 

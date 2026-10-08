@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CFG, rand } from './config.js';
 import { glowTexture } from './world.js';
+import { v3 } from './net.js';
 
 const R = CFG.rifle, PI = CFG.pistol, G = CFG.grenade, M = CFG.melee;
 const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _m = new THREE.Vector3(), _n = new THREE.Vector3();
@@ -26,7 +27,7 @@ export class Arsenal {
     addEventListener('keydown', (e) => {
       if (!playing() || e.repeat) return;
       if (e.code === 'KeyR') this.startReload();
-      else if (e.code === 'KeyQ' || e.code === 'Tab') { e.preventDefault(); this.swap(); }
+      else if (e.code === 'KeyQ') this.swap();
       else if (e.code === 'Digit1') this.swap(0);
       else if (e.code === 'Digit2') this.swap(1);
       else if (e.code === 'KeyG') this.throwGrenade();
@@ -121,8 +122,21 @@ export class Arsenal {
     return (this.current === 0 ? this.rifleMuzzle : this.pistolMuzzle).getWorldPosition(_m);
   }
 
+  get pvp() {
+    return this.ctx.game.mode === 'dm';
+  }
+
   targets() {
-    return [...this.ctx.world.solids, ...this.ctx.director.hitMeshes()];
+    const { world, director, remotes } = this.ctx;
+    return [...world.solids, ...director.hitMeshes(), ...(this.pvp ? remotes.hitMeshes() : [])];
+  }
+
+  // Impacto a otro jugador (DM): la víctima aplica el daño sobre su propio escudo.
+  hitRemote(r, dmg, opts, part, from) {
+    const { net, hud, sfx } = this.ctx;
+    net.to(r.id, 'hit', { dmg: dmg * CFG.pvp.damageMult, sm: opts.shieldMult ?? 1, hm: opts.headMult ?? 1, part, from: v3(from) });
+    hud.hitMarker(false);
+    sfx.hit();
   }
 
   spread() {
@@ -181,22 +195,27 @@ export class Arsenal {
     const hit = this.ray.intersectObjects(this.targets(), false)[0];
     const end = hit ? hit.point : _o.clone().addScaledVector(_d, range);
     if (hit) {
-      const e = hit.object.userData.enemy;
-      if (e) {
+      const e = hit.object.userData.enemy, r = hit.object.userData.remote;
+      if (r) {
+        this.hitRemote(r, damage, opts, hit.object.userData.part, _o);
+        fx.sparks(hit.point, r.shield > 0 ? 0x7fe7ff : 0xffb347);
+      } else if (e) {
         const res = e.takeDamage(damage, { ...opts, part: hit.object.userData.part });
         hud.hitMarker(res.killed);
         fx.sparks(hit.point, res.shieldHit ? e.cfg.glow : 0xffb347);
         sfx.hit();
         if (res.killed) {
           sfx.kill();
-          if (res.head) { game.score += 25; hud.toast('DISPARO A LA CABEZA +25'); }
+          if (res.head && game.mode === 'sp') { game.score += 25; hud.toast('DISPARO A LA CABEZA +25'); }
         }
       } else {
         _n.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
         fx.impact(hit.point, _n);
       }
     }
-    fx.tracer(this.muzzle(), end, color);
+    const muzzle = this.muzzle();
+    fx.tracer(muzzle, end, color);
+    if (this.ctx.net.active) this.ctx.net.bcast('fx', { w: this.current, a: v3(muzzle), b: v3(end) });
   }
 
   fireRifle() {
@@ -249,8 +268,18 @@ export class Arsenal {
     mesh.castShadow = true;
     scene.add(mesh);
     const vel = _d.clone().multiplyScalar(G.speed).addScaledVector(UP, 3).addScaledVector(player.vel, 0.5);
-    this.grenadeList.push({ mesh, vel, fuse: G.fuse });
+    this.grenadeList.push({ mesh, vel, fuse: G.fuse, owner: null });
     sfx.throwG();
+    if (this.ctx.net.active) this.ctx.net.bcast('gren', { p: v3(mesh.position), v: v3(vel) });
+  }
+
+  // Granada lanzada por otro jugador: se simula igual aquí y explota con su propia mecha.
+  remoteGrenade(p, v, owner) {
+    const mesh = new THREE.Mesh(this.grenadeGeo, new THREE.MeshStandardMaterial({ color: 0x3f5a2c, emissive: 0x000000, roughness: 0.5 }));
+    mesh.position.fromArray(p);
+    mesh.castShadow = true;
+    this.ctx.scene.add(mesh);
+    this.grenadeList.push({ mesh, vel: new THREE.Vector3().fromArray(v), fuse: G.fuse, owner });
   }
 
   explode(g) {
@@ -260,14 +289,17 @@ export class Arsenal {
     g.mesh.material.dispose();
     fx.explosion(p, G.radius);
     sfx.explosion(p.distanceTo(player.pos));
-    director.damageRadius(p, G.radius, G.damage);
+    // El daño a enemigos lo calcula quien simula la IA (un jugador o anfitrión coop).
+    if (director.authority && director.mode !== 'dm') director.damageRadius(p, G.radius, G.damage, g.owner);
     const pc = _o.set(player.pos.x, player.pos.y + 0.9, player.pos.z);
     const d = pc.distanceTo(p);
+    // Coop: sin fuego amigo de granadas ajenas.
+    const hurtsMe = g.owner === null || this.pvp;
     if (d < G.radius) {
       player.shake = 1;
-      if (world.lineOfSight(_m.copy(p).setY(p.y + 0.3), pc)) {
+      if (hurtsMe && player.alive && world.lineOfSight(_m.copy(p).setY(p.y + 0.3), pc)) {
         const f = 1 - d / G.radius;
-        player.damage(G.damage * 0.6 * f, p);
+        player.damage(G.damage * 0.6 * f * (g.owner !== null ? CFG.pvp.damageMult : 1), p, g.owner);
         _d.subVectors(pc, p).setY(0).normalize();
         player.vel.addScaledVector(_d, 10 * f);
         player.vel.y += 4 * f;
@@ -309,7 +341,7 @@ export class Arsenal {
   }
 
   melee() {
-    const { player, director, sfx, hud, fx } = this.ctx;
+    const { player, director, sfx, hud, fx, remotes } = this.ctx;
     if (this.meleeT > 0 || this.swapT > 0) return;
     this.meleeT = M.cooldown;
     this.reloadT = 0;
@@ -326,6 +358,16 @@ export class Arsenal {
       best = e;
       bestD = d;
     }
+    if (this.pvp) {
+      const r = remotes.nearestInFront(player.pos, fwd, M.range);
+      if (r) {
+        // Por la espalda: el rival mira en la misma dirección que el atacante.
+        const back = Math.cos(r.yaw - player.yaw.rotation.y) > 0.3;
+        this.hitRemote(r, back ? 9999 : M.damage / CFG.pvp.damageMult, {}, back ? 'back' : 'body', player.pos);
+        fx.sparks(_o.set(r.pos.x, r.pos.y + 1.1, r.pos.z), 0x7fe7ff);
+        return;
+      }
+    }
     if (!best) return;
     // Golpe por la espalda = eliminación instantánea.
     const back = best.facing().dot(_o.set(player.pos.x - best.pos.x, 0, player.pos.z - best.pos.z).normalize()) < -0.3;
@@ -334,7 +376,8 @@ export class Arsenal {
     fx.sparks(best.center(), best.cfg.glow);
     if (res.killed) {
       sfx.kill();
-      if (back) { this.ctx.game.score += 50; hud.toast('ASESINATO +50'); }
+      if (back && this.ctx.game.mode === 'sp') { this.ctx.game.score += 50; hud.toast('ASESINATO +50'); }
+      else if (back) hud.toast('ASESINATO');
     }
   }
 
@@ -400,6 +443,6 @@ export class Arsenal {
     this.ray.set(_o, _d);
     this.ray.far = this.current === 0 ? R.range * 0.6 : PI.range * 0.6;
     const hit = this.ray.intersectObjects(this.targets(), false)[0];
-    this.aimEnemy = !!hit?.object.userData.enemy;
+    this.aimEnemy = !!(hit?.object.userData.enemy || hit?.object.userData.remote);
   }
 }

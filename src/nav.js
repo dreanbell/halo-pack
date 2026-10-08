@@ -20,7 +20,7 @@ export class NavGrid {
     this.dist = new Float32Array(N * N).fill(Infinity);
     this.heap = new Int32Array(N * N * 8);
     this.heapD = new Float32Array(N * N * 8);
-    this.target = -1;
+    this.target = '';
     this.timer = 0;
 
     for (let j = 0; j < N; j++) {
@@ -59,16 +59,17 @@ export class NavGrid {
     return true;
   }
 
-  update(target, feetY, dt) {
+  // targets: [{ pos, ... }] — el campo lleva hacia el objetivo vivo más cercano.
+  update(targets, dt) {
     this.timer -= dt;
-    const t = this.index(target.x, target.z);
-    if (t === this.target || this.timer > 0) return;
-    this.target = t;
+    const key = targets.map((t) => this.index(t.pos.x, t.pos.z)).join(',');
+    if (key === this.target || this.timer > 0) return;
+    this.target = key;
     this.timer = 0.25;
-    this.compute(t, feetY);
+    this.compute(targets.map((t) => [this.index(t.pos.x, t.pos.z), t.pos.y]));
   }
 
-  compute(t, feetY) {
+  compute(seeds) {
     const { N, h, ok, dist, heap, heapD } = this;
     dist.fill(Infinity);
     let size = 0;
@@ -99,15 +100,17 @@ export class NavGrid {
       return top;
     };
 
-    const ti = t % N, tj = (t / N) | 0;
-    for (let dj = -SEED_R; dj <= SEED_R; dj++) {
-      for (let di = -SEED_R; di <= SEED_R; di++) {
-        const i = ti + di, j = tj + dj;
-        if (i < 0 || j < 0 || i >= N || j >= N || di * di + dj * dj > SEED_R * SEED_R) continue;
-        const idx = j * N + i;
-        if (!ok[idx]) continue;
-        const d = (Math.abs(h[idx] - feetY) <= this.step + 0.1 ? 0 : OFF_LEVEL_COST) + Math.hypot(di, dj) * 10;
-        if (d < dist[idx]) { dist[idx] = d; push(idx, d); }
+    for (const [t, feetY] of seeds) {
+      const ti = t % N, tj = (t / N) | 0;
+      for (let dj = -SEED_R; dj <= SEED_R; dj++) {
+        for (let di = -SEED_R; di <= SEED_R; di++) {
+          const i = ti + di, j = tj + dj;
+          if (i < 0 || j < 0 || i >= N || j >= N || di * di + dj * dj > SEED_R * SEED_R) continue;
+          const idx = j * N + i;
+          if (!ok[idx]) continue;
+          const d = (Math.abs(h[idx] - feetY) <= this.step + 0.1 ? 0 : OFF_LEVEL_COST) + Math.hypot(di, dj) * 10;
+          if (d < dist[idx]) { dist[idx] = d; push(idx, d); }
+        }
       }
     }
     // Expansión inversa: el enemigo en `v` puede moverse a `u`.

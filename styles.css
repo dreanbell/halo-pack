@@ -34,6 +34,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 #health-bar.low #health-fill { background: var(--warn); }
 
 #topright { position: absolute; right: 28px; top: 18px; text-align: right; }
+#score-label { font-size: 13px; letter-spacing: 0.2em; opacity: 0.75; }
 #score { font-size: 30px; font-weight: 700; color: #e9fbff; }
 #wave-info { font-size: 16px; letter-spacing: 0.15em; }
 
@@ -90,6 +91,21 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font
 
 #vignette { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 50%, rgba(255, 30, 40, 0.7) 100%); }
 
+#feed { position: absolute; left: 20px; top: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 16px; font-weight: 700; }
+#feed div { background: rgba(5, 18, 28, 0.55); padding: 2px 10px; width: fit-content; }
+#feed span + span { margin-left: 8px; }
+
+#scoreboard {
+  position: absolute; left: 50%; top: 18%; transform: translateX(-50%); width: min(560px, calc(100% - 32px));
+  background: rgba(5, 18, 28, 0.85); border: 1px solid var(--hud-dim); padding: 18px 22px;
+}
+#scoreboard h3 { letter-spacing: 0.25em; color: #e9fbff; margin-bottom: 10px; text-align: center; }
+#scoreboard table, table.results { width: 100%; border-collapse: collapse; font-size: 18px; }
+#scoreboard th, table.results th { font-size: 13px; letter-spacing: 0.15em; opacity: 0.7; text-align: right; padding: 4px 8px; }
+#scoreboard td, table.results td { padding: 4px 8px; text-align: right; color: #e9fbff; font-weight: 700; }
+#scoreboard th:first-child, #scoreboard td:first-child, table.results th:first-child, table.results td:first-child { text-align: left; }
+tr.me { background: rgba(127, 231, 255, 0.12); }
+
 /* ---------- Menús ---------- */
 .overlay {
   position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 16px;
@@ -114,12 +130,33 @@ button {
 }
 button:hover, button:focus-visible { background: rgba(127, 231, 255, 0.18); outline: none; }
 .best { margin-top: 14px; font-size: 16px; }
+.menu-buttons { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+button.secondary { font-size: 16px; padding: 8px 22px; margin-top: 18px; border-color: var(--hud-dim); }
+button:disabled { opacity: 0.4; cursor: default; background: transparent; }
+.field { display: flex; flex-direction: column; gap: 6px; align-items: center; font-size: 15px; letter-spacing: 0.15em; margin-bottom: 14px; }
+.field input {
+  font-family: var(--font); font-size: 22px; font-weight: 700; text-align: center; width: min(280px, 100%);
+  padding: 8px 12px; background: rgba(0, 0, 0, 0.35); color: #e9fbff; border: 1px solid var(--hud-dim); outline: none;
+}
+.field input:focus { border-color: var(--hud); }
+.status { margin-top: 12px; min-height: 1.2em; color: #ffd36b; }
+code { font-family: ui-monospace, monospace; color: #e9fbff; background: rgba(0, 0, 0, 0.35); padding: 1px 5px; }
+.address { font-size: 18px; margin-bottom: 12px; }
+.address b { color: #e9fbff; user-select: all; }
+#mp-players { list-style: none; display: grid; gap: 6px; margin: 0 auto 18px; max-width: 360px; text-align: left; font-size: 19px; font-weight: 700; }
+#mp-players li { display: flex; justify-content: space-between; padding: 4px 12px; background: rgba(0, 0, 0, 0.3); }
+#mp-players small { font-size: 13px; letter-spacing: 0.15em; color: var(--hud); }
+.modes { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 8px; }
+.modes .mode { font-size: 16px; padding: 8px 18px; border-color: var(--hud-dim); }
+.modes .mode.selected { background: rgba(127, 231, 255, 0.22); border-color: var(--hud); }
 .warn { margin-top: 10px; color: var(--warn); }
 .note { margin-top: 18px; font-size: 13px; opacity: 0.55; }
 .stats { display: grid; grid-template-columns: 1fr auto; gap: 6px 24px; text-align: left; margin: 16px auto 24px; max-width: 320px; font-size: 19px; color: #cfeff8; }
 .stats b { color: #e9fbff; text-align: right; }
+.stats:has(table) { display: block; max-width: 520px; }
 
 @media (max-width: 600px) {
+  #feed { top: 70px; font-size: 13px; }
   #radar { width: 120px; height: 120px; }
   #ammo-mag { font-size: 40px; }
   #topright { right: 16px; }

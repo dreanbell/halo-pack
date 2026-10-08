@@ -61,13 +61,16 @@ export class Sfx {
     return Math.max(0.12, 1 - dist / range);
   }
 
-  rifle() {
-    this.noise({ dur: 0.09, freq: 1800, freqEnd: 400, q: 0.7, gain: 0.45 });
-    this.tone({ freq: 150, freqEnd: 60, dur: 0.07, type: 'square', gain: 0.12 });
+  // dist > 0: disparo de otro jugador, atenuado con la distancia.
+  rifle(dist = 0) {
+    const v = dist ? Sfx.falloff(dist, 90) * 0.7 : 1;
+    this.noise({ dur: 0.09, freq: 1800, freqEnd: 400, q: 0.7, gain: 0.45 * v });
+    this.tone({ freq: 150, freqEnd: 60, dur: 0.07, type: 'square', gain: 0.12 * v });
   }
-  pistol() {
-    this.tone({ freq: 950, freqEnd: 180, dur: 0.15, type: 'sawtooth', gain: 0.16 });
-    this.noise({ dur: 0.06, freq: 3000, type: 'highpass', gain: 0.18 });
+  pistol(dist = 0) {
+    const v = dist ? Sfx.falloff(dist, 90) * 0.7 : 1;
+    this.tone({ freq: 950, freqEnd: 180, dur: 0.15, type: 'sawtooth', gain: 0.16 * v });
+    this.noise({ dur: 0.06, freq: 3000, type: 'highpass', gain: 0.18 * v });
   }
   overheat() {
     this.noise({ dur: 0.7, freq: 5000, freqEnd: 700, type: 'bandpass', q: 2, gain: 0.25 });
