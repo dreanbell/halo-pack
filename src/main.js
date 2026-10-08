@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CFG } from './config.js';
-import { createWorld } from './world.js';
+import { createWorld, skyEnvironment } from './world.js';
+import { MAPS, DEFAULT_MAP, isMap, mapInfo } from './mapinfo.js';
 import { Player } from './player.js';
 import { Arsenal } from './weapons.js';
 import { Director } from './enemies.js';
@@ -12,12 +13,12 @@ import { Net, v3, normalizeCode, BUILD, DEBUG } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { Armory } from './armory.js';
 import { DEFAULT_SKIN, sanitizeSkin } from './skins.js';
-import { skyEnvironment } from './world.js';
 
 const BEST_KEY = 'ringfall.best';
 const NAME_KEY = 'ringfall.name';
 const SKIN_KEY = 'ringfall.skin';
 const LOADOUT_KEY = 'ringfall.loadout';
+const MAP_KEY = 'ringfall.map';
 const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.build')) el.textContent = `v${BUILD}${DEBUG ? ' · diagnóstico' : ''}`;
 console.info(`Ringfall v${BUILD}`);
@@ -39,16 +40,29 @@ const game = { state: 'menu', mode: 'sp', wave: 0, kills: 0, score: 0, time: 0, 
 const ctx = { scene, camera, renderer, game };
 ctx.sfx = new Sfx();
 ctx.hud = new Hud();
-ctx.world = createWorld(scene);
-scene.environment = skyEnvironment(renderer);
-ctx.nav = new NavGrid(ctx.world);
+// Mapa: se reconstruye entero (geometría, luz, navegación) al cambiar.
+function loadMap(id) {
+  if (!isMap(id)) id = DEFAULT_MAP;
+  if (ctx.world?.id === id) return;
+  ctx.world?.dispose();
+  scene.environment?.userData.target?.dispose();
+  ctx.world = createWorld(scene, id);
+  scene.environment = skyEnvironment(renderer, ctx.world.env);
+  renderer.toneMappingExposure = ctx.world.exposure;
+  ctx.nav = new NavGrid(ctx.world);
+}
+function readMap() {
+  try { const id = localStorage.getItem(MAP_KEY); return isMap(id) ? id : DEFAULT_MAP; } catch { return DEFAULT_MAP; }
+}
+ctx.spMap = readMap();
+loadMap(ctx.spMap);
 ctx.fx = new Effects(scene);
 ctx.net = new Net();
 ctx.remotes = new RemotePlayers(ctx);
 ctx.player = new Player(ctx);
 ctx.director = new Director(ctx);
 ctx.arsenal = new Arsenal(ctx);
-const { sfx, hud, fx, player, director, arsenal, net, remotes, world } = ctx;
+const { sfx, hud, fx, player, director, arsenal, net, remotes } = ctx;
 const vec = (a) => new THREE.Vector3().fromArray(a);
 
 // --- Armadura del jugador ----------------------------------------------------
@@ -174,10 +188,14 @@ function lock() {
 
 // --- Partida -----------------------------------------------------------------
 function pickSpawn() {
+  const { world } = ctx;
+  const { x, z } = world.spawn, yaw = Math.atan2(x, z);
   if (game.mode === 'coop') {
+    // En fila, mirando al centro del mapa.
     const ids = [...net.players.keys()].sort((a, b) => a - b);
     const i = Math.max(0, ids.indexOf(net.id));
-    return [new THREE.Vector3(-5.25 + (i % 8) * 1.5, 0, 30 + Math.floor(i / 8) * 1.5), 0];
+    const side = -5.25 + (i % 8) * 1.5, back = Math.floor(i / 8) * 1.5;
+    return [new THREE.Vector3(x + Math.cos(yaw) * side + Math.sin(yaw) * back, 0, z - Math.sin(yaw) * side + Math.cos(yaw) * back), yaw];
   }
   if (game.mode === 'dm') {
     // El punto de aparición más alejado de los rivales vivos (con algo de azar).
@@ -188,11 +206,12 @@ function pickSpawn() {
     const { p } = ranked[(Math.random() * Math.min(4, ranked.length)) | 0];
     return [p.clone(), Math.atan2(p.x, p.z)];
   }
-  return [new THREE.Vector3(0, 0, 30), 0];
+  return [new THREE.Vector3(x, 0, z), yaw];
 }
 
-function startSession(mode) {
+function startSession(mode, map = ctx.spMap) {
   sfx.unlock();
+  loadMap(map);
   Object.assign(game, { mode, wave: 0, kills: 0, score: 0, time: 0, deathT: -1, respawnIn: 0, state: 'playing' });
   const online = mode !== 'sp';
   director.configure(mode, !online || net.isHost);
@@ -258,6 +277,7 @@ function gameOver() {
 
 function toMenu() {
   net.disconnect();
+  loadMap(ctx.spMap);
   remotes.clear();
   director.configure('sp', true);
   fx.clear();
@@ -278,6 +298,36 @@ function toLobby(status = '') {
   renderLobby(status);
 }
 
+// --- Selector de mapa (menú: libre; sala: solo el anfitrión) ------------------
+function renderMaps(el, current, editable, pick) {
+  el.replaceChildren(...MAPS.map((m) => {
+    const b = document.createElement('button');
+    b.className = `mapcard${m.id === current ? ' selected' : ''}`;
+    b.disabled = !editable && m.id !== current;
+    b.style.setProperty('--a', m.sky[0]);
+    b.style.setProperty('--b', m.sky[1]);
+    b.style.setProperty('--c', m.sky[2]);
+    const name = document.createElement('b');
+    name.textContent = m.name;
+    const tag = document.createElement('small');
+    tag.textContent = m.tag;
+    b.append(name, tag);
+    if (editable) b.addEventListener('click', () => pick(m.id));
+    return b;
+  }));
+  const desc = el.nextElementSibling;
+  if (desc?.classList.contains('map-desc')) desc.textContent = mapInfo(current).desc;
+}
+function renderMenuMaps() {
+  renderMaps($('menu-maps'), ctx.spMap, true, (id) => {
+    ctx.spMap = id;
+    try { localStorage.setItem(MAP_KEY, id); } catch { /* sin almacenamiento */ }
+    loadMap(id);
+    renderMenuMaps();
+  });
+}
+renderMenuMaps();
+
 // --- Lobby -------------------------------------------------------------------
 const MODE_DESC = {
   coop: 'Todos juntos contra oleadas. Si caes, reapareces en la siguiente oleada; si cae todo el equipo, se acaba.',
@@ -290,6 +340,7 @@ function renderLobby(status) {
   $('lobby-room').classList.toggle('hidden', !connected);
   if (status !== undefined) $('mp-status').textContent = status;
   if (!connected) return;
+  loadMap(net.map);
   const p2p = net.kind !== 'lan';
   $('room-code-box').classList.toggle('hidden', !p2p || !net.code);
   $('room-address').classList.toggle('hidden', p2p);
@@ -309,6 +360,7 @@ function renderLobby(status) {
     b.classList.toggle('selected', b.dataset.mode === net.mode);
     b.disabled = !net.isHost;
   }
+  renderMaps($('lobby-maps'), net.map, net.isHost, (id) => net.send('map', { map: id }));
   const desc = MODE_DESC[net.mode];
   $('mp-mode-desc').textContent = typeof desc === 'function' ? desc() : desc;
   $('btn-mp-start').classList.toggle('hidden', !net.isHost);
@@ -350,7 +402,7 @@ async function connectWith(label, fn) {
     await fn(playerNameInput());
     renderLobby('');
     if (net.code) history.replaceState(null, '', `#sala=${net.code}`);
-    if (net.state === 'playing') startSession(net.mode); // entrar en una partida ya empezada
+    if (net.state === 'playing') startSession(net.mode, net.map); // entrar en una partida ya empezada
   } catch (e) {
     renderLobby(`${e.message}.`);
   } finally {
@@ -404,7 +456,7 @@ net.on('leave', (m) => {
     hud.toast('AHORA ERES EL ANFITRIÓN');
   }
 });
-net.on('start', (m) => startSession(m.mode));
+net.on('start', (m) => startSession(m.mode, m.map));
 net.on('disconnect', (m) => {
   if (game.state !== 'menu') toLobby(`${m.reason ?? 'Se perdió la conexión'}.`);
 });
@@ -587,9 +639,10 @@ function tick(dt) {
     }
   } else if (game.state === 'menu' || game.state === 'lobby') {
     player.yaw.rotation.y += dt * 0.05;
-    player.yaw.position.set(0, 9, 34);
+    player.yaw.position.fromArray(ctx.world.menuCam);
     player.pitch.rotation.set(-0.12, 0, 0);
   }
+  ctx.world.update(game.state === 'paused' && game.mode === 'sp' ? 0 : dt);
   fx.update(game.state === 'paused' && game.mode === 'sp' ? 0 : dt);
 }
 
@@ -603,4 +656,4 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // Acceso para depuración y pruebas automatizadas.
-window.__ringfall = { ctx, newGame, tick, armory };
+window.__ringfall = { ctx, newGame, tick, armory, loadMap, startSession };

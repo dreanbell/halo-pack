@@ -1,7 +1,5 @@
 // Tuning central del juego. Unidades: metros, segundos, puntos de daño.
 export const CFG = {
-  arena: { half: 58 },
-
   player: {
     height: 1.7, crouchHeight: 1.1, radius: 0.4, step: 0.5,
     walk: 6.2, sprint: 9.4, crouch: 3.2, jump: 7.4, gravity: 22,
@@ -67,7 +65,6 @@ export const CFG = {
       { wave: 3, ids: ['sniper', 'needler'] },
       { wave: 5, ids: ['arc'] },
     ],
-    spots: [[0, 2.4, -2.2, 0], [-44, 0, -6, Math.PI / 2]],
   },
 
   swapTime: 0.45,

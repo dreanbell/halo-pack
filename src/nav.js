@@ -11,7 +11,7 @@ const NB_DI = NB.map((n) => n[0]), NB_DJ = NB.map((n) => n[1]), NB_C = NB.map((n
 
 export class NavGrid {
   constructor(world) {
-    const H = CFG.arena.half, step = CFG.player.step;
+    const H = world.half, step = CFG.player.step;
     this.H = H;
     this.step = step;
     const N = (this.N = Math.ceil(H * 2));

@@ -627,7 +627,7 @@ export class Director {
     this.mode = mode;
     this.authority = authority;
     this.reset();
-    if (mode === 'coop') this.boxes = CFG.box.spots.map((spot, i) => new MysteryBox(this.ctx, i, this.freeSpot(spot)));
+    if (mode === 'coop') this.boxes = this.ctx.world.boxSpots.map((spot, i) => new MysteryBox(this.ctx, i, this.freeSpot(spot)));
   }
 
   // Sitio libre para una caja cerca del punto pedido (las cajas del mapa son aleatorias).

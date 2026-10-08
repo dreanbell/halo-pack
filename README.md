@@ -36,6 +36,19 @@ No necesita build ni dependencias: three.js y PeerJS van incluidos en `vendor/`.
 python3 -m http.server 8000   # o: node server.js 8000 → http://localhost:8000
 ```
 
+## Mapas
+
+Se eligen en el menú (un jugador) o en la sala (solo el anfitrión; los demás lo ven cambiar al momento). Diseño original inspirado en mundos-anillo y ruinas de una civilización antigua.
+
+| Mapa | Ambiente | Distribución |
+|---|---|---|
+| **Valle del Anillo** | Pradera, mediodía, el anillo cruzando el cielo | Plataforma central con escaleras, búnkeres en las esquinas, monolitos, arcos |
+| **Ciudadela Glacial** | Nieve, atardecer, cordillera y nevada | Aguja central con muretes, terrazas elevadas a los lados, cristales de hielo |
+| **Cañón Ámbar** | Desierto, acantilados escalonados, tormenta de polvo | Crucero alienígena partido (con huecos y una escalera al casco), mesetas, agujas violetas |
+| **Plataforma Cenit** | Órbita nocturna sobre un gigante gaseoso | Estrado central, 4 torres con **ascensores gravitatorios**, barrera de energía |
+
+Todo es procedural (sin imágenes externas): paneles de aleación con vetas luminosas y mapas de normales, terreno con relieve y color por altura y pendiente, cielo con sol, estrellas y nebulosa, nubes, hierba, nieve/polvo/motas y luces puntuales.
+
 ## Enemigos
 
 | Enemigo | Desde | Comportamiento |
@@ -100,6 +113,7 @@ El modelo del soldado es procedural (unas 40 piezas biseladas con materiales PBR
 | E | Caja misteriosa (cooperativo) |
 | F | Golpe cuerpo a cuerpo (por la espalda = eliminación) |
 | Tab | Marcador (multijugador) |
+| Círculo luminoso | Ascensor gravitatorio (Plataforma Cenit): te lanza a lo alto de la torre |
 | Esc | Pausa (en multijugador la partida sigue) |
 
 ## Mecánicas
@@ -120,7 +134,8 @@ El modelo del soldado es procedural (unas 40 piezas biseladas con materiales PBR
 | Pieza | Funcionamiento |
 |---|---|
 | Sala (`src/room.js`) | Lobby, modo, anfitrión y marcador de bajas. En P2P se ejecuta en el navegador del anfitrión y los demás se conectan a él por WebRTC (PeerJS). En LAN sin internet la ejecuta `server.js` y los clientes usan WebSocket. |
-| Latido | Ping cada 2 s. Tras 9 s sin mensajes, la conexión se da por perdida. |
+| Latido | Ping cada 2 s. Tras 9 s sin mensajes, la conexión se da por perdida (no cuenta el tiempo en que la pestaña estuvo congelada, p. ej. cargando un mapa). |
+| Mapa | Lo elige el anfitrión; viaja en el mensaje de la sala y en el de inicio de partida. |
 | Jugadores | Cada cliente es autoridad de su propio movimiento (20 Hz) y de sus disparos. Los demás se ven interpolados con 100 ms de retardo. |
 | Cooperativo | El anfitrión simula enemigos, oleadas y recogibles, y envía instantáneas a 12 Hz. Los clientes le mandan el daño que hacen. En el servidor LAN, si el anfitrión se va, otro jugador toma el relevo. |
 | Todos contra todos | El tirador envía el impacto a la víctima, que lo aplica sobre su propio escudo. El servidor lleva la cuenta de bajas. |
@@ -144,7 +159,9 @@ src/guns.js         Modelos de las armas
 src/box.js          Caja misteriosa del cooperativo
 src/aliens.js       Modelos y animación de los alienígenas (quitina, escudos de energía)
 src/config.js       Tuning: armas, enemigos, oleadas
-src/world.js        Arena procedural, cielo con anillo y colisiones AABB
+src/mapinfo.js      Catálogo de mapas (lo comparten navegador y servidor)
+src/maps.js         Distribución y ambiente de cada mapa
+src/world.js        Kit de construcción procedural (texturas, cielo, terreno, piezas) y colisiones AABB
 src/nav.js          Rejilla de navegación + campo de flujo
 src/player.js       Movimiento FPS, escudo/salud y daño
 src/weapons.js      Armas, granadas, cuerpo a cuerpo y viewmodels

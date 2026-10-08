@@ -42,6 +42,7 @@ export class Player {
     this.sinceHit = 99;
     this.onGround = true;
     this.alive = true;
+    this.liftT = 0;
     this.height = P.height;
     this.sprinting = this.crouching = this.recharging = false;
     this.shake = 0;
@@ -94,10 +95,19 @@ export class Player {
     const wl = Math.hypot(wx, wz);
     if (wl > 0) { wx /= wl; wz /= wl; }
     const speed = this.crouching ? P.crouch : this.sprinting ? P.sprint : P.walk;
-    const a = 1 - Math.exp(-(this.onGround ? P.groundAccel : P.airControl) * dt);
+    // Tras un ascensor gravitatorio no hay rozamiento en el aire hasta aterrizar.
+    if (this.liftT > 0) this.liftT -= dt;
+    const a = this.liftT > 0 ? 0 : 1 - Math.exp(-(this.onGround ? P.groundAccel : P.airControl) * dt);
     this.vel.x += (wx * speed - this.vel.x) * a;
     this.vel.z += (wz * speed - this.vel.z) * a;
     if (k.has('Space') && this.onGround) { this.vel.y = P.jump; this.onGround = false; }
+    const lift = this.onGround && world.liftAt?.(this.pos);
+    if (lift) {
+      this.vel.fromArray(lift.vel);
+      this.liftT = lift.t;
+      this.onGround = false;
+      sfx.lift();
+    }
     this.vel.y -= P.gravity * dt;
 
     const prevY = this.pos.y;
@@ -106,9 +116,10 @@ export class Player {
     world.resolveHorizontal(this.pos, P.radius, this.pos.y, this.pos.y + this.height);
     world.clampToArena(this.pos, P.radius);
     const gh = world.groundHeightAt(this.pos.x, this.pos.z, P.radius * 0.7, Math.max(prevY, this.pos.y));
-    if (this.pos.y <= gh) {
+    // Subiendo en un ascensor no se "pisa" el borde de los parapetos.
+    if (this.pos.y <= gh && !(this.liftT > 0 && this.vel.y > 0)) {
       if (!this.onGround && this.vel.y < -11) { sfx.land(); this.shake = Math.min(1, this.shake + 0.2); }
-      this.pos.y = gh; this.vel.y = 0; this.onGround = true;
+      this.pos.y = gh; this.vel.y = 0; this.onGround = true; this.liftT = 0;
     } else if (this.pos.y > gh + 0.05) {
       this.onGround = false;
     }

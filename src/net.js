@@ -10,7 +10,7 @@ const TIMEOUT = 15000;
 const HEARTBEAT = 2000; // ms entre pings
 const SILENCE = 9000; // ms sin mensajes = conexión perdida
 
-export const BUILD = '1.5.0';
+export const BUILD = '1.6.0';
 export const DEBUG = new URLSearchParams(location.search).has('debug');
 
 export const makeCode = () => Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
@@ -74,6 +74,7 @@ export class Net {
     this.id = null;
     this.hostId = null;
     this.mode = 'coop';
+    this.map = 'valle';
     this.state = 'lobby';
     this.scoreLimit = 15;
     this.players = new Map();
@@ -127,9 +128,16 @@ export class Net {
   // Latido: WebRTC puede tardar mucho en notar que el otro lado cerró la pestaña.
   startHeartbeat() {
     clearInterval(this.beat);
-    this.lastRecv = performance.now();
+    this.lastRecv = this.lastBeat = performance.now();
     this.beat = setInterval(() => {
       const now = performance.now();
+      // ¿Estuvo congelada esta pestaña (carga de mapa, pestaña en segundo plano)? Los mensajes
+      // recibidos mientras tanto aún están en cola: no cuenta como silencio.
+      if (now - this.lastBeat > HEARTBEAT * 2.5) {
+        this.lastRecv = now;
+        for (const c of this.guests) c.lastSeen = now;
+      }
+      this.lastBeat = now;
       this.send('ping', { ts: now });
       if (this.kind !== 'p2p-host' && now - this.lastRecv > SILENCE) this.lost('Se perdió la conexión con el anfitrión');
       if (this.kind === 'p2p-host') {
@@ -261,6 +269,7 @@ export class Net {
       this.players = new Map(m.players.map((p) => [p.id, p]));
       this.hostId = m.hostId;
       this.mode = m.mode;
+      this.map = m.map;
       this.state = m.state;
       this.scoreLimit = m.scoreLimit;
     } else if (m.t === 'join') {
@@ -271,6 +280,7 @@ export class Net {
     } else if (m.t === 'start') {
       this.state = 'playing';
       this.mode = m.mode;
+      this.map = m.map;
       this.hostId = m.hostId;
       this.players = new Map(m.players.map((p) => [p.id, p]));
     } else if (m.t === 'feed' || m.t === 'matchEnd') {

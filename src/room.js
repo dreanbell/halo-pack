@@ -2,6 +2,7 @@
 // La usan server.js (LAN con Node) y el navegador del anfitrión (P2P con WebRTC).
 // conn: { send(obj), close(), player? }
 import { sanitizeSkin } from './skins.js';
+import { DEFAULT_MAP, isMap } from './mapinfo.js';
 
 export const COLORS = ['#3ad0ff', '#ff5a5a', '#7dff6a', '#ffc23a', '#c77dff', '#ff8ad8', '#5affd6', '#f0f0f0'];
 
@@ -16,6 +17,7 @@ export class Room {
     this.nextId = 1;
     this.hostId = null;
     this.mode = 'coop';
+    this.map = DEFAULT_MAP;
     this.state = 'lobby';
   }
 
@@ -28,7 +30,7 @@ export class Room {
   }
 
   lobbyMsg() {
-    return { t: 'lobby', players: this.roster(), hostId: this.hostId, mode: this.mode, state: this.state, scoreLimit: this.scoreLimit };
+    return { t: 'lobby', players: this.roster(), hostId: this.hostId, mode: this.mode, map: this.map, state: this.state, scoreLimit: this.scoreLimit };
   }
 
   broadcast(msg, exceptId) {
@@ -85,12 +87,18 @@ export class Room {
           this.broadcast(this.lobbyMsg());
         }
         break;
+      case 'map':
+        if (me.id === this.hostId && this.state === 'lobby' && isMap(m.map)) {
+          this.map = m.map;
+          this.broadcast(this.lobbyMsg());
+        }
+        break;
       case 'start':
         if (me.id === this.hostId && this.state === 'lobby') {
           this.state = 'playing';
           for (const p of this.players.values()) { p.kills = 0; p.deaths = 0; }
-          this.broadcast({ t: 'start', mode: this.mode, hostId: this.hostId, players: this.roster() });
-          this.log(`Partida iniciada · ${this.mode === 'coop' ? 'Cooperativo' : 'Todos contra todos'}`);
+          this.broadcast({ t: 'start', mode: this.mode, map: this.map, hostId: this.hostId, players: this.roster() });
+          this.log(`Partida iniciada · ${this.mode === 'coop' ? 'Cooperativo' : 'Todos contra todos'} · ${this.map}`);
         }
         break;
       case 'kill': { // DM: la víctima informa de su muerte

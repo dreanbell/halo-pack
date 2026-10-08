@@ -51,7 +51,20 @@
     <div class="panel">
       <h1>RINGFALL</h1>
       <p class="subtitle">DEMO · SHOOTER SCI-FI EN PRIMERA PERSONA</p>
-      <p class="lead">Aguanta en la arena del anillo contra oleadas cada vez más duras.</p>
+      <p class="lead">Aguanta en las ruinas del anillo contra oleadas cada vez más duras.</p>
+      <h4 class="maps-title">MAPA</h4>
+      <div class="maps" id="menu-maps"></div>
+      <p class="tip map-desc"></p>
+      <div class="menu-buttons">
+        <button id="btn-start">UN JUGADOR</button>
+        <button id="btn-mp">MULTIJUGADOR LAN</button>
+      </div>
+      <div class="row-buttons">
+        <button id="btn-loadout" class="secondary">ARMAS</button>
+        <button id="btn-armory" class="secondary">ARMERÍA · PERSONALIZAR SOLDADO</button>
+      </div>
+      <p class="best">Récord: <b id="best">0</b></p>
+      <details class="controls-box"><summary>CONTROLES</summary>
       <div class="controls">
         <kbd>WASD</kbd><span>Moverse</span>
         <kbd>Ratón</kbd><span>Apuntar · Clic izq. dispara</span>
@@ -65,18 +78,11 @@
         <kbd>E</kbd><span>Usar caja misteriosa (cooperativo)</span>
         <kbd>F</kbd><span>Golpe cuerpo a cuerpo (por la espalda = eliminación)</span>
         <kbd>Tab</kbd><span>Marcador (multijugador)</span>
+        <kbd>Ascensor</kbd><span>Pisa un círculo luminoso para saltar a la torre</span>
         <kbd>Esc</kbd><span>Pausa</span>
       </div>
       <p class="tip">La pistola de iones destroza escudos; la carabina remata. Los escudos se recargan si te cubres.</p>
-      <div class="menu-buttons">
-        <button id="btn-start">UN JUGADOR</button>
-        <button id="btn-mp">MULTIJUGADOR LAN</button>
-      </div>
-      <div class="row-buttons">
-        <button id="btn-loadout" class="secondary">ARMAS</button>
-        <button id="btn-armory" class="secondary">ARMERÍA · PERSONALIZAR SOLDADO</button>
-      </div>
-      <p class="best">Récord: <b id="best">0</b></p>
+      </details>
       <p id="touch-warn" class="warn hidden">Esta demo requiere teclado y ratón.</p>
       <p class="note">Proyecto fan original. No usa assets, nombres ni código de ninguna franquicia comercial. <span class="build"></span></p>
     </div>
@@ -127,6 +133,9 @@
           <button class="mode" data-mode="dm">TODOS CONTRA TODOS</button>
         </div>
         <p id="mp-mode-desc" class="tip"></p>
+        <h4 class="maps-title">MAPA</h4>
+        <div class="maps" id="lobby-maps"></div>
+        <p class="tip map-desc"></p>
         <button id="btn-mp-start">INICIAR PARTIDA</button>
         <p id="mp-wait" class="status"></p>
       </div>
@@ -168,6 +177,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/main.js?v=1.5.0"></script>
+  <script type="module" src="src/main.js?v=1.6.0"></script>
 </body>
 </html>
