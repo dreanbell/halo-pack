@@ -1,11 +1,14 @@
 import { CFG } from './config.js';
+import { gunThumbnails } from './gunview.js';
 
 const IDS = [
-  'hud', 'menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
+  'hud', 'menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout', 'setup', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
   'crosshair', 'hitmarker', 'weapon-name', 'ammo', 'ammo-mag', 'ammo-res', 'heat', 'heat-fill',
   'grenades', 'radar', 'score', 'banner', 'banner-title', 'banner-sub',
   'toast', 'hint', 'vignette', 'dmg-dir', 'go-stats', 'go-title', 'btn-retry', 'feed', 'scoreboard', 'sb-title',
-  'sb-table', 'wave-info', 'score-label', 'weapon-alt', 'scope', 'boss', 'boss-name', 'boss-hp', 'boss-sh',
+  'sb-table', 'wave-info', 'score-label', 'weapon-alt', 'scope', 'boss', 'boss-name', 'boss-hp', 'boss-sh', 'timer',
+  'weapon-icon', 'reload', 'reload-fill', 'scope-zoom', 'scope-range',
+  'spectate', 'spec-name', 'spec-sub',
 ];
 const RADAR_RANGE = 30;
 
@@ -16,6 +19,7 @@ export class Hud {
     this.cache = new Map();
     this.timers = {};
     this.dmgFlash = 0;
+    this.spec = null;
   }
 
   text(id, v) {
@@ -28,13 +32,18 @@ export class Hud {
     if (this.cache.get(key) !== v) { this.cache.set(key, v); this.el[id].style.setProperty(prop, v); }
   }
 
+  attr(id, name, v) {
+    const key = `${id}@${name}`;
+    if (this.cache.get(key) !== v) { this.cache.set(key, v); this.el[id].setAttribute(name, v); }
+  }
+
   toggle(id, cls, on) {
     this.el[id].classList.toggle(cls, !!on);
   }
 
   showOverlay(name) {
-    for (const n of ['menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout']) this.toggle(n, 'hidden', n !== name);
-    this.toggle('hud', 'hidden', ['menu', 'lobby', 'armory', 'loadout'].includes(name));
+    for (const n of ['menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout', 'setup']) this.toggle(n, 'hidden', n !== name);
+    this.toggle('hud', 'hidden', ['menu', 'lobby', 'armory', 'loadout', 'setup'].includes(name));
   }
 
   reset() {
@@ -45,6 +54,18 @@ export class Hud {
     this.toggle('toast', 'show', false);
     this.el.feed.replaceChildren();
     this.toggle('scoreboard', 'hidden', true);
+    this.spectate(null);
+  }
+
+  // Modo espectador: info = { name, color, shield, health, weapon, kills, count } o null para salir.
+  spectate(info) {
+    this.spec = info;
+    this.toggle('hud', 'spectating', info);
+    if (!info) return;
+    this.text('spec-name', info.name.toUpperCase());
+    this.style('spec-name', 'color', info.color);
+    const w = CFG.weapons[info.weapon]?.name ?? '';
+    this.text('spec-sub', [w, info.kills != null && `${info.kills} BAJAS`].filter(Boolean).join(' · '));
   }
 
   // Entrada del registro de bajas: partes = [{ text, color? }].
@@ -120,23 +141,36 @@ export class Hud {
   }
 
   update(ctx, dt) {
-    const { player: p, arsenal: a, director: d, game: g } = ctx;
+    const { player: p, arsenal: a, director: d, game: g, rules: r } = ctx;
     const P = CFG.player;
+    const sp = this.spec;
+    // Espectando: las barras muestran el estado del jugador observado.
+    const shield = sp ? sp.shield : p.shield, health = sp ? sp.health : p.health;
 
-    this.style('shield-fill', 'width', `${((p.shield / P.maxShield) * 100).toFixed(1)}%`);
-    this.toggle('shield-bar', 'low', p.shield < P.maxShield * 0.25);
-    this.toggle('shield-bar', 'charging', p.recharging);
-    this.style('health-fill', 'width', `${((p.health / P.maxHealth) * 100).toFixed(1)}%`);
-    this.toggle('health-bar', 'low', p.health < 35);
+    const maxShield = sp ? (r.shields ? P.maxShield : 0) : p.maxShield;
+    this.toggle('shield-bar', 'hidden', !maxShield);
+    if (maxShield) this.style('shield-fill', 'width', `${((shield / maxShield) * 100).toFixed(1)}%`);
+    this.toggle('shield-bar', 'low', shield < maxShield * 0.25);
+    this.toggle('shield-bar', 'charging', !sp && p.recharging);
+    this.style('health-fill', 'width', `${((health / P.maxHealth) * 100).toFixed(1)}%`);
+    this.toggle('health-bar', 'low', health < 35);
 
     const sl = a.w, wd = sl.def, other = a.slots[1 - a.current];
     this.text('weapon-name', wd.name);
+    if (this.cache.get('icon') !== sl.id) {
+      this.cache.set('icon', sl.id);
+      const url = `url(${gunThumbnails()[sl.id]})`;
+      this.el['weapon-icon'].style.maskImage = this.el['weapon-icon'].style.webkitMaskImage = url;
+    }
+    const reloading = a.reloadT > 0 && wd.reload;
+    this.toggle('reload', 'hidden', !reloading);
+    if (reloading) this.style('reload-fill', 'width', `${((1 - a.reloadT / wd.reload) * 100).toFixed(1)}%`);
     this.text('weapon-alt', other ? `${other.def.name} [Q]` : '');
     this.toggle('ammo', 'hidden', !wd.mag);
     this.toggle('heat', 'hidden', !wd.heat);
     if (wd.mag) {
       this.text('ammo-mag', sl.mag);
-      this.text('ammo-res', `/ ${sl.reserve}`);
+      this.text('ammo-res', a.infinite ? '/ ∞' : `/ ${sl.reserve}`);
       this.toggle('ammo', 'low', sl.mag <= Math.ceil(wd.mag / 4));
     } else {
       this.style('heat-fill', 'width', `${(sl.heat * 100).toFixed(1)}%`);
@@ -146,26 +180,36 @@ export class Hud {
     if (g.mode === 'dm') {
       const net = ctx.net, me = net.players.get(net.id);
       const lead = [...net.players.values()].sort((x, y) => y.kills - x.kills)[0];
-      this.text('score', `${me?.kills ?? 0} / ${net.scoreLimit}`);
+      this.text('score', `${me?.kills ?? 0} / ${r.scoreLimit}`);
       this.text('score-label', 'BAJAS');
       this.text('wave-info', lead ? `LÍDER: ${lead.name.toUpperCase()} · ${lead.kills}` : '');
     } else {
       this.text('score', g.score.toLocaleString('es-ES'));
       this.text('score-label', g.mode === 'coop' ? `CRÉDITOS ${d.credits()} · TUS BAJAS ${g.kills}` : '');
-      this.text('wave-info', `OLEADA ${Math.max(1, g.wave)} · ${d.state === 'combat' ? `${d.remaining()} HOSTILES` : 'PREPARANDO…'}`);
+      const lives = r.lives ? ` · VIDAS ${d.lives}` : '';
+      this.text('wave-info', `OLEADA ${d.state === 'combat' ? g.wave : g.wave + 1} · ${d.state === 'combat' ? `${d.remaining()} HOSTILES` : 'PREPARANDO…'}${lives}`);
     }
 
-    const scoped = wd.scope && a.zoom > 1;
+    // Visor (DMR / francotirador) con telémetro; retícula propia de cada arma al disparar desde la cadera.
+    const scoped = wd.scope && a.zoom > 1.5;
     this.toggle('scope', 'hidden', !scoped);
-    this.toggle('crosshair', 'hidden', scoped);
-    this.toggle('crosshair', 'pistol', !wd.auto);
+    if (scoped) {
+      this.attr('scope', 'data-k', wd.scope);
+      this.text('scope-zoom', `×${wd.zoom}`);
+      this.text('scope-range', a.aimDist ? `${Math.round(a.aimDist)} m` : '--- m');
+      this.toggle('scope', 'enemy', a.aimEnemy);
+    }
+    this.attr('crosshair', 'data-w', sl.id);
     this.toggle('crosshair', 'enemy', a.aimEnemy);
-    this.style('crosshair', '--s', `${(wd.kind === 'pellets' ? 22 : 7 + a.spread() * 300).toFixed(1)}px`);
+    const xo = Math.max(0, 1 - a.aimK * 2.2) * (1 - 0.6 * a.sprintK);
+    this.style('crosshair', 'opacity', xo.toFixed(2));
+    this.style('crosshair', '--s', `${(wd.kind === 'pellets' ? 22 : 5 + a.spread() * 280).toFixed(1)}px`);
 
     let hint = '';
-    const box = g.mode === 'coop' ? d.boxPrompt() : '';
+    const box = d.boxes.length ? d.boxPrompt() : '';
     if (!p.alive && g.respawnIn > 0) hint = `REAPARECES EN ${Math.ceil(g.respawnIn)}`;
-    else if (!p.alive && g.mode === 'coop') hint = 'CAÍDO · REAPARECES EN LA PRÓXIMA OLEADA';
+    else if (!p.alive && g.lifePending) hint = 'CAÍDO';
+    else if (!p.alive && g.mode === 'coop') hint = r.lives ? 'SIN VIDAS · ESPERA A QUE EL EQUIPO GANE UNA' : 'CAÍDO · REAPARECES EN LA PRÓXIMA OLEADA';
     else if (box) hint = box;
     else if (a.reloadT > 0) hint = 'RECARGANDO';
     else if (wd.heat && sl.overT > 0) hint = 'SOBRECALENTADA';
@@ -174,7 +218,7 @@ export class Hud {
     this.text('hint', hint);
 
     this.dmgFlash = Math.max(0, this.dmgFlash - dt * 1.8);
-    const low = p.health < 40 ? (1 - p.health / 40) * 0.7 : 0;
+    const low = !sp && p.health < 40 ? (1 - p.health / 40) * 0.7 : 0;
     this.style('vignette', 'opacity', Math.max(this.dmgFlash, low).toFixed(2));
 
     // Barra del jefe.
@@ -185,10 +229,22 @@ export class Hud {
       this.style('boss-hp', 'width', `${Math.max(0, (boss.hp / boss.maxHp) * 100).toFixed(1)}%`);
       this.style('boss-sh', 'width', `${boss.maxShield ? Math.max(0, (boss.shield / boss.maxShield) * 100).toFixed(1) : 0}%`);
     }
-    this.drawRadar(p, d.enemies, ctx.remotes.list(), g.mode);
+    // Tiempo restante.
+    const tl = g.timeLeft;
+    this.toggle('timer', 'hidden', !Number.isFinite(tl));
+    if (Number.isFinite(tl)) {
+      this.text('timer', `${Math.floor(tl / 60)}:${String(Math.floor(tl % 60)).padStart(2, '0')}`);
+      this.toggle('timer', 'low', tl < 30);
+    }
+
+    this.toggle('radar', 'hidden', !r.radar);
+    if (!r.radar) return;
+    const view = sp ? ctx.remotes.get(sp.id) : null;
+    if (view) this.drawRadar(view.pos, view.yaw, d.enemies, ctx.remotes.list().filter((x) => x !== view), g.mode);
+    else this.drawRadar(p.pos, p.yaw.rotation.y, d.enemies, ctx.remotes.list(), g.mode);
   }
 
-  drawRadar(p, enemies, remotes = [], mode = 'sp') {
+  drawRadar(pos, yaw, enemies, remotes = [], mode = 'sp') {
     const c = this.radar, W = c.canvas.width, cx = W / 2, R = W / 2 - 6;
     c.clearRect(0, 0, W, W);
     c.fillStyle = 'rgba(8,24,34,0.55)';
@@ -198,7 +254,7 @@ export class Hud {
     for (const k of [1, 2 / 3, 1 / 3]) { c.beginPath(); c.arc(cx, cx, R * k, 0, Math.PI * 2); c.stroke(); }
     c.beginPath(); c.moveTo(cx, cx - R); c.lineTo(cx, cx + R); c.moveTo(cx - R, cx); c.lineTo(cx + R, cx); c.stroke();
 
-    const s = Math.sin(p.yaw.rotation.y), co = Math.cos(p.yaw.rotation.y);
+    const s = Math.sin(yaw), co = Math.cos(yaw);
     // Los Stalker camuflados no aparecen en el radar.
     const blips = enemies.filter((e) => !e.dead && (e.flags & 1)).map((e) => ({ pos: e.pos, big: e.cfg.scale > 1.1, color: e.cfg.boss ? '#ffb340' : '#ff4d5e' }));
     const now = performance.now();
@@ -210,7 +266,7 @@ export class Hud {
       blips.push({ pos: r.pos, big: false, color: mode === 'dm' ? '#ff4d5e' : r.colorHex, ally: mode !== 'dm' });
     }
     for (const e of blips) {
-      const rx = e.pos.x - p.pos.x, rz = e.pos.z - p.pos.z;
+      const rx = e.pos.x - pos.x, rz = e.pos.z - pos.z;
       let right = rx * co - rz * s, fwd = -rx * s - rz * co;
       const dist = Math.hypot(right, fwd);
       const edge = dist > RADAR_RANGE;
@@ -221,7 +277,7 @@ export class Hud {
       c.fillStyle = c.strokeStyle = e.color;
       c.beginPath();
       if (e.ally) { c.rect(x - 4, y - 4, 8, 8); } else c.arc(x, y, size, 0, Math.PI * 2);
-      if (Math.abs(e.pos.y - p.pos.y) > 2) { c.lineWidth = 2; c.stroke(); } else c.fill();
+      if (Math.abs(e.pos.y - pos.y) > 2) { c.lineWidth = 2; c.stroke(); } else c.fill();
     }
     c.globalAlpha = 1;
     c.fillStyle = '#ffe27a';
@@ -239,13 +295,13 @@ export class Hud {
     this.showOverlay('gameover');
   }
 
-  showGameOver({ wave, kills, score, best, time }) {
-    this.el['go-title'].textContent = 'FIN DE LA PARTIDA';
+  showGameOver({ wave, kills, score, best, time, title = 'FIN DE LA PARTIDA', recordLabel = 'Récord' }) {
+    this.el['go-title'].textContent = title;
     this.el['btn-retry'].textContent = 'REINTENTAR';
     const m = Math.floor(time / 60), s = String(Math.floor(time % 60)).padStart(2, '0');
     const rows = [
       ['Oleada alcanzada', wave], ['Bajas', kills], ['Tiempo', `${m}:${s}`],
-      ['Puntuación', score.toLocaleString('es-ES')], ['Récord', best.toLocaleString('es-ES')],
+      ['Puntuación', score.toLocaleString('es-ES')], ...(best === null ? [] : [[recordLabel, best.toLocaleString('es-ES')]]),
     ];
     this.el['go-stats'].replaceChildren(...rows.flatMap(([k, v]) => {
       const a = document.createElement('span'); a.textContent = k;

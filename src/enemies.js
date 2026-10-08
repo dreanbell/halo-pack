@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CFG, waveComposition, difficulty, rand } from './config.js';
+import { DIFFICULTY } from './rules.js';
 import { v3 } from './net.js';
 import { MysteryBox } from './box.js';
 import { buildAlien } from './aliens.js';
@@ -587,7 +588,10 @@ class Enemy {
       if (sd < this.shield) { this.shield -= sd; remaining = 0; }
       else { remaining = (sd - this.shield) / shieldMult; this.shield = 0; this.ctx.sfx.shieldPop(); }
     }
-    if (remaining > 0) this.hp -= remaining * (part === 'head' && !shieldHit ? headMult : 1);
+    // Regla «cabeza = baja»: un tiro a la cabeza sin escudo elimina (salvo jefes).
+    if (part === 'head' && !shieldHit && !this.cfg.boss && this.ctx.rules.headKill) remaining = Math.max(remaining, this.hp);
+    else if (part === 'head' && !shieldHit) remaining *= headMult;
+    if (remaining > 0) this.hp -= remaining;
     if (this.hp <= 0) {
       this.dead = true;
       this.deathT = 0;
@@ -622,12 +626,13 @@ export class Director {
     this.reset();
   }
 
-  // mode: 'sp' | 'coop' | 'dm' (sin enemigos). authority: este equipo simula la IA.
+  // mode: 'sp' | 'coop' | 'dm' (sin enemigos) | 'menu' (escena vacía). authority: este equipo simula la IA.
   configure(mode, authority) {
     this.mode = mode;
     this.authority = authority;
     this.reset();
-    if (mode === 'coop') this.boxes = this.ctx.world.boxSpots.map((spot, i) => new MysteryBox(this.ctx, i, this.freeSpot(spot)));
+    this.lives = this.rules.lives;
+    if ((mode === 'sp' || mode === 'coop') && this.rules.box) this.boxes = this.ctx.world.boxSpots.map((spot, i) => new MysteryBox(this.ctx, i, this.freeSpot(spot)));
   }
 
   // Sitio libre para una caja cerca del punto pedido (las cajas del mapa son aleatorias).
@@ -668,6 +673,17 @@ export class Director {
     return this.ctx.net;
   }
 
+  get rules() {
+    return this.ctx.rules;
+  }
+
+  // Vidas compartidas (Tiroteo): solo la autoridad las gasta.
+  takeLife() {
+    if (!this.rules.lives || this.lives <= 0) return false;
+    this.lives--;
+    return true;
+  }
+
   get online() {
     return this.mode === 'coop' && this.net.active;
   }
@@ -699,7 +715,7 @@ export class Director {
   startWave() {
     const { game } = this.ctx;
     game.wave++;
-    const comp = waveComposition(game.wave, this.playerCount());
+    const comp = waveComposition(game.wave, this.playerCount(), this.rules.waveSet);
     for (const [type, n] of Object.entries(comp)) for (let i = 0; i < n; i++) this.queue.push(type);
     for (let i = this.queue.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
@@ -722,6 +738,7 @@ export class Director {
     // Créditos por oleada para todo el equipo (los caídos también).
     const ids = this.online ? [...this.net.players.keys()] : [this.myId()];
     for (const id of ids) this.score(id).credits += CFG.box.waveBonus;
+    if (this.rules.lives) this.lives++;
     this.onWave({ k: 'clear', n: game.wave });
     if (this.online) this.net.bcast('wave', { k: 'clear', n: game.wave });
   }
@@ -740,7 +757,7 @@ export class Director {
     } else {
       arsenal.addAmmo(1.5);
       arsenal.addGrenade(1);
-      hud.banner('OLEADA SUPERADA', `+${m.n * 100} PTS · MUNICIÓN Y GRANADA`, 2.6);
+      hud.banner('OLEADA SUPERADA', `+${m.n * 100} PTS · MUNICIÓN Y GRANADA${this.rules.lives ? ' · +1 VIDA' : ''}`, 2.6);
       sfx.pickup();
     }
   }
@@ -761,12 +778,14 @@ export class Director {
     return this.online ? Math.max(1, this.net.players.size) : 1;
   }
 
-  // Multiplicadores de vida y daño según oleada, jugadores y (para jefes) cuántos llevamos.
+  // Multiplicadores de vida y daño según oleada, jugadores, dificultad y (para jefes) cuántos llevamos.
   scaling(type) {
     const wave = Math.max(1, this.ctx.game.wave);
     const d = difficulty(wave, this.playerCount());
-    const bossK = CFG.enemies[type].boss ? 1 + 0.3 * Math.max(0, Math.floor(wave / 5) - 1) : 1;
-    return { hp: d.hp * bossK, dmg: d.dmg };
+    const k = DIFFICULTY[this.rules.difficulty] ?? DIFFICULTY.normal;
+    let bossK = 1;
+    if (CFG.enemies[type].boss) bossK = this.rules.waveSet === 'bosses' ? 1 + 0.15 * (wave - 1) : 1 + 0.3 * Math.max(0, Math.floor(wave / 5) - 1);
+    return { hp: d.hp * bossK * k.hp, dmg: d.dmg * k.dmg };
   }
 
   // Refuerzos invocados por un jefe alrededor de su posición.
@@ -911,7 +930,7 @@ export class Director {
   snapshot() {
     const { game } = this.ctx;
     return {
-      w: game.wave, st: this.state, tm: +this.timer.toFixed(2), q: this.queue, sc: game.score,
+      w: game.wave, st: this.state, tm: +this.timer.toFixed(2), q: this.queue, sc: game.score, lv: this.lives,
       e: this.enemies.map((e) => [e.id, TYPES.indexOf(e.type), ...v3(e.pos), +e.group.rotation.y.toFixed(3), Math.round(e.hp), Math.round(e.shield), e.dead ? 1 : 0, Math.round(e.maxHp), Math.round(e.maxShield), e.flags]),
       p: this.pickups.map((p) => [p.id, p.kind, ...v3(p.mesh.position)]),
       s: [...this.scores].map(([id, s]) => [id, s.kills, s.score, s.credits]),
@@ -926,6 +945,7 @@ export class Director {
     this.state = s.st;
     this.timer = s.tm;
     this.queueN = s.q.length;
+    this.lives = s.lv ?? 0;
     this.scores = new Map(s.s.map(([id, kills, score, credits]) => [id, { kills, score, credits }]));
     game.kills = this.scores.get(this.net.id)?.kills ?? 0;
 
@@ -1087,10 +1107,11 @@ export class Director {
         }
         if (!this.queue.length && aliveCount === 0 && this.targets.length) this.clearWave();
       }
-      // Coop: todos caídos → fin de partida.
+      // Coop: todos caídos (y sin vidas que gastar) → fin de partida.
       if (this.online) {
+        const lives = this.rules.lives > 0;
         this.allDeadT = this.targets.length ? 0 : this.allDeadT + dt;
-        if (this.allDeadT > 2.5) { this.allDeadT = -1e9; game.onCoopOver?.(); }
+        if (this.allDeadT > (lives ? this.rules.respawn + 3 : 2.5) && (!lives || this.lives <= 0)) { this.allDeadT = -1e9; game.onCoopOver?.(); }
         this.snapT -= dt;
         if (this.snapT <= 0) { this.snapT = SNAP_RATE; this.net.bcast('snap', this.snapshot()); }
       }

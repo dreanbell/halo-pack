@@ -3,7 +3,7 @@ import { CFG } from './config.js';
 import { plate } from './avatar.js';
 import { buildGun } from './guns.js';
 
-// Caja misteriosa (coop): se abre, van pasando armas y sale una al azar.
+// Caja misteriosa (modos de oleadas con la regla de cajas): se abre, van pasando armas y sale una al azar.
 // Estados: idle → rolling (armas girando) → offer (el que la abrió puede cogerla) → closing → idle.
 const B = CFG.box;
 let qTex = null;

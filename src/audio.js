@@ -118,6 +118,16 @@ export class Sfx {
   }
   zoom() { this.tone({ freq: 1600, dur: 0.03, type: 'square', gain: 0.04 }); }
   shell() { this.noise({ dur: 0.06, freq: 1600, gain: 0.14 }); }
+  // Casquillo que rebota en el suelo.
+  casing(delay = 0.4, big = false) {
+    this.tone({ freq: big ? 2600 : 4200, freqEnd: big ? 2200 : 3600, dur: 0.05, type: 'triangle', gain: 0.025, delay });
+    this.tone({ freq: big ? 2900 : 4700, dur: 0.04, type: 'triangle', gain: 0.015, delay: delay + 0.09 });
+  }
+  // Cerrojo: arriba-atrás / adelante-abajo.
+  bolt(forward = false) {
+    this.noise({ dur: 0.07, freq: forward ? 2200 : 1500, q: 2, gain: 0.16 });
+    this.tone({ freq: forward ? 700 : 500, dur: 0.03, type: 'square', gain: 0.03 });
+  }
   boxOpen() {
     // Cajita de música: arpegio misterioso.
     [523, 659, 784, 988, 784, 659, 880, 1047].forEach((f, i) => this.tone({ freq: f, dur: 0.22, type: 'triangle', gain: 0.1, delay: i * 0.13 }));
@@ -182,7 +192,10 @@ export class Sfx {
     this.tone({ freq: 160, freqEnd: 720, dur: 0.55, type: 'sine', gain: 0.22 });
     this.noise({ dur: 0.6, freq: 500, freqEnd: 2400, q: 0.8, gain: 0.25 });
   }
-
+  slide() {
+    this.noise({ dur: 0.55, freq: 900, freqEnd: 220, type: 'lowpass', q: 0.7, gain: 0.32, attack: 0.03 });
+    this.noise({ dur: 0.4, freq: 3200, freqEnd: 1200, q: 1.2, gain: 0.08, attack: 0.02 });
+  }
   land() { this.noise({ dur: 0.12, freq: 260, type: 'lowpass', gain: 0.3 }); }
   melee() {
     this.noise({ dur: 0.12, freq: 450, type: 'lowpass', gain: 0.45 });

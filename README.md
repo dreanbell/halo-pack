@@ -15,8 +15,42 @@ La partida va **directa entre navegadores** (WebRTC). La sala vive en el navegad
 
 | Modo | Reglas |
 |---|---|
-| Cooperativo | Oleadas contra la IA. Si caes, reapareces al empezar la siguiente oleada. Si cae todo el equipo, termina la partida. Sin fuego amigo. |
-| Todos contra todos | Gana el primero en llegar a 15 bajas. Reapareces a los 3 s, lejos de los rivales. El daño entre jugadores es ×1,6. El radar solo muestra a los rivales que corren o disparan. |
+| Cooperativo | Oleadas contra la IA. Si caes, reapareces al empezar la siguiente oleada. Si cae todo el equipo, termina la partida. |
+| Todos contra todos | Gana el primero en llegar al límite de bajas (15 por defecto). Reapareces lejos de los rivales. El radar solo muestra a los rivales que corren o disparan. |
+
+## Variantes y ajustes
+
+**UN JUGADOR** abre la pantalla de variante y ajustes (se recuerdan entre partidas). En multijugador, el anfitrión los elige en el lobby y los demás los ven en tiempo real.
+
+| Variante | Modos | Reglas |
+|---|---|---|
+| Clásico | Todos | Las reglas de siempre del modo. |
+| Tiroteo | Un jugador · Coop | 7 vidas compartidas: al caer gastas una y reapareces a los 5 s. +1 vida por oleada superada. Sin vidas, quien cae no vuelve (en coop, vuelve si el equipo gana una). Dificultad difícil, sin cajas, armas a elegir. |
+| Jefes en cadena | Un jugador · Coop | Un jefe con escolta en cada oleada, alternando WARLORD y OVERSEER; desde la 6.ª, los dos juntos cada tres oleadas. 4 granadas. |
+| Francotiradores | Todos | Francotirador y pistola, munición infinita, sin granadas ni radar. |
+| Swat | Todos | Sin escudos (la salud se regenera) ni radar. Un tiro a la cabeza elimina, salvo a los jefes. DMR y pistola, sin granadas. |
+
+Cada variante es un punto de partida: cualquier ajuste se puede cambiar (aparece en amarillo y la partida se marca como **personalizada**).
+
+| Ajuste | Modos | Valores |
+|---|---|---|
+| Límite de bajas | DM | 5–50 |
+| Límite de tiempo | Todos | Sin límite · 1–30 min. En DM gana quien más bajas tenga (empate si coinciden); en oleadas, la partida termina con el resumen. |
+| Vidas | Oleadas | Clásico (0) · 1–30 compartidas |
+| Reaparición | DM · oleadas con vidas | 1–15 s |
+| Oleada inicial | Oleadas | 1–30 |
+| Oleadas | Oleadas | Normales · Solo jefes |
+| Dificultad | Oleadas | Fácil (vida ×0,7, daño ×0,6) · Normal · Difícil (×1,35 / ×1,3) · Legendaria (×1,8 / ×1,7) |
+| Cajas misteriosas | Oleadas | Sí / No (también en un jugador) |
+| Fuego amigo | Coop | Sí / No |
+| Daño entre jugadores | DM · coop con fuego amigo | ×0,6–×3 (por defecto ×1,6) |
+| Armas iniciales | Todos | A elegir · Carabina + pistola · Francotirador + pistola · DMR + pistola · Escopeta + SMG · Alienígenas |
+| Granadas iniciales | Todos | 0–4 |
+| Munición infinita · Escudos · Cabeza = baja · Radar | Todos | Sí / No |
+
+El récord de un jugador se guarda por variante y solo cuenta con los ajustes de la variante sin tocar.
+
+**Modo espectador:** al caer, la cámara sigue en tercera persona a un jugador vivo (en todos contra todos, a quien te eliminó, hasta reaparecer). Clic izq./D: siguiente · Clic der./A: anterior · ratón: girar · rueda: distancia · R: centrar.
 
 ### Sin internet: servidor LAN (opcional)
 Si la red no tiene salida a internet, un equipo con **Node.js 18+** puede servir el juego:
@@ -78,8 +112,12 @@ Todo es procedural (sin imágenes externas): paneles de aleación con vetas lumi
 | Needle Swarm 👽 | Alienígena | Agujas que persiguen al objetivo |
 | Arc Cannon 👽 | Alienígena | Proyectil explosivo con daño en área |
 
-- **Un jugador y todos contra todos:** eliges tus dos armas en **ARMAS** (menú o lobby).
-- **Cooperativo:** empiezas con carabina y pistola. Ganas **créditos** con cada baja y cada oleada superada. Las **cajas misteriosas** (una en la plataforma central y otra en el campo, marcadas con un haz de luz) cuestan 500 créditos: pulsa **E**, la caja se abre, van pasando armas y sale una al azar, que coges con **E** antes de 8 s. Sustituye al arma que llevas en la mano. Si ya la tenías, te llena la munición. Las mejores salen en rondas altas: francotirador y agujas desde la 3, cañón de arco desde la 5.
+- **Armas iniciales «a elegir»** (un jugador y DM por defecto): eliges tus dos armas en **ARMAS** (menú, pantalla de un jugador o lobby). El menú tiene vista previa 3D giratoria de cada arma (arrastra para girar, rueda para acercar), miniaturas, ficha técnica (daño, cadencia, modo, munición, recarga, alcance, mira, calibre, multiplicadores, peso) y barras comparativas.
+- **Apuntar:** mantén **clic derecho** para llevar el arma a la cara y alinear su mira (punto rojo, holográfica, miras de tritio, anillo fantasma o retícula alienígena). Al apuntar: menos dispersión, algo de aumento, movimiento más lento. El tiempo para apuntar depende del peso del arma. DMR y francotirador pasan a **visor** con retícula propia (BDC, mil-dots) y **telémetro**.
+- **Detalle de las armas:** modelos procedurales de 30–60 piezas (raíles, guardamanos con ranuras, ventana de expulsión, guardamonte, miras con lente y retícula luminosa, rótulos grabados) con un pack de texturas PBR generado por código: acero pavonado cepillado con arañazos, polímero granulado, cerakote con desconchones, nogal veteado, goma moleteada, fibra de carbono y caparazón alienígena iridiscente con venas luminosas. Las piezas estáticas se unen por material (pocas llamadas de dibujo).
+- **Animaciones:** el cargador cae y entra al recargar, corredera de la escopeta, cerrojo manual del francotirador, cerrojo que retrocede al disparar, inercia del arma al mover el ratón, cristales de la Needle Swarm que muestran la carga y núcleos de energía que laten. Fogonazo con estrella y llamas laterales, casquillos (latón o cartucho rojo) que rebotan y suenan.
+- **Retícula de cadera** distinta para cada arma; se abre con la dispersión y se pone roja sobre un enemigo.
+- **Cooperativo** (y cualquier partida de oleadas con **cajas misteriosas** activadas): por defecto empiezas con carabina y pistola. Ganas **créditos** con cada baja y cada oleada superada. Las **cajas misteriosas** (una en la plataforma central y otra en el campo, marcadas con un haz de luz) cuestan 500 créditos: pulsa **E**, la caja se abre, van pasando armas y sale una al azar, que coges con **E** antes de 8 s. Sustituye al arma que llevas en la mano. Si ya la tenías, te llena la munición. Las mejores salen en rondas altas: francotirador y agujas desde la 3, cañón de arco desde la 5.
 
 ## Armería (skins)
 
@@ -105,10 +143,10 @@ El modelo del soldado es procedural (unas 40 piezas biseladas con materiales PBR
 | Ratón | Apuntar · clic izq. dispara |
 | Shift | Esprintar |
 | Espacio | Saltar |
-| C / Ctrl | Agacharse (menos dispersión) |
+| C / Ctrl | Agacharse (menos dispersión). Mientras esprintas: deslizarse (salta durante el deslizamiento para conservar la inercia) |
 | R | Recargar |
 | Q / 1 / 2 / rueda | Cambiar arma |
-| Clic der. | Mira (DMR, francotirador); si el arma no tiene, granada |
+| Clic der. (mantener) | Apuntar con la mira del arma · visor en DMR y francotirador |
 | G | Granada |
 | E | Caja misteriosa (cooperativo) |
 | F | Golpe cuerpo a cuerpo (por la espalda = eliminación) |
@@ -153,6 +191,9 @@ src/main.js         Arranque, estados, lobby, mensajes de red y bucle
 src/net.js          Red: anfitrión/invitado P2P (WebRTC) y cliente LAN (WebSocket)
 src/remote.js       Otros jugadores: interpolación, impactos y etiqueta de nombre
 src/avatar.js       Modelo del soldado, materiales por skin, animación e IK de brazos
+src/guns.js         Modelos de armas, pack de texturas procedurales y fichas (GUN_INFO)
+src/gunview.js      Vista previa 3D del arma y miniaturas
+src/loadout.js      Menú de armas (ranuras, rejilla, ficha técnica)
 src/skins.js        Opciones de armadura y validación
 src/armory.js       Pantalla de armería con vista previa 3D
 src/guns.js         Modelos de las armas

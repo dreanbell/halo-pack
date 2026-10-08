@@ -110,7 +110,8 @@ class RemotePlayer {
       crouch: Math.min(1, Math.max(0, (CFG.player.height - this.height) / (CFG.player.height - CFG.player.crouchHeight))),
       pitch: this.pitch,
       alive: this.alive,
-      sprint: speed > CFG.player.walk + 0.8,
+      slide: this.alive && this.height < CFG.player.crouchHeight - 0.06 && speed > CFG.player.crouch + 1,
+      sprint: speed > CFG.player.walk + 0.8 && this.height > CFG.player.crouchHeight,
     });
     this.tag.visible = this.alive;
     g.updateMatrixWorld(true);

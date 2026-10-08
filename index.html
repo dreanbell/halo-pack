@@ -22,6 +22,7 @@
       <div id="score">0</div>
       <div id="score-label"></div>
       <div id="wave-info"></div>
+      <div id="timer" class="hidden"></div>
     </div>
     <div id="boss" class="hidden">
       <div id="boss-name"></div>
@@ -29,16 +30,60 @@
     </div>
     <div id="feed"></div>
     <div id="scoreboard" class="hidden"><h3 id="sb-title"></h3><table id="sb-table"></table></div>
-    <div id="scope" class="hidden"></div>
-    <div id="crosshair"></div>
+    <div id="scope" class="hidden">
+      <div class="lens">
+        <svg class="ret-sniper" viewBox="-100 -100 200 200" aria-hidden="true">
+          <g stroke="#050505" fill="none">
+            <path d="M-100 0H-26M26 0H100M0 -100V-26M0 26V100" stroke-width="3.2"/>
+            <path d="M-26 0H26M0 -26V26" stroke-width="0.35"/>
+            <circle r="98" stroke-width="1"/>
+          </g>
+          <g fill="#050505">
+            <circle cx="-24" r="0.9"/><circle cx="-18" r="0.9"/><circle cx="-12" r="0.9"/><circle cx="-6" r="0.9"/>
+            <circle cx="6" r="0.9"/><circle cx="12" r="0.9"/><circle cx="18" r="0.9"/><circle cx="24" r="0.9"/>
+            <circle cy="-24" r="0.9"/><circle cy="-18" r="0.9"/><circle cy="-12" r="0.9"/><circle cy="-6" r="0.9"/>
+            <circle cy="6" r="0.9"/><circle cy="12" r="0.9"/><circle cy="18" r="0.9"/><circle cy="24" r="0.9"/>
+          </g>
+          <g stroke="#050505" stroke-width="0.3">
+            <path d="M-3 9H3M-4.5 15H4.5M-6 21H6"/>
+          </g>
+          <g fill="#050505" font-size="3.2" font-family="Rajdhani, sans-serif" font-weight="700">
+            <text x="7.5" y="10.2">2</text><text x="7.5" y="16.2">4</text><text x="7.5" y="22.2">6</text>
+          </g>
+          <circle r="0.7" fill="#ff3b3b" class="glow"/>
+        </svg>
+        <svg class="ret-dmr" viewBox="-100 -100 200 200" aria-hidden="true">
+          <g stroke="#060606" fill="none">
+            <path d="M-100 0H-16M16 0H100M0 16V100" stroke-width="1.2"/>
+            <circle r="44" stroke-width="0.4" stroke-dasharray="2 3"/>
+            <path d="M-6 12H6M-4.5 20H4.5M-3 30H3" stroke-width="0.5"/>
+            <circle r="98" stroke-width="1"/>
+          </g>
+          <g fill="#060606" font-size="3.6" font-family="Rajdhani, sans-serif" font-weight="700">
+            <text x="8" y="13.2">3</text><text x="6.5" y="21.2">5</text><text x="5" y="31.2">7</text>
+          </g>
+          <path d="M-5 5L0 -1L5 5" stroke="#ff4040" stroke-width="1.1" fill="none" class="glow"/>
+        </svg>
+        <div class="scope-info"><b id="scope-zoom"></b><span id="scope-range"></span></div>
+      </div>
+    </div>
+    <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="d"></i><i class="o"></i></div>
     <div id="hitmarker"></div>
     <div id="dmg-dir"></div>
     <div id="hint"></div>
+    <div id="spectate" aria-live="polite">
+      <small>OBSERVANDO</small>
+      <b id="spec-name"></b>
+      <span id="spec-sub"></span>
+      <p class="spec-keys"><kbd>Clic izq. / D</kbd> siguiente · <kbd>Clic der. / A</kbd> anterior · <kbd>Ratón</kbd> girar · <kbd>Rueda</kbd> distancia · <kbd>R</kbd> centrar</p>
+    </div>
     <div id="weapon-panel">
       <div id="weapon-alt"></div>
+      <div id="weapon-icon"></div>
       <div id="weapon-name"></div>
       <div id="ammo"><span id="ammo-mag">32</span><span id="ammo-res">/ 192</span></div>
       <div id="heat" class="hidden"><div id="heat-fill"></div></div>
+      <div id="reload" class="hidden"><div id="reload-fill"></div></div>
       <div id="grenades"></div>
     </div>
     <canvas id="radar" width="200" height="200"></canvas>
@@ -70,12 +115,12 @@
         <kbd>Ratón</kbd><span>Apuntar · Clic izq. dispara</span>
         <kbd>Shift</kbd><span>Esprintar</span>
         <kbd>Espacio</kbd><span>Saltar</span>
-        <kbd>C / Ctrl</kbd><span>Agacharse</span>
+        <kbd>C / Ctrl</kbd><span>Agacharse · corriendo: deslizarse</span>
         <kbd>R</kbd><span>Recargar</span>
         <kbd>Q / 1 / 2</kbd><span>Cambiar arma</span>
-        <kbd>Clic der.</kbd><span>Mira (DMR / francotirador) · si no, granada</span>
+        <kbd>Clic der.</kbd><span>Apuntar con la mira (mantener) · visor en DMR y francotirador</span>
         <kbd>G</kbd><span>Granada</span>
-        <kbd>E</kbd><span>Usar caja misteriosa (cooperativo)</span>
+        <kbd>E</kbd><span>Usar caja misteriosa (si la partida tiene cajas)</span>
         <kbd>F</kbd><span>Golpe cuerpo a cuerpo (por la espalda = eliminación)</span>
         <kbd>Tab</kbd><span>Marcador (multijugador)</span>
         <kbd>Ascensor</kbd><span>Pisa un círculo luminoso para saltar a la torre</span>
@@ -132,7 +177,7 @@
           <button class="mode" data-mode="coop">COOPERATIVO</button>
           <button class="mode" data-mode="dm">TODOS CONTRA TODOS</button>
         </div>
-        <p id="mp-mode-desc" class="tip"></p>
+        <div id="mp-rules" class="rules"></div>
         <h4 class="maps-title">MAPA</h4>
         <div class="maps" id="lobby-maps"></div>
         <p class="tip map-desc"></p>
@@ -143,6 +188,22 @@
         <button id="btn-lobby-loadout" class="secondary">ARMAS</button>
         <button id="btn-lobby-armory" class="secondary">ARMERÍA</button>
         <button id="btn-lobby-back" class="secondary">VOLVER</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="setup" class="overlay hidden">
+    <div class="panel rules-panel">
+      <h2>UN JUGADOR</h2>
+      <h4 class="maps-title">MAPA</h4>
+      <div class="maps" id="setup-maps"></div>
+      <p class="tip map-desc"></p>
+      <div id="sp-rules" class="rules"></div>
+      <button id="btn-sp-play">JUGAR</button>
+      <div class="row-buttons">
+        <button id="btn-setup-loadout" class="secondary">ARMAS</button>
+        <button id="btn-setup-reset" class="secondary">RESTABLECER</button>
+        <button id="btn-setup-back" class="secondary">VOLVER</button>
       </div>
     </div>
   </div>
@@ -169,14 +230,26 @@
   <div id="loadout" class="overlay hidden">
     <div class="panel loadout-panel">
       <h2>ARMAS</h2>
-      <p class="tip">Elige tus dos armas para <b>un jugador</b> y <b>todos contra todos</b>. En <b>cooperativo</b> empiezas con carabina y pistola y el resto sale de la caja misteriosa.</p>
-      <h4>ARMA PRINCIPAL</h4><div class="weapon-grid" id="lo-0"></div>
-      <h4>ARMA SECUNDARIA</h4><div class="weapon-grid" id="lo-1"></div>
+      <p class="tip">Tus dos armas para las partidas con <b>armas iniciales: a elegir</b>. Si la partida fija las armas (cooperativo clásico, Francotiradores, Swat…), se usan esas.</p>
+      <div class="lo-slots" id="lo-slots"></div>
+      <div class="lo-main">
+        <div class="lo-view">
+          <canvas id="gun-view" aria-label="Vista previa 3D del arma"></canvas>
+          <div class="lo-info">
+            <div class="lo-head"><b id="gi-name"></b><small id="gi-class"></small></div>
+            <p id="gi-desc"></p>
+            <dl id="gi-stats"></dl>
+            <div id="gi-bars" class="bars"></div>
+          </div>
+        </div>
+        <div class="weapon-grid" id="lo-grid"></div>
+      </div>
+      <p class="note">Arrastra la vista para girar el arma · rueda para acercar. Pasa por encima de un arma para verla; haz clic para equiparla en la ranura activa.</p>
       <button id="btn-loadout-done">LISTO</button>
     </div>
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/main.js?v=1.6.0"></script>
+  <script type="module" src="src/main.js?v=1.9.0"></script>
 </body>
 </html>

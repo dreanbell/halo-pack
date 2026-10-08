@@ -1,4 +1,5 @@
 import { Room } from './room.js';
+import { defaultRules } from './rules.js';
 
 // Cliente de red con tres transportes y el mismo protocolo de mensajes:
 //  - 'p2p-host': la sala vive en este navegador; los demás se conectan por WebRTC (PeerJS).
@@ -10,7 +11,7 @@ const TIMEOUT = 15000;
 const HEARTBEAT = 2000; // ms entre pings
 const SILENCE = 9000; // ms sin mensajes = conexión perdida
 
-export const BUILD = '1.6.0';
+export const BUILD = '1.9.0';
 export const DEBUG = new URLSearchParams(location.search).has('debug');
 
 export const makeCode = () => Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
@@ -76,7 +77,8 @@ export class Net {
     this.mode = 'coop';
     this.map = 'valle';
     this.state = 'lobby';
-    this.scoreLimit = 15;
+    this.rules = defaultRules('coop');
+    this.deadline = 0; // performance.now() en que acaba la partida (0 = sin límite)
     this.players = new Map();
     this.ping = 0;
     this.kind = null;
@@ -271,7 +273,8 @@ export class Net {
       this.mode = m.mode;
       this.map = m.map;
       this.state = m.state;
-      this.scoreLimit = m.scoreLimit;
+      this.rules = m.rules;
+      this.setDeadline(m.timeLeft);
     } else if (m.t === 'join') {
       this.players.set(m.player.id, m.player);
     } else if (m.t === 'leave') {
@@ -281,15 +284,26 @@ export class Net {
       this.state = 'playing';
       this.mode = m.mode;
       this.map = m.map;
+      this.rules = m.rules;
+      this.setDeadline(m.timeLeft);
       this.hostId = m.hostId;
       this.players = new Map(m.players.map((p) => [p.id, p]));
     } else if (m.t === 'feed' || m.t === 'matchEnd') {
       for (const p of m.players) this.players.set(p.id, p);
-      if (m.t === 'matchEnd') this.state = 'lobby';
+      if (m.t === 'matchEnd') { this.state = 'lobby'; this.deadline = 0; }
     } else if (m.t === 'pong') {
       this.ping = performance.now() - m.ts;
     }
     this.emit(m.t, m);
+  }
+
+  setDeadline(ms) {
+    this.deadline = ms > 0 ? performance.now() + ms : 0;
+  }
+
+  // Segundos que quedan de partida (Infinity sin límite).
+  timeLeft() {
+    return this.deadline ? Math.max(0, (this.deadline - performance.now()) / 1000) : Infinity;
   }
 
   send(t, data = {}) {

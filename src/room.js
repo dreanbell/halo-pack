@@ -3,6 +3,9 @@
 // conn: { send(obj), close(), player? }
 import { sanitizeSkin } from './skins.js';
 import { DEFAULT_MAP, isMap } from './mapinfo.js';
+import { MODES, MODE_NAMES, VARIANTS, defaultRules, sanitizeRules } from './rules.js';
+
+const TIMEUP_GRACE = 4000; // ms que espera la sala el resumen del anfitrión al acabarse el tiempo (coop)
 
 export const COLORS = ['#3ad0ff', '#ff5a5a', '#7dff6a', '#ffc23a', '#c77dff', '#ff8ad8', '#5affd6', '#f0f0f0'];
 
@@ -18,7 +21,37 @@ export class Room {
     this.hostId = null;
     this.mode = 'coop';
     this.map = DEFAULT_MAP;
+    this.rules = this.defaults('coop');
     this.state = 'lobby';
+    this.endsAt = 0;
+    this.timers = [];
+  }
+
+  defaults(mode, variant) {
+    return defaultRules(mode, variant, { scoreLimit: this.scoreLimit });
+  }
+
+  // ms restantes de partida (0 = sin límite).
+  timeLeft() {
+    return this.state === 'playing' && this.endsAt ? Math.max(1, this.endsAt - Date.now()) : 0;
+  }
+
+  clearTimers() {
+    for (const t of this.timers) clearTimeout(t);
+    this.timers = [];
+    this.endsAt = 0;
+  }
+
+  // Límite de tiempo: en DM gana quien más bajas tenga (empate = sin ganador); en coop el anfitrión envía el resumen.
+  timeUp() {
+    if (this.state !== 'playing') return;
+    if (this.mode === 'dm') {
+      const [a, b] = [...this.players.values()].sort((x, y) => y.kills - x.kills);
+      this.endMatch(a && (!b || a.kills > b.kills) ? a.id : null, null, true);
+      return;
+    }
+    this.players.get(this.hostId)?.conn.send({ t: 'timeUp' });
+    this.timers.push(setTimeout(() => this.endMatch(null, null, true), TIMEUP_GRACE));
   }
 
   pub(p) {
@@ -30,16 +63,18 @@ export class Room {
   }
 
   lobbyMsg() {
-    return { t: 'lobby', players: this.roster(), hostId: this.hostId, mode: this.mode, map: this.map, state: this.state, scoreLimit: this.scoreLimit };
+    return { t: 'lobby', players: this.roster(), hostId: this.hostId, mode: this.mode, map: this.map, rules: this.rules, state: this.state, timeLeft: this.timeLeft() };
   }
 
   broadcast(msg, exceptId) {
     for (const p of this.players.values()) if (p.id !== exceptId) p.conn.send(msg);
   }
 
-  endMatch(winner, summary) {
+  endMatch(winner, summary, timeUp = false) {
+    if (this.state !== 'playing') return;
+    this.clearTimers();
     this.state = 'lobby';
-    this.broadcast({ t: 'matchEnd', mode: this.mode, winner, summary: summary ?? null, players: this.roster() });
+    this.broadcast({ t: 'matchEnd', mode: this.mode, winner, summary: summary ?? null, timeUp: timeUp || !!summary?.timeUp, players: this.roster() });
     this.broadcast(this.lobbyMsg());
     this.log(`Fin de partida${winner ? ` · ganador: ${this.players.get(winner)?.name}` : ''}`);
   }
@@ -81,9 +116,16 @@ export class Room {
         if (target && m.m && typeof m.m.t === 'string') target.conn.send({ ...m.m, from: me.id });
         break;
       }
-      case 'mode':
-        if (me.id === this.hostId && this.state === 'lobby' && (m.mode === 'coop' || m.mode === 'dm')) {
+      case 'mode': // cambiar de modo conserva la variante si existe en el nuevo modo
+        if (me.id === this.hostId && this.state === 'lobby' && MODES.includes(m.mode) && m.mode !== 'sp') {
           this.mode = m.mode;
+          this.rules = this.defaults(m.mode, this.rules.variant);
+          this.broadcast(this.lobbyMsg());
+        }
+        break;
+      case 'rules':
+        if (me.id === this.hostId && this.state === 'lobby') {
+          this.rules = sanitizeRules(this.mode, m.rules, { scoreLimit: this.scoreLimit });
           this.broadcast(this.lobbyMsg());
         }
         break;
@@ -97,8 +139,14 @@ export class Room {
         if (me.id === this.hostId && this.state === 'lobby') {
           this.state = 'playing';
           for (const p of this.players.values()) { p.kills = 0; p.deaths = 0; }
-          this.broadcast({ t: 'start', mode: this.mode, map: this.map, hostId: this.hostId, players: this.roster() });
-          this.log(`Partida iniciada · ${this.mode === 'coop' ? 'Cooperativo' : 'Todos contra todos'} · ${this.map}`);
+          this.clearTimers();
+          const limit = this.rules.timeLimit * 60000;
+          if (limit) {
+            this.endsAt = Date.now() + limit;
+            this.timers.push(setTimeout(() => this.timeUp(), limit));
+          }
+          this.broadcast({ t: 'start', mode: this.mode, map: this.map, rules: this.rules, timeLeft: this.timeLeft(), hostId: this.hostId, players: this.roster() });
+          this.log(`Partida iniciada · ${MODE_NAMES[this.mode]} · ${VARIANTS[this.rules.variant].name} · ${this.map}`);
         }
         break;
       case 'kill': { // DM: la víctima informa de su muerte
@@ -109,7 +157,7 @@ export class Room {
         if (valid) killer.kills++;
         else me.kills--; // suicidio
         this.broadcast({ t: 'feed', killer: valid ? killer.id : null, victim: me.id, head: !!m.head, players: this.roster() });
-        if (valid && killer.kills >= this.scoreLimit) this.endMatch(killer.id);
+        if (valid && killer.kills >= this.rules.scoreLimit) this.endMatch(killer.id);
         break;
       }
       case 'end': // coop: el anfitrión cierra la partida
@@ -132,7 +180,7 @@ export class Room {
     if (!p || !this.players.has(p.id)) return;
     this.players.delete(p.id);
     if (p.id === this.hostId && !this.fixedHost) this.hostId = this.players.size ? Math.min(...this.players.keys()) : null;
-    if (!this.players.size) this.state = 'lobby';
+    if (!this.players.size) { this.clearTimers(); this.state = 'lobby'; }
     this.broadcast({ t: 'leave', id: p.id, hostId: this.hostId });
     this.broadcast(this.lobbyMsg());
     this.log(`- ${p.name} (#${p.id}) · ${this.players.size} jugador(es)`);
