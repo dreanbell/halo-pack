@@ -23,8 +23,13 @@ export class Player {
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
     addEventListener('blur', () => this.keys.clear());
+    // Chrome a veces manda un primer movimiento enorme justo al capturar el puntero: se descarta.
+    let lockedAt = 0;
+    document.addEventListener('pointerlockchange', () => { lockedAt = performance.now(); });
     document.addEventListener('mousemove', (e) => {
-      if (document.pointerLockElement && ctx.game.state === 'playing' && this.alive) this.look(e.movementX, e.movementY);
+      if (!document.pointerLockElement || ctx.game.state !== 'playing' || !this.alive) return;
+      if (performance.now() - lockedAt < 150 || Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;
+      this.look(e.movementX, e.movementY);
     });
     this.reset();
   }

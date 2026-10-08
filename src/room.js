@@ -1,6 +1,8 @@
 // Lógica de la sala multijugador, sin dependencias de navegador ni de Node.
 // La usan server.js (LAN con Node) y el navegador del anfitrión (P2P con WebRTC).
 // conn: { send(obj), close(), player? }
+import { sanitizeSkin } from './skins.js';
+
 export const COLORS = ['#3ad0ff', '#ff5a5a', '#7dff6a', '#ffc23a', '#c77dff', '#ff8ad8', '#5affd6', '#f0f0f0'];
 
 export class Room {
@@ -18,7 +20,7 @@ export class Room {
   }
 
   pub(p) {
-    return { id: p.id, name: p.name, color: p.color, kills: p.kills, deaths: p.deaths };
+    return { id: p.id, name: p.name, color: p.color, skin: p.skin, kills: p.kills, deaths: p.deaths };
   }
 
   roster() {
@@ -48,7 +50,7 @@ export class Room {
     }
     const name = String(m.name ?? '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 16) || `Jugador${this.nextId}`;
     const used = new Set([...this.players.values()].map((p) => p.color));
-    const p = { id: this.nextId++, name, color: COLORS.find((c) => !used.has(c)) ?? COLORS[0], conn, kills: 0, deaths: 0 };
+    const p = { id: this.nextId++, name, color: COLORS.find((c) => !used.has(c)) ?? COLORS[0], skin: sanitizeSkin(m.skin), conn, kills: 0, deaths: 0 };
     this.players.set(p.id, p);
     conn.player = p;
     if (this.hostId === null) this.hostId = p.id;
@@ -104,6 +106,10 @@ export class Room {
       }
       case 'end': // coop: el anfitrión cierra la partida
         if (me.id === this.hostId && this.state === 'playing') this.endMatch(null, m.summary);
+        break;
+      case 'skin': // cambio de armadura (se aplica en la siguiente partida)
+        me.skin = sanitizeSkin(m.skin);
+        this.broadcast(this.lobbyMsg());
         break;
       case 'ping':
         conn.send({ t: 'pong', ts: m.ts });

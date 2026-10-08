@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CFG } from './config.js';
+import { Avatar } from './avatar.js';
 
 const DELAY = 100; // ms de retardo de interpolación
 const TELEPORT = 6; // m: salto mayor = reaparición, sin interpolar
@@ -33,6 +34,7 @@ class RemotePlayer {
     this.id = info.id;
     this.name = info.name;
     this.colorHex = info.color;
+    this.skin = info.skin;
     this.pos = new THREE.Vector3(0, -100, 0);
     this.vel = new THREE.Vector3();
     this.height = CFG.player.height;
@@ -44,50 +46,19 @@ class RemotePlayer {
     this.shield = 100;
     this.buf = [];
     this.lastShot = -1e9;
-    this.deathK = 0;
     this._eye = new THREE.Vector3();
     this.build();
   }
 
   build() {
-    const color = new THREE.Color(this.colorHex);
-    const armor = new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.35 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x2b3036, roughness: 0.6, metalness: 0.4 });
-    const visor = new THREE.MeshStandardMaterial({ color: 0xffc24a, emissive: 0x8a5a10, roughness: 0.2, metalness: 0.8 });
-    this.mats = [armor, dark, visor];
-    const g = (this.group = new THREE.Group());
-    const body = (this.body = new THREE.Group());
-    g.add(body);
-    const box = (parent, mat, w, h, d, x, y, z, part) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-      m.position.set(x, y, z);
-      m.castShadow = true;
-      if (part) m.userData = { remote: this, part };
-      parent.add(m);
-      return m;
-    };
-    const legs = box(body, dark, 0.44, 0.82, 0.3, 0, 0.41, 0, 'body');
-    const torso = box(body, armor, 0.58, 0.62, 0.36, 0, 1.12, 0, 'body');
-    box(body, armor, 0.42, 0.46, 0.16, 0, 1.12, 0.25);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 14, 10), armor);
-    head.position.set(0, 1.6, 0);
-    head.castShadow = true;
-    head.userData = { remote: this, part: 'head' };
-    body.add(head);
-    box(body, visor, 0.24, 0.09, 0.06, 0, 1.62, -0.16);
-    // Brazos + arma: giran con la inclinación de la vista.
-    const upper = (this.upper = new THREE.Group());
-    upper.position.set(0, 1.32, 0);
-    body.add(upper);
-    box(upper, armor, 0.13, 0.13, 0.45, 0.3, -0.05, -0.18);
-    box(upper, armor, 0.13, 0.13, 0.4, -0.25, -0.08, -0.22);
-    this.gun = box(upper, dark, 0.08, 0.11, 0.6, 0.12, -0.04, -0.45);
-    this.hitMeshes = [legs, torso, head];
-
+    this.avatar = new Avatar(this.skin);
+    this.avatar.setOwner(this);
+    this.group = this.avatar.root;
+    this.hitMeshes = this.avatar.hitboxes;
     this.tag = nameTag(this.name, this.colorHex);
     this.tag.position.y = 2.15;
-    g.add(this.tag);
-    this.ctx.scene.add(g);
+    this.group.add(this.tag);
+    this.ctx.scene.add(this.group);
   }
 
   eye() {
@@ -128,23 +99,24 @@ class RemotePlayer {
         this.height = a.h + (c.h - a.h) * k;
       }
     }
-    this.deathK += ((this.alive ? 0 : 1) - this.deathK) * Math.min(1, dt * 6);
     const g = this.group;
     g.position.copy(this.pos);
     g.rotation.set(0, this.yaw, 0);
-    this.body.rotation.x = -this.deathK * Math.PI / 2;
-    this.body.position.y = this.deathK * 0.25;
-    this.body.scale.y = Math.max(0.6, this.height / CFG.player.height);
-    this.upper.rotation.x = this.pitch * (1 - this.deathK);
-    this.gun.scale.z = this.weapon === 0 ? 1 : 0.5;
-    this.tag.visible = this.deathK < 0.5;
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    this.avatar.animate(dt, {
+      speed: this.alive ? speed : 0,
+      air: this.alive && Math.abs(this.vel.y) > 1.5,
+      crouch: Math.min(1, Math.max(0, (CFG.player.height - this.height) / (CFG.player.height - CFG.player.crouchHeight))),
+      pitch: this.pitch,
+      alive: this.alive,
+      sprint: speed > CFG.player.walk + 0.8,
+    });
+    this.tag.visible = this.alive;
     g.updateMatrixWorld(true);
   }
 
   dispose() {
     this.ctx.scene.remove(this.group);
-    this.group.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
-    for (const m of this.mats) m.dispose();
     this.tag.material.map.dispose();
     this.tag.material.dispose();
   }

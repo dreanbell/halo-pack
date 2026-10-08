@@ -10,9 +10,13 @@ import { Effects } from './effects.js';
 import { NavGrid } from './nav.js';
 import { Net, v3, normalizeCode, BUILD, DEBUG } from './net.js';
 import { RemotePlayers } from './remote.js';
+import { Armory } from './armory.js';
+import { DEFAULT_SKIN, sanitizeSkin } from './skins.js';
+import { skyEnvironment } from './world.js';
 
 const BEST_KEY = 'ringfall.best';
 const NAME_KEY = 'ringfall.name';
+const SKIN_KEY = 'ringfall.skin';
 const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.build')) el.textContent = `v${BUILD}${DEBUG ? ' · diagnóstico' : ''}`;
 console.info(`Ringfall v${BUILD}`);
@@ -35,6 +39,7 @@ const ctx = { scene, camera, renderer, game };
 ctx.sfx = new Sfx();
 ctx.hud = new Hud();
 ctx.world = createWorld(scene);
+scene.environment = skyEnvironment(renderer);
 ctx.nav = new NavGrid(ctx.world);
 ctx.fx = new Effects(scene);
 ctx.net = new Net();
@@ -44,6 +49,37 @@ ctx.director = new Director(ctx);
 ctx.arsenal = new Arsenal(ctx);
 const { sfx, hud, fx, player, director, arsenal, net, remotes, world } = ctx;
 const vec = (a) => new THREE.Vector3().fromArray(a);
+
+// --- Armadura del jugador ----------------------------------------------------
+function readSkin() {
+  try { return sanitizeSkin(JSON.parse(localStorage.getItem(SKIN_KEY) ?? 'null') ?? DEFAULT_SKIN); } catch { return { ...DEFAULT_SKIN }; }
+}
+ctx.skin = readSkin();
+net.skin = ctx.skin;
+arsenal.setSkin(ctx.skin);
+const armory = new Armory({
+  canvas: $('armory-view'),
+  skin: ctx.skin,
+  onChange: (skin) => {
+    ctx.skin = skin;
+    try { localStorage.setItem(SKIN_KEY, JSON.stringify(skin)); } catch { /* sin almacenamiento */ }
+    arsenal.setSkin(skin);
+    net.setSkin(skin);
+  },
+});
+let armoryReturn = 'menu';
+function openArmory(from) {
+  armoryReturn = from;
+  hud.showOverlay('armory');
+  armory.show();
+}
+$('btn-armory').addEventListener('click', () => openArmory('menu'));
+$('btn-lobby-armory').addEventListener('click', () => openArmory('lobby'));
+$('btn-armory-done').addEventListener('click', () => {
+  armory.hide();
+  hud.showOverlay(armoryReturn);
+  if (armoryReturn === 'lobby') renderLobby();
+});
 
 function readBest() {
   try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch { return 0; }
@@ -479,4 +515,4 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // Acceso para depuración y pruebas automatizadas.
-window.__ringfall = { ctx, newGame, tick };
+window.__ringfall = { ctx, newGame, tick, armory };

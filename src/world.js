@@ -39,6 +39,36 @@ export function glowTexture(inner = 'rgba(255,255,255,1)', outer = 'rgba(255,255
   });
 }
 
+// Mapa de entorno (reflejos del cielo) para metales y visores.
+export function skyEnvironment(renderer) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const s = new THREE.Scene();
+  const geo = new THREE.SphereGeometry(10, 32, 16);
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    uniforms: {
+      top: { value: new THREE.Color(0x3a74c0) },
+      bottom: { value: new THREE.Color(0xdfeaf2) },
+      ground: { value: new THREE.Color(0x4a5840) },
+    },
+    vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform vec3 top; uniform vec3 bottom; uniform vec3 ground; varying vec3 vP;
+      void main(){ float h = vP.y;
+        vec3 c = h > 0.0 ? mix(bottom, top, clamp(h * 1.6, 0.0, 1.0)) : mix(bottom * 0.7, ground, clamp(-h * 5.0, 0.0, 1.0));
+        gl_FragColor = vec4(c, 1.0); }`,
+  });
+  s.add(new THREE.Mesh(geo, mat));
+  const sunGeo = new THREE.SphereGeometry(0.7, 16, 8);
+  const sunMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.95, 0.85).multiplyScalar(25) });
+  const sun = new THREE.Mesh(sunGeo, sunMat);
+  sun.position.set(40, 90, 25).normalize().multiplyScalar(9);
+  s.add(sun);
+  const tex = pmrem.fromScene(s, 0.02).texture;
+  pmrem.dispose();
+  geo.dispose(); mat.dispose(); sunGeo.dispose(); sunMat.dispose();
+  return tex;
+}
+
 export function createWorld(scene) {
   const H = CFG.arena.half;
   const STEP = CFG.player.step;
@@ -93,7 +123,7 @@ export function createWorld(scene) {
   ring.renderOrder = -1;
   scene.add(ring);
 
-  scene.add(new THREE.HemisphereLight(0xd6eaff, 0x4a5a3a, 1.1));
+  scene.add(new THREE.HemisphereLight(0xd6eaff, 0x4a5a3a, 0.6));
   const sun = new THREE.DirectionalLight(0xfff1d6, 2.4);
   sun.position.copy(sunDir).multiplyScalar(110);
   sun.castShadow = true;

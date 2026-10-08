@@ -1,7 +1,7 @@
 import { CFG } from './config.js';
 
 const IDS = [
-  'hud', 'menu', 'pause', 'gameover', 'lobby', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
+  'hud', 'menu', 'pause', 'gameover', 'lobby', 'armory', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
   'crosshair', 'hitmarker', 'weapon-name', 'ammo', 'ammo-mag', 'ammo-res', 'heat', 'heat-fill',
   'grenades', 'radar', 'score', 'banner', 'banner-title', 'banner-sub',
   'toast', 'hint', 'vignette', 'dmg-dir', 'go-stats', 'go-title', 'btn-retry', 'feed', 'scoreboard', 'sb-title',
@@ -33,8 +33,8 @@ export class Hud {
   }
 
   showOverlay(name) {
-    for (const n of ['menu', 'pause', 'gameover', 'lobby']) this.toggle(n, 'hidden', n !== name);
-    this.toggle('hud', 'hidden', name === 'menu' || name === 'lobby');
+    for (const n of ['menu', 'pause', 'gameover', 'lobby', 'armory']) this.toggle(n, 'hidden', n !== name);
+    this.toggle('hud', 'hidden', name === 'menu' || name === 'lobby' || name === 'armory');
   }
 
   reset() {

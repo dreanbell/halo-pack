@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { CFG, rand } from './config.js';
 import { glowTexture } from './world.js';
 import { v3 } from './net.js';
+import { skinMaterials } from './avatar.js';
+import { DEFAULT_SKIN } from './skins.js';
 
 const R = CFG.rifle, PI = CFG.pistol, G = CFG.grenade, M = CFG.melee;
 const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _m = new THREE.Vector3(), _n = new THREE.Vector3();
@@ -106,11 +108,50 @@ export class Arsenal {
     pistol.add(this.pistolMuzzle);
     this.pistolFlash = makeFlash(this.pistolMuzzle, 0x7ff2ff);
 
+    // Brazos con la armadura del jugador: mano en el origen, antebrazo hacia la cámara.
+    this.skinMeshes = [];
+    const sm = skinMaterials(DEFAULT_SKIN);
+    const geo = {
+      glove: new THREE.BoxGeometry(0.075, 0.075, 0.1),
+      knuckle: new THREE.BoxGeometry(0.078, 0.025, 0.04),
+      gauntlet: new THREE.CylinderGeometry(0.05, 0.043, 0.22, 14).rotateX(Math.PI / 2),
+      cuff: new THREE.TorusGeometry(0.05, 0.01, 6, 16),
+      sleeve: new THREE.CapsuleGeometry(0.046, 0.22, 4, 12).rotateX(Math.PI / 2),
+    };
+    const arm = (parent, pos, rot) => {
+      const a = new THREE.Group();
+      a.position.set(...pos);
+      a.rotation.set(...rot);
+      a.scale.setScalar(1.25);
+      const part = (g, role, z, y = 0) => {
+        const m = new THREE.Mesh(g, sm[role]);
+        m.position.set(0, y, z);
+        m.userData.role = role;
+        a.add(m);
+        this.skinMeshes.push(m);
+      };
+      part(geo.glove, 'suit', 0);
+      part(geo.knuckle, 'trim', -0.03, 0.035);
+      part(geo.gauntlet, 'armor', 0.16);
+      part(geo.cuff, 'trim', 0.06);
+      part(geo.sleeve, 'suit', 0.36);
+      parent.add(a);
+    };
+    arm(rifle, [0.01, -0.1, 0.13], [0.32, 0.42, 0]);
+    arm(rifle, [-0.015, -0.07, -0.27], [0.62, -0.42, 0]);
+    arm(pistol, [0.005, -0.11, 0.06], [0.3, 0.38, 0]);
+    arm(pistol, [-0.04, -0.12, 0.05], [0.45, -0.45, 0.15]);
+
     this.vm.add(rifle, pistol);
     this.vm.traverse((o) => { o.frustumCulled = false; });
     this.muzzleLight = new THREE.PointLight(0xffd08a, 0, 9, 2);
     this.muzzleLight.position.set(0, 0.05, -0.6);
     this.vm.add(this.muzzleLight);
+  }
+
+  setSkin(skin) {
+    const sm = skinMaterials(skin);
+    for (const m of this.skinMeshes) m.material = sm[m.userData.role];
   }
 
   showModel() {

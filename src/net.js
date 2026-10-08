@@ -10,7 +10,7 @@ const TIMEOUT = 15000;
 const HEARTBEAT = 2000; // ms entre pings
 const SILENCE = 9000; // ms sin mensajes = conexión perdida
 
-export const BUILD = '1.2.2';
+export const BUILD = '1.3.0';
 export const DEBUG = new URLSearchParams(location.search).has('debug');
 
 export const makeCode = () => Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
@@ -170,7 +170,7 @@ export class Net {
 
     peer.on('open', () => {
       this.code = code;
-      this.link.send({ t: 'hello', name });
+      this.link.send({ t: 'hello', name, skin: this.skin });
     });
     peer.on('connection', (dc) => {
       const conn = {
@@ -211,7 +211,7 @@ export class Net {
         if (st === 'failed' && this.id === null) this.fail(new Error(STUCK.ice));
       });
       this.link = { send: (m) => { if (dc.open) dc.send(m); }, close: () => dc.close(), open: () => dc.open };
-      dc.on('open', () => dc.send({ t: 'hello', name }));
+      dc.on('open', () => dc.send({ t: 'hello', name, skin: this.skin }));
       dc.on('data', (m) => this.handle(m));
       dc.on('close', () => this.lost('El anfitrión cerró la sala o se perdió la conexión'));
       dc.on('error', () => {
@@ -232,7 +232,7 @@ export class Net {
     try { ws = new WebSocket(`${proto}//${location.host}/ws`); } catch (e) { this.fail(e); return done; }
     this.kind = 'lan';
     this.link = { send: (m) => { if (ws.readyState === 1) ws.send(JSON.stringify(m)); }, close: () => ws.close(), open: () => ws.readyState === 1 };
-    ws.onopen = () => this.link.send({ t: 'hello', name });
+    ws.onopen = () => this.link.send({ t: 'hello', name, skin: this.skin });
     ws.onerror = () => {};
     ws.onclose = () => { if (this.link?.close && this.kind === 'lan') this.lost('Se perdió la conexión con el servidor'); };
     ws.onmessage = (ev) => {
@@ -294,6 +294,11 @@ export class Net {
   // A un jugador concreto.
   to(id, t, data = {}) {
     this.send('to', { to: id, m: { t, ...data } });
+  }
+
+  setSkin(skin) {
+    this.skin = skin;
+    if (this.active) this.send('skin', { skin });
   }
 
   disconnect() {

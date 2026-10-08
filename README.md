@@ -36,6 +36,22 @@ No necesita build ni dependencias: three.js y PeerJS van incluidos en `vendor/`.
 python3 -m http.server 8000   # o: node server.js 8000 → http://localhost:8000
 ```
 
+## Armería (skins)
+
+Desde el menú (**ARMERÍA · PERSONALIZAR SOLDADO**) o desde el lobby (**ARMERÍA**). Hay vista previa 3D giratoria.
+
+| Opción | Variantes |
+|---|---|
+| Color principal | 10 |
+| Color secundario | 10 |
+| Visor | 5 (reflectante, con brillo) |
+| Casco | Centinela · Halcón · Bastión |
+| Patrón | Liso · Camuflaje · Rayas · Hexágonos (con juntas, remaches y desgaste) |
+
+La armadura se guarda en el navegador y se envía a los demás jugadores; la verán en la siguiente partida. En primera persona se ven tus brazos con la misma armadura.
+
+El modelo del soldado es procedural (unas 40 piezas biseladas con materiales PBR y reflejos del cielo) y tiene esqueleto animado: caminar, correr, agacharse, saltar, apuntar arriba y abajo con las manos en el arma (IK) y caída al morir.
+
 ## Controles
 
 | Tecla | Acción |
@@ -86,7 +102,10 @@ server.js           Servidor LAN opcional (sin internet): HTTP estático + WebSo
 src/room.js         Lógica de la sala (compartida por P2P y server.js)
 src/main.js         Arranque, estados, lobby, mensajes de red y bucle
 src/net.js          Red: anfitrión/invitado P2P (WebRTC) y cliente LAN (WebSocket)
-src/remote.js       Avatares de otros jugadores (interpolación, impactos)
+src/remote.js       Otros jugadores: interpolación, impactos y etiqueta de nombre
+src/avatar.js       Modelo del soldado, materiales por skin, animación e IK de brazos
+src/skins.js        Opciones de armadura y validación
+src/armory.js       Pantalla de armería con vista previa 3D
 src/config.js       Tuning: armas, enemigos, oleadas
 src/world.js        Arena procedural, cielo con anillo y colisiones AABB
 src/nav.js          Rejilla de navegación + campo de flujo
