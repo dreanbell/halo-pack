@@ -92,7 +92,7 @@ El modelo del soldado es procedural (unas 40 piezas biseladas con materiales PBR
 | Ratón | Apuntar · clic izq. dispara |
 | Shift | Esprintar |
 | Espacio | Saltar |
-| C / Ctrl | Agacharse (menos dispersión) |
+| C / Ctrl | Agacharse (menos dispersión). Mientras esprintas: deslizarse (salta durante el deslizamiento para conservar la inercia) |
 | R | Recargar |
 | Q / 1 / 2 / rueda | Cambiar arma |
 | Clic der. | Mira (DMR, francotirador); si el arma no tiene, granada |
