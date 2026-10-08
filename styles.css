@@ -249,7 +249,7 @@ code { font-family: ui-monospace, monospace; color: #e9fbff; background: rgba(0,
 .stepper { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .stepper b { min-width: 9.5em; text-align: center; font-size: 15px; letter-spacing: 0.1em; color: #e9fbff; }
 .stepper button { font-size: 16px; letter-spacing: 0; padding: 2px 0; width: 38px; border-color: var(--hud-dim); }
-.stepper button.toggle { min-width: 9.5em; font-size: 15px; letter-spacing: 0.15em; opacity: 0.7; }
+.stepper button.toggle { width: auto; min-width: 9.5em; font-size: 15px; letter-spacing: 0.15em; opacity: 0.7; }
 .stepper button.toggle.on { opacity: 1; background: rgba(127, 231, 255, 0.22); border-color: var(--hud); }
 #timer { font-size: 22px; font-weight: 700; letter-spacing: 0.12em; color: #e9fbff; }
 #timer.low { color: var(--warn); }
