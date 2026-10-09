@@ -40,6 +40,14 @@ todos contra todos, cajas), se reclaman a mano y una al día/semana se puede cam
 días seguidos: ◈ 50 · 75 · 100 · caja básica · 150 · 200 · caja épica (fallar un día reinicia la racha). Todo se guarda
 en el dispositivo y viaja en el código de respaldo; las cajas gratis se abren en la tienda sin gastar créditos.
 
+**Medallas y rachas** (`src/client/medals.js`): doble/triple/multibaja/masacre (bajas en menos de 4 s), rachas sin
+morir (5 en racha, 10 imparable, 15 incontenible, 25 leyenda), a la cabeza, cazajefes, granadero, cuerpo a cuerpo, tiro
+lejano (≥ 50 m) y, en todos contra todos, primera sangre y venganza. Locutor con la voz del navegador (desactivable en
+Ajustes → Audio). Recompensas por racha en un jugador y cooperativo: 5 bajas reabastecimiento, 10 ataque orbital (tres
+impactos sobre el enemigo más cercano a la mira), 15 dron de apoyo (25 s). Números de daño flotantes (amarillo cabeza,
+azul escudo, rojo baja; desactivables). Oleadas de élite (3, 7, 11…, sin jefe): enemigos más duros, puntos ×2 y lluvia
+de suministros al superarla.
+
 **Multijugador**: la armadura y los acabados de arma equipados viajan con el jugador (`skin.f`), así los demás ven tu
 arma de oro o tu armadura de neón.
 
@@ -366,6 +374,7 @@ src/client/              El juego (navegador)
   settings.js · settingsui.js   Ajustes del jugador (esquema, guardado) y su pantalla
   shopview.js · cases.js · profile.js   Miniaturas de la tienda · cajas (ruleta) · código de respaldo
   progress.js            Nivel, XP, misiones diarias/semanales y recompensa diaria
+  medals.js              Medallas, locutor y recompensas por racha (orbital, dron)
   hud.js · effects.js · audio.js · spectator.js · touch.js · drop.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)

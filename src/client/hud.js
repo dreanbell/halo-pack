@@ -1,6 +1,9 @@
 import { CFG } from './config.js';
 import { gunThumbnails } from './gunview.js';
 import { S } from './settings.js';
+import { Vector3 } from 'three';
+
+const _p = new Vector3();
 
 const IDS = [
   'hud', 'menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout', 'setup', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
@@ -138,6 +141,47 @@ export class Hud {
     ], { duration: kill ? 350 : 200, easing: 'ease-out' });
   }
 
+  // Números de daño flotantes (ajuste «Números de daño»): un grupo fijo de etiquetas reutilizadas.
+  // kind: '' normal · 'head' cabeza (amarillo) · 'shield' escudo (azul) · 'kill' baja (rojo, más grande).
+  dmgNumber(pos, amount, kind = '') {
+    if (!S.dmgNumbers || !(amount > 0)) return;
+    if (!this.nums) {
+      const box = document.getElementById('dmgnums');
+      this.nums = Array.from({ length: 18 }, () => { const e = document.createElement('span'); box.appendChild(e); return { e, t: 1, p: new Vector3() }; });
+      this.numI = 0;
+    }
+    // Mismo objetivo en menos de 0,12 s (escopeta): se suma al número anterior.
+    const last = this.nums[(this.numI + this.nums.length - 1) % this.nums.length];
+    if (last.t < 0.12 && last.p.distanceToSquared(pos) < 1.5 && last.kind === kind) {
+      last.v += amount;
+      last.e.textContent = Math.round(last.v);
+      return;
+    }
+    const n = this.nums[this.numI];
+    this.numI = (this.numI + 1) % this.nums.length;
+    n.p.copy(pos).add(_p.set((Math.random() - 0.5) * 0.4, 0.2, (Math.random() - 0.5) * 0.4));
+    n.t = 0;
+    n.v = amount;
+    n.kind = kind;
+    n.e.className = `on ${kind}`;
+    n.e.textContent = Math.round(amount);
+  }
+
+  updateNumbers(camera, dt) {
+    if (!this.nums) return;
+    const W = innerWidth / 2, H = innerHeight / 2, z = 1 / (S.hudScale || 1);
+    for (const n of this.nums) {
+      if (n.t >= 0.85) continue;
+      n.t += dt;
+      if (n.t >= 0.85) { n.e.className = ''; continue; }
+      _p.copy(n.p).setY(n.p.y + n.t * 0.7).project(camera);
+      if (_p.z > 1) { n.e.style.opacity = 0; continue; }
+      const k = n.t / 0.85;
+      n.e.style.opacity = (k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4).toFixed(2);
+      n.e.style.transform = `translate(${((_p.x * W + W) * z).toFixed(1)}px, ${((-_p.y * H + H) * z).toFixed(1)}px) translate(-50%, -50%) scale(${(1 + Math.max(0, 0.15 - n.t) * 3).toFixed(2)})`;
+    }
+  }
+
   damage(angle, intensity) {
     this.dmgFlash = Math.min(1, this.dmgFlash + 0.15 + 0.35 * intensity);
     if (angle == null) return;
@@ -147,6 +191,7 @@ export class Hud {
 
   update(ctx, dt) {
     const { player: p, arsenal: a, director: d, game: g, rules: r } = ctx;
+    this.updateNumbers(ctx.camera, dt);
     const P = CFG.player;
     const sp = this.spec;
     // Espectando: las barras muestran el estado del jugador observado.

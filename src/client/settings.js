@@ -26,6 +26,7 @@ export const SCHEMA = [
     { key: 'volEnemies', label: 'Enemigos', type: 'range', min: 0, max: 1, step: 0.05, def: 1, fmt: pct },
     { key: 'volPlayer', label: 'Jugador (pasos, escudo, saltos)', type: 'range', min: 0, max: 1, step: 0.05, def: 1, fmt: pct },
     { key: 'volUi', label: 'Interfaz y avisos', type: 'range', min: 0, max: 1, step: 0.05, def: 1, fmt: pct },
+    { key: 'announcer', label: 'Locutor (medallas)', type: 'toggle', def: true, tip: 'Voz del navegador: «¡doble baja!», «¡imparable!»…' },
     { key: 'muteHidden', label: 'Silenciar en segundo plano', type: 'toggle', def: true },
   ] },
   { group: 'INTERFAZ', items: [
@@ -34,6 +35,7 @@ export const SCHEMA = [
     { key: 'xhScale', label: 'Tamaño de la retícula', type: 'range', min: 0.5, max: 2, step: 0.05, def: 1, fmt: (v) => `×${v.toFixed(2)}` },
     { key: 'xhDot', label: 'Punto central', type: 'toggle', def: true },
     { key: 'hitmarker', label: 'Marcador de impacto', type: 'toggle', def: true },
+    { key: 'dmgNumbers', label: 'Números de daño', type: 'toggle', def: true },
     { key: 'radar', label: 'Radar', type: 'toggle', def: true, tip: 'Si la partida lo permite.' },
   ] },
   { group: 'ACCESIBILIDAD', items: [

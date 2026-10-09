@@ -342,6 +342,7 @@ export class Arsenal {
     // pvp (francotirador): daño como fracción de la vida total del otro jugador, sin multiplicador de partida.
     const frac = opts.pvp ? (part === 'head' ? opts.pvp.head : opts.pvp.body) : 0;
     net.to(r.id, 'hit', { dmg: dmg * this.pvpMult, sm: opts.shieldMult ?? 1, hm: opts.headMult ?? 1, part, from: v3(from), ...(frac ? { fr: frac } : {}) });
+    hud.dmgNumber(r.eye().clone().setY(r.pos.y + (part === 'head' ? 1.9 : 1.3)), frac ? frac * 100 : dmg * this.pvpMult * (part === 'head' ? opts.headMult ?? 1 : 1), part === 'head' ? 'head' : '');
     hud.hitMarker(false);
     sfx.hit();
   }

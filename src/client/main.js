@@ -22,6 +22,7 @@ import { Wallet, PRICES, ITEM_NAMES, KIND_NAMES } from './wallet.js';
 import { FINISHES, finishItem, finishOf, CASES, RARITIES, rarityOf, itemName, GUN_NAMES } from '../shared/shop.js';
 import { CaseOpener } from './cases.js';
 import { Progress, LOGIN, levelReward, MAX_LEVEL, dayKey } from './progress.js';
+import { Medals } from './medals.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
 import { shopThumb } from './shopview.js';
@@ -179,6 +180,14 @@ function notice(text) {
   clearTimeout(noticeT);
   noticeT = setTimeout(() => n.classList.remove('show'), 2800);
 }
+// Medallas, locutor y rachas de bajas (medals.js) · números de daño de lo que haces tú.
+const medals = (ctx.medals = new Medals(ctx));
+const _dn = new THREE.Vector3();
+ctx.onEnemyDamage = (e, amount, head, shield, killed, by) => {
+  if (by !== null && by !== director.myId()) return;
+  hud.dmgNumber(e.center(_dn).setY(_dn.y + 0.4), amount, killed ? 'kill' : head ? 'head' : shield ? 'shield' : '');
+};
+
 // Progreso: nivel, misiones y recompensa diaria (progress.js). Las recompensas van al monedero de este dispositivo.
 const progress = (ctx.progress = new Progress({
   grant: ({ coins, box }) => { if (coins) wallet.add(coins); if (box !== null && box !== undefined) wallet.addToken(box); },
@@ -344,7 +353,9 @@ function startSession(mode, rules = net.rules, map = mode === 'sp' ? ctx.spMap :
   Object.assign(game, { mode, wave: ctx.rules.startWave - 1, kills: 0, score: 0, time: 0, deathT: -1, respawnIn: 0, timeLeft, state: 'playing' });
   game.lifePending = false;
   game.paid = false;
+  game.firstBlood = false;
   progress.matchXp = 0;
+  medals.reset();
   director.configure(mode, !online || net.isHost);
   arsenal.reset(loadoutFor());
   fx.clear();
@@ -403,6 +414,7 @@ function resume() {
 
 game.onPlayerDeath = (lastHit) => {
   game.deathT = 0;
+  medals.onDeath(lastHit?.by ?? null);
   arsenal.trigger = arsenal.aimHeld = false;
   sfx.death();
   if (game.mode === 'dm') {
@@ -1261,10 +1273,16 @@ net.on('feed', (m) => {
   const victim = { text: playerName(m.victim), color: playerColor(m.victim) };
   if (m.killer === null) hud.feed([victim, { text: 'se eliminó a sí mismo' }]);
   else hud.feed([{ text: playerName(m.killer), color: playerColor(m.killer) }, { text: m.head ? '⦿' : '▸' }, victim]);
+  const first = !game.firstBlood && m.killer !== null && m.killer !== m.victim;
+  if (first) game.firstBlood = true;
   if (m.killer === net.id) {
     hud.hitMarker(true);
     sfx.kill();
-    if (game.mode === 'dm') progress.kill({ weapon: arsenal.w?.id, head: !!m.head, dm: true });
+    if (game.mode === 'dm') {
+      progress.kill({ weapon: arsenal.w?.id, head: !!m.head, dm: true });
+      const v = remotes.get(m.victim);
+      medals.onKill({ head: !!m.head, dm: true, victim: m.victim, first, dist: v ? v.pos.distanceTo(player.pos) : 0 });
+    }
     hud.toast(m.head ? `TIRO A LA CABEZA · ${victim.text}` : `ELIMINASTE A ${victim.text}`);
   } else if (m.victim === net.id && m.killer !== null) {
     hud.banner('ELIMINADO', `POR ${playerName(m.killer).toUpperCase()}`, 2);
@@ -1329,6 +1347,8 @@ net.on('ekill', (m) => {
     sfx.kill();
     const boss = Object.values(CFG.enemies).some((e) => e.boss && e.label === m.label);
     progress.kill({ weapon: arsenal.w?.id, head: !!m.head, boss });
+    const en = director.enemies.find((e) => e.id === m.id);
+    medals.onKill({ head: !!m.head, boss, dist: en ? en.pos.distanceTo(player.pos) : 0 });
   }
 });
 
@@ -1427,6 +1447,7 @@ function tick(dt) {
     if (game.mode !== 'sp') remotes.update(dt);
     director.update(dt);
     arsenal.update(dt);
+    medals.update(dt);
     if (game.mode !== 'sp') spectator.update(dt);
     hud.update(ctx, dt);
     if (!player.alive && game.respawnIn > 0) {

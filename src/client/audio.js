@@ -7,7 +7,7 @@ const BUSES = {
   volCombat: ['explosion', 'hit', 'kill', 'shieldPop', 'shieldHit', 'shieldBreak', 'death'],
   volEnemies: ['mortar', 'boss', 'enemyShot', 'enemyMelee', 'spawn'],
   volPlayer: ['shieldRecharge', 'alarm', 'hurt', 'lift', 'slide', 'land', 'step'],
-  volUi: ['boxOpen', 'boxTick', 'boxReveal', 'deny', 'pickup', 'wave'],
+  volUi: ['boxOpen', 'boxTick', 'boxReveal', 'deny', 'pickup', 'wave', 'medal'],
 };
 const MASTER = 0.45;
 
@@ -248,6 +248,13 @@ export class Sfx {
     this.tone({ freq: 330, dur: 0.35, type: 'triangle', gain: 0.15, delay: 0.15 });
     this.tone({ freq: 440, dur: 0.6, type: 'triangle', gain: 0.15, delay: 0.3 });
   }
+  // Medalla: acorde ascendente (tier 0 discreto · 1 brillante · 2 épico con golpe grave).
+  medal(tier = 0) {
+    const base = [660, 784, 988][tier] ?? 660;
+    [1, 1.25, 1.5].forEach((k, i) => this.tone({ freq: base * k, dur: 0.16, type: 'triangle', gain: 0.05 + tier * 0.02, delay: i * 0.05 }));
+    if (tier >= 2) { this.tone({ freq: 110, freqEnd: 55, dur: 0.35, type: 'sine', gain: 0.18 }); this.noise({ dur: 0.25, freq: 3000, gain: 0.05 }); }
+  }
+
   death() { this.tone({ freq: 420, freqEnd: 50, dur: 1.4, type: 'sawtooth', gain: 0.22 }); }
 }
 

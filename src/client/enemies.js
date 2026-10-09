@@ -582,10 +582,12 @@ class Enemy {
       // El anfitrión decide; aquí solo hay respuesta visual inmediata.
       const net = this.ctx.net;
       net.to(net.hostId, 'edmg', { id: this.id, dmg, sm: shieldMult, hm: headMult, part, hk: headKill ? 1 : 0 });
+      this.ctx.onEnemyDamage?.(this, dmg * (part === 'head' && this.shield <= 0 ? headMult : 1), part === 'head', this.shield > 0, false, by);
       return { killed: false, shieldHit: this.shield > 0 };
     }
     this.sinceHit = 0;
     this.los = true;
+    const before = this.hp + this.shield;
     let remaining = dmg, shieldHit = false;
     // Arma de precisión (francotirador): a la cabeza elimina a cualquiera que no sea jefe, atraviesa el escudo.
     if (headKill && part === 'head' && !this.cfg.boss) { remaining = this.hp + 1; if (this.shield > 0) { this.shield = 0; this.ctx.sfx.shieldPop(); } }
@@ -599,6 +601,7 @@ class Enemy {
     if (part === 'head' && !shieldHit && !this.cfg.boss && this.ctx.rules.headKill) remaining = Math.max(remaining, this.hp);
     else if (part === 'head' && !shieldHit) remaining *= headMult;
     if (remaining > 0) this.hp -= remaining;
+    this.ctx.onEnemyDamage?.(this, before - Math.max(0, this.hp) - this.shield, part === 'head', shieldHit, this.hp <= 0, by);
     if (this.hp <= 0) {
       this.dead = true;
       this.deathT = 0;
@@ -727,6 +730,8 @@ export class Director {
     const { game } = this.ctx;
     game.wave++;
     const comp = waveComposition(game.wave, this.playerCount(), this.rules.waveSet);
+    // Oleada de élite (3, 7, 11…, sin jefe): enemigos más duros, doble puntuación y lluvia de suministros al acabar.
+    this.elite = this.rules.waveSet === 'classic' && game.wave % 4 === 3 && !Object.keys(comp).some((t) => CFG.enemies[t].boss);
     for (const [type, n] of Object.entries(comp)) for (let i = 0; i < n; i++) this.queue.push(type);
     for (let i = this.queue.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
@@ -737,8 +742,8 @@ export class Director {
     if (bi > 0) this.queue.unshift(...this.queue.splice(bi, 1));
     this.state = 'combat';
     this.spawnTimer = 0.5;
-    this.onWave({ k: 'start', n: game.wave, comp });
-    if (this.online) this.net.bcast('wave', { k: 'start', n: game.wave, comp });
+    this.onWave({ k: 'start', n: game.wave, comp, elite: this.elite });
+    if (this.online) this.net.bcast('wave', { k: 'start', n: game.wave, comp, elite: this.elite });
   }
 
   clearWave() {
@@ -749,8 +754,10 @@ export class Director {
     // Créditos por oleada para todo el equipo (los caídos también).
     const ids = this.online ? [...this.net.players.keys()] : [this.myId()];
     if (this.rules.lives) this.lives++;
-    this.onWave({ k: 'clear', n: game.wave });
-    if (this.online) this.net.bcast('wave', { k: 'clear', n: game.wave });
+    this.onWave({ k: 'clear', n: game.wave, elite: this.elite });
+    if (this.online) this.net.bcast('wave', { k: 'clear', n: game.wave, elite: this.elite });
+    if (this.elite && this.rules.box) { this.spawnDrop(); this.spawnDrop(); }
+    this.elite = false;
   }
 
   // Efectos de inicio/fin de oleada en este equipo (anfitrión o cliente).
@@ -761,13 +768,14 @@ export class Director {
       const parts = Object.entries(m.comp).filter(([t, n]) => n > 0 && !CFG.enemies[t].boss).map(([t, n]) => `${n} ${CFG.enemies[t].label.toUpperCase()}`);
       const boss = Object.keys(m.comp).find((t) => CFG.enemies[t].boss);
       if (boss) { hud.banner(`OLEADA ${m.n} · ¡JEFE!`, `${CFG.enemies[boss].label} · ${parts.join(' · ')}`, 3.5); sfx.boss(); }
+      else if (m.elite) { hud.banner(`OLEADA ${m.n} · ÉLITE`, `ENEMIGOS REFORZADOS · PUNTOS ×2 · ${parts.join(' · ')}`, 3.2); this.ctx.medals?.say('Oleada de élite'); }
       else hud.banner(`OLEADA ${m.n}`, parts.join(' · '));
       sfx.wave();
       game.onWaveStart?.();
     } else {
       arsenal.addAmmo(1.5);
       arsenal.addGrenade(1);
-      hud.banner('OLEADA SUPERADA', `+${m.n * 100} PTS · MUNICIÓN Y GRANADA${this.rules.lives ? ' · +1 VIDA' : ''}`, 2.6);
+      hud.banner(m.elite ? 'ÉLITE SUPERADA' : 'OLEADA SUPERADA', `+${m.n * 100} PTS · MUNICIÓN Y GRANADA${this.rules.lives ? ' · +1 VIDA' : ''}${m.elite && this.rules.box ? ' · ¡LLUEVEN SUMINISTROS!' : ''}`, 2.6);
       sfx.pickup();
     }
   }
@@ -795,7 +803,7 @@ export class Director {
     const k = DIFFICULTY[this.rules.difficulty] ?? DIFFICULTY.normal;
     let bossK = 1;
     if (CFG.enemies[type].boss) bossK = this.rules.waveSet === 'bosses' ? 1 + 0.15 * (wave - 1) : 1 + 0.3 * Math.max(0, Math.floor(wave / 5) - 1);
-    return { hp: d.hp * bossK * k.hp, dmg: d.dmg * k.dmg };
+    return { hp: d.hp * bossK * k.hp * (this.elite ? 1.35 : 1), dmg: d.dmg * k.dmg * (this.elite ? 1.15 : 1) };
   }
 
   // Refuerzos invocados por un jefe alrededor de su posición.
@@ -844,13 +852,15 @@ export class Director {
     const killer = by ?? me;
     const s = this.score(killer);
     s.kills++;
-    s.score += e.cfg.score;
-    s.credits += e.cfg.score;
-    game.score += e.cfg.score;
+    const pts = e.cfg.score * (this.elite ? 2 : 1);
+    s.score += pts;
+    s.credits += pts;
+    game.score += pts;
     if (killer === me) {
       game.kills++;
       // Progreso (misiones/XP): arma en la mano, o granada / cuerpo a cuerpo si el daño vino de ahí.
       this.ctx.progress?.kill({ weapon: arsenal.w?.id, head: !!head, boss: !!e.cfg.boss, src: this.ctx.killSrc ?? null });
+      this.ctx.medals?.onKill({ head: !!head, boss: !!e.cfg.boss, src: this.ctx.killSrc ?? null, dist: e.pos.distanceTo(this.ctx.player.pos) });
     }
     if (this.online) {
       const msg = { id: e.id, by: killer, head: !!head, label: e.cfg.label };
