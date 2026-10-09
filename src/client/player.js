@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CFG, clamp } from './config.js';
+import { Spring, damp } from './feel.js';
 
 const P = CFG.player;
 const SL = P.slide;
@@ -56,6 +57,9 @@ export class Player {
     this.coyote = P.coyote;
     this.crouchBuf = 0;
     this.shake = 0;
+    // Cámara (solo visual): patada al disparar, giro lateral, rebote al aterrizar y balanceo de pasos.
+    this.cf = { pitch: new Spring(230, 19), roll: new Spring(170, 13), land: new Spring(95, 10), lean: new Spring(60, 12) };
+    this.stepT = this.bobK = this.landV = 0;
     this.alarmT = 0;
     this.deathT = 0;
     this.lastHit = null;
@@ -204,7 +208,10 @@ export class Player {
       this.liftT = 0;
       if (!this.onGround) {
         if (this.vel.y < -11) { sfx.land(); this.shake = Math.min(1, this.shake + 0.2); }
-        this.dip = Math.min(0.22, Math.max(0, -this.vel.y - 4) * 0.018);
+        else if (this.vel.y < -4) sfx.step?.(0.6);
+        this.landV = -this.vel.y;
+        // Aterrizaje: la cámara se hunde y rebota (muelle) en vez de bajar de golpe.
+        this.cf.land.kick(-Math.min(2.4, Math.max(0, this.landV - 3) * 0.16));
         this.justLanded = true;
       }
       this.pos.y = gh; this.vel.y = 0; this.onGround = true;
@@ -236,16 +243,36 @@ export class Player {
     this.slideCD = SL.cooldown;
   }
 
+  // Patada visual de cámara al disparar (la puntería no cambia: las balas salen de la cabeza, ver Arsenal.aimRay).
+  viewKick(r, heavy = false) {
+    const k = (0.06 + r * 0.45) * (heavy ? 1.3 : 1) * (1 - (this.ctx.arsenal?.aimK ?? 0) * 0.35);
+    this.cf.pitch.kick(k);
+    this.cf.roll.kick((Math.random() - 0.5) * (0.1 + r * 0.5));
+  }
+
   syncCamera(dt) {
-    const cam = this.ctx.camera;
-    this.dip = Math.max(0, this.dip - dt * 0.9);
-    this.yaw.position.set(this.pos.x, this.pos.y + this.height - this.dip, this.pos.z);
-    // Inclinación lateral de cámara al deslizar.
+    const cam = this.ctx.camera, cf = this.cf;
+    this.yaw.position.set(this.pos.x, this.pos.y + this.height, this.pos.z);
+    // Pasos: la fase avanza con la distancia recorrida en el suelo; cada media vuelta es una pisada (con sonido).
+    const sp = Math.hypot(this.vel.x, this.vel.z), aim = this.ctx.arsenal?.aimK ?? 0;
+    const walking = this.onGround && !this.sliding && this.alive;
+    const prevStep = Math.floor(this.stepT / Math.PI);
+    if (walking) this.stepT += dt * sp * 1.2;
+    if (walking && sp > 1.5 && Math.floor(this.stepT / Math.PI) !== prevStep) this.ctx.sfx.step?.(this.sprinting ? 1 : 0);
+    this.bobK = damp(this.bobK, walking ? Math.min(sp / 6.5, 1.3) : 0, 9, dt);
+    const run = this.sprinting ? 1 : 0, bA = this.bobK * (1 - aim * 0.85), t = this.stepT;
+    const bobY = -(1 - Math.cos(2 * t)) * 0.5 * (0.022 + run * 0.016) * bA;
+    const bobX = Math.sin(t) * (0.009 + run * 0.008) * bA;
+    const bobR = Math.sin(t) * (0.0035 + run * 0.004) * bA;
+    // Giro suave hacia el lado al que se desplaza (estilo Halo/CoD), más marcado al deslizar.
+    const yaw = this.yaw.rotation.y, side = this.vel.x * Math.cos(yaw) - this.vel.z * Math.sin(yaw);
+    const lean = cf.lean.update(dt, clamp(-side * 0.0026, -0.022, 0.022) * (1 - aim * 0.6));
     this.slideK += ((this.sliding ? 1 : 0) - this.slideK) * Math.min(1, dt * 10);
-    cam.rotation.z = this.slideK * 0.07;
+    const kp = cf.pitch.update(dt), kr = cf.roll.update(dt), land = cf.land.update(dt);
+    cam.rotation.set(kp + land * 0.25, 0, this.slideK * 0.07 + lean + bobR + kr * 0.02);
     this.shake = Math.max(0, this.shake - dt * 2.5);
     const s = this.shake * this.shake * 0.25;
-    cam.position.set((Math.random() - 0.5) * s, (Math.random() - 0.5) * s, 0);
+    cam.position.set((Math.random() - 0.5) * s + bobX, (Math.random() - 0.5) * s + bobY + land, 0);
     const zoom = this.ctx.arsenal?.zoom ?? 1;
     const fov = zoom > 1 ? 78 / zoom : this.sliding ? 90 : this.sprinting ? 86 : 78;
     if (Math.abs(cam.fov - fov) > 0.05) {
@@ -292,6 +319,6 @@ export class Player {
     this.yaw.position.y = this.pos.y + this.height * (1 - 0.75 * t);
     this.pitch.rotation.z = t * 0.9;
     this.ctx.camera.position.set(0, 0, 0);
-    this.ctx.camera.rotation.z = 0;
+    this.ctx.camera.rotation.set(0, 0, 0);
   }
 }

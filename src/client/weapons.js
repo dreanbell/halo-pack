@@ -6,9 +6,11 @@ import { skinMaterials, Avatar } from './avatar.js';
 import { hasPlayerModel, requestPlayerModel } from './playermodels.js';
 import { DEFAULT_SKIN } from '../shared/skins.js';
 import { buildGun, GUN_INFO } from './guns.js';
+import { Spring, damp } from './feel.js';
 
 const W = CFG.weapons, G = CFG.grenade, M = CFG.melee;
 const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _m = new THREE.Vector3(), _n = new THREE.Vector3(), _c = new THREE.Vector3();
+const _q = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 const VM_SCALE = 0.8;
 const HIP = new THREE.Vector3(0.28, -0.26, -0.62);
@@ -144,6 +146,13 @@ export class Arsenal {
     this.zoom = 1;
     this.aimK = this.sprintK = this.boltK = this.cycleT = 0;
     this.swayX = this.swayY = this.swayR = 0;
+    // Muelles del arma en mano: retroceso (pos. atrás/arriba, cabeceo, guiñada, giro), inercia del ratón,
+    // inclinación al moverse en lateral y rebote vertical (saltos y aterrizajes).
+    const sp = (k, c) => new Spring(k, c);
+    this.fk = { z: sp(180, 15), y: sp(180, 16), pitch: sp(160, 13), yaw: sp(150, 14), roll: sp(120, 10),
+      swayX: sp(90, 11), swayY: sp(90, 11), swayR: sp(80, 9), tilt: sp(70, 12), lift: sp(110, 10) };
+    this.bobK = this.runK = this.idleT = 0;
+    this.wasGround = true;
     this.ejectQueue = [];
     this.aimDist = null;
     this.trigger = this.pressed = this.aimHeld = false;
@@ -425,11 +434,16 @@ export class Arsenal {
     if (!this.infinite) s.reserve -= take;
   }
 
+  // Origen y dirección de la mira: la cabeza del jugador (no la cámara, que lleva sacudidas y patada visuales).
+  aimRay(o, d) {
+    const { camera, player } = this.ctx;
+    camera.getWorldPosition(o);
+    return d.set(0, 0, -1).applyQuaternion(player.pitch.getWorldQuaternion(_q));
+  }
+
   // --- Disparo ---
   castRay(spread, range) {
-    const { camera } = this.ctx;
-    camera.getWorldPosition(_o);
-    camera.getWorldDirection(_d);
+    this.aimRay(_o, _d);
     _d.x += rand(-1, 1) * spread;
     _d.y += rand(-1, 1) * spread;
     _d.z += rand(-1, 1) * spread;
@@ -507,6 +521,7 @@ export class Arsenal {
       if (s.heat >= 1) { s.heat = 1; s.overT = d.heat.overheat; sfx.overheat(); hud.toast('SOBRECALENTADA'); }
     }
     this.recoil = Math.min(1, this.recoil + Math.min(1, d.recoil * 60));
+    this.kickFeel(Math.min(1, d.recoil * 60), d);
     this.boltK = 1;
     if (d.boltAction) this.cycleT = BOLT_CYCLE;
     const ej = EJECT[s.id];
@@ -514,6 +529,18 @@ export class Arsenal {
     player.addRecoil((d.recoil * (0.8 + Math.random() * 0.4)) / Math.sqrt(this.zoom), rand(-0.3, 0.3) * d.recoil);
     this.flash();
     sfx.shot(d.sound);
+  }
+
+  // Retroceso visual: el arma salta hacia atrás y arriba con algo de giro aleatorio y vuelve con un rebote;
+  // la cámara recibe una patada corta. Apuntando, todo se reduce (el arma va pegada al hombro).
+  kickFeel(r, d) {
+    const f = this.fk, a = 1 - this.aimK * 0.55, heavy = r > 0.8 ? 1.25 : 1;
+    f.z.kick((0.55 + r * 1.1) * a * heavy);
+    f.y.kick((0.12 + r * 0.35) * a);
+    f.pitch.kick((2.2 + r * 6.5) * a * heavy);
+    f.yaw.kick(rand(-1, 1) * (0.6 + r * 1.6) * a);
+    f.roll.kick(rand(-1, 1) * (1.2 + r * 3.5) * a);
+    this.ctx.player.viewKick?.(r, d.boltAction || d.kind === 'pellets');
   }
 
   flash() {
@@ -533,8 +560,7 @@ export class Arsenal {
   // --- Proyectiles (agujas y cañón de arco) ---
   launch(d, id) {
     const { camera, net } = this.ctx;
-    camera.getWorldPosition(_o);
-    camera.getWorldDirection(_d);
+    this.aimRay(_o, _d);
     // Objetivo para el guiado: lo que haya en la mira.
     this.ray.set(_o, _d);
     this.ray.far = 80;
@@ -669,8 +695,7 @@ export class Arsenal {
     this.grenades--;
     this.throwT = 0.6;
     this.reloadT = 0;
-    camera.getWorldPosition(_o);
-    camera.getWorldDirection(_d);
+    this.aimRay(_o, _d);
     const mesh = new THREE.Mesh(this.grenadeGeo, new THREE.MeshStandardMaterial({ color: 0x3f5a2c, emissive: 0x000000, roughness: 0.5 }));
     mesh.position.copy(_o).addScaledVector(_d, 0.6);
     mesh.castShadow = true;
@@ -847,24 +872,48 @@ export class Arsenal {
       if (this.ejectQueue[i] <= 0) { this.ejectQueue.splice(i, 1); this.ejectCasing(EJECT[s.id]?.[0]); }
     }
 
-    // Animación del arma: balanceo, inercia, retroceso, cambio, recarga, golpe, sprint y apuntado.
-    const sp = Math.hypot(player.vel.x, player.vel.z);
-    this.bobT += dt * sp * 1.4;
-    const aim = this.aimK, free = 1 - aim * 0.85;
-    const bob = Math.min(sp / 9, 1) * (player.onGround ? 1 : 0.3) * free;
+    // Animación del arma: pasos, respiración, inercia, retroceso con muelles, saltos, cambio, recarga, golpe,
+    // sprint y apuntado. Todo es visual: la puntería sale de la cabeza (aimRay).
+    const f = this.fk;
+    const sp = Math.hypot(player.vel.x, player.vel.z), ground = player.onGround;
+    const aim = this.aimK, aimE = aim * aim * (3 - 2 * aim), free = 1 - aimE * 0.85;
     this.recoil = Math.max(0, this.recoil - dt * 8);
     const swap = this.swapT / CFG.swapTime;
     const rl = this.reloadT > 0 && d.reload ? Math.sin((1 - this.reloadT / d.reload) * Math.PI) * (d.shellReload ? 0.4 : 1) : 0;
     const mel = this.meleeT > 0 ? Math.sin((1 - this.meleeT / M.cooldown) * Math.PI) ** 2 : 0;
-    this.sprintK += ((player.sprinting ? 1 : 0) - this.sprintK) * Math.min(1, dt * 8);
-    // Inercia: el arma se retrasa respecto al movimiento del ratón.
+    this.sprintK = damp(this.sprintK, player.sprinting && ground ? 1 : 0, 9, dt);
+    const run = this.sprintK * (1 - rl) * (1 - mel);
+    // Pasos: fase según la distancia recorrida (mismo ritmo que la cámara); amplitud suave al arrancar/parar.
+    this.bobT = player.stepT ?? this.bobT;
+    this.bobK = damp(this.bobK, ground ? Math.min(sp / 6.5, 1.25) : 0, 10, dt);
+    const bA = this.bobK * free, t = this.bobT;
+    const bobX = Math.sin(t) * (0.011 + run * 0.016) * bA;
+    const bobY = -(1 - Math.cos(2 * t)) * 0.5 * (0.009 + run * 0.012) * bA;
+    const bobR = Math.sin(t) * (0.025 + run * 0.05) * bA;
+    // Respiración en reposo (también apuntando, mucho menor).
+    this.idleT += dt;
+    const br = (1 - this.bobK * 0.8) * (1 - aimE * 0.8);
+    const idleY = Math.sin(this.idleT * 1.7) * 0.0035 * br, idleP = Math.sin(this.idleT * 1.1 + 1) * 0.006 * br;
+    // Inercia del ratón con muelle (se pasa un poco y vuelve).
     const idt = 1 / Math.max(dt, 1 / 240);
     const mx = (player.lookDX ?? 0) * idt, my = (player.lookDY ?? 0) * idt;
     player.lookDX = player.lookDY = 0;
-    const kS = Math.min(1, dt * 10), sw = 1 - aim * 0.75;
-    this.swayX += (THREE.MathUtils.clamp(-mx * 1.6e-5, -0.03, 0.03) * sw - this.swayX) * kS;
-    this.swayY += (THREE.MathUtils.clamp(my * 1.6e-5, -0.025, 0.025) * sw - this.swayY) * kS;
-    this.swayR += (THREE.MathUtils.clamp(-mx * 3e-5, -0.06, 0.06) * sw - this.swayR) * kS;
+    const sw = 1 - aimE * 0.8, cl = THREE.MathUtils.clamp;
+    this.swayX = f.swayX.update(dt, cl(-mx * 1.8e-5, -0.035, 0.035) * sw);
+    this.swayY = f.swayY.update(dt, cl(my * 1.8e-5, -0.03, 0.03) * sw);
+    this.swayR = f.swayR.update(dt, cl(-mx * 3.5e-5, -0.08, 0.08) * sw);
+    // Movimiento relativo a la vista: inclinación al desplazarse en lateral, empuje al avanzar.
+    const yaw = player.yaw.rotation.y, side = player.vel.x * Math.cos(yaw) - player.vel.z * Math.sin(yaw);
+    const fwd = -player.vel.x * Math.sin(yaw) - player.vel.z * Math.cos(yaw);
+    const tilt = f.tilt.update(dt, cl(-side * 0.011, -0.08, 0.08) * free);
+    // Saltos: el arma se queda atrás al subir y sube al caer; al aterrizar, golpe hacia abajo con rebote.
+    if (ground && !this.wasGround) f.lift.kick(-Math.min(1.6, (player.landV ?? 4) * 0.12) * (1 - aimE * 0.6));
+    this.wasGround = ground;
+    const lift = f.lift.update(dt, ground ? 0 : cl(-player.vel.y * 0.0035, -0.035, 0.035) * free);
+    // Retroceso.
+    const kz = f.z.update(dt), ky = f.y.update(dt), kp = f.pitch.update(dt), kyaw = f.yaw.update(dt), kr = f.roll.update(dt);
+    const crouch = player.crouching && !player.sliding ? 1 - aimE : 0;
+    this.crouchK = damp(this.crouchK ?? 0, crouch, 8, dt);
     // Cerrojo del francotirador: levantar, atrás, adelante, bajar.
     let boltRot = 0, boltBack = 0;
     if (this.cycleT > 0) {
@@ -879,15 +928,16 @@ export class Arsenal {
     }
     const cyc = Math.sin(Math.min(1, boltRot + boltBack) * Math.PI * 0.5) * (1 - aim * 0.7);
     const ads = this.gun.ads;
+    // Sprint estilo táctico: arma baja, cruzada y girada hacia dentro.
     this.vm.position.set(
-      lerp(HIP.x, ads.x, aim) + Math.sin(this.bobT) * 0.012 * bob - mel * 0.18 + this.swayX,
-      lerp(HIP.y, ads.y, aim) + Math.abs(Math.cos(this.bobT)) * 0.012 * bob - swap * 0.35 - rl * 0.08 - this.sprintK * 0.04 + this.swayY - cyc * 0.02,
-      lerp(HIP.z, ads.z, aim) + this.recoil * (0.06 - aim * 0.035) - mel * 0.25,
+      lerp(HIP.x, ads.x, aimE) + bobX - mel * 0.18 + this.swayX - run * 0.05 + tilt * 0.12 - this.crouchK * 0.015,
+      lerp(HIP.y, ads.y, aimE) + bobY + idleY + lift - swap * 0.35 - rl * 0.08 - run * 0.055 + this.swayY - cyc * 0.02 + ky * 0.4 - this.crouchK * 0.012,
+      lerp(HIP.z, ads.z, aimE) + kz * 0.11 - mel * 0.25 + cl(fwd * 0.0018, -0.012, 0.012) * free + run * 0.03,
     );
     this.vm.rotation.set(
-      this.recoil * 0.08 * (1 - aim * 0.6) - rl * 0.6 - this.sprintK * 0.25 + this.swayY * 1.5,
-      mel * 0.6 + this.sprintK * 0.5 + this.swayR,
-      rl * 0.3 + this.swayR * 0.5 + cyc * 0.12,
+      kp * 0.11 + idleP - rl * 0.6 - run * 0.32 + this.swayY * 1.5 + lift * 1.2,
+      mel * 0.6 + run * 0.62 + this.swayR + kyaw * 0.05,
+      rl * 0.3 + this.swayR * 0.5 + cyc * 0.12 + bobR + tilt + kr * 0.05 + run * 0.18 + this.crouchK * 0.12,
     );
     // Con visor (DMR, francotirador) no se ve el arma.
     this.vm.visible = !(d.scope && this.zoom > 1.5);
@@ -926,8 +976,7 @@ export class Arsenal {
     this.muzzleLight.intensity = this.flashT > 0 ? 6 * (d.flash ?? 0.8) : 0;
 
     // ¿Apunta a un enemigo? (retícula roja)
-    camera.getWorldPosition(_o);
-    camera.getWorldDirection(_d);
+    this.aimRay(_o, _d);
     this.ray.set(_o, _d);
     const scoped = d.scope && this.zoom > 1.5;
     this.ray.far = scoped ? d.range : Math.min(150, d.range ?? 80) * 0.7;

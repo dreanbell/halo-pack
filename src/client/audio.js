@@ -197,6 +197,12 @@ export class Sfx {
     this.noise({ dur: 0.4, freq: 3200, freqEnd: 1200, q: 1.2, gain: 0.08, attack: 0.02 });
   }
   land() { this.noise({ dur: 0.12, freq: 260, type: 'lowpass', gain: 0.3 }); }
+  // Pisada: golpe sordo + roce de armadura; corriendo, más fuerte. Variación aleatoria para que no se repita.
+  step(run = 0) {
+    const v = 0.85 + Math.random() * 0.3;
+    this.noise({ dur: 0.07, freq: 180 * v, type: 'lowpass', gain: (0.11 + run * 0.07) * v });
+    this.noise({ dur: 0.05, freq: 2400 * v, q: 1.5, gain: (0.025 + run * 0.02) * v, delay: 0.012 });
+  }
   melee() {
     this.noise({ dur: 0.12, freq: 450, type: 'lowpass', gain: 0.45 });
     this.tone({ freq: 130, freqEnd: 60, dur: 0.1, gain: 0.3 });

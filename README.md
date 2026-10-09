@@ -153,6 +153,22 @@ Los modelos 3D son **CC0** de OpenGameArt (`vendor/assets/players/`, procedencia
 
 El modelo del soldado es procedural (unas 40 piezas biseladas con materiales PBR y reflejos del cielo) y tiene esqueleto animado: caminar, correr, agacharse, saltar, apuntar arriba y abajo con las manos en el arma (IK) y caída al morir.
 
+## Sensación de movimiento
+
+Todo con muelles amortiguados (`src/client/feel.js`): se pasan un poco y vuelven, como en los shooters AAA.
+
+| | Arma en mano | Cámara |
+|---|---|---|
+| Andar / correr | Balanceo en ocho sincronizado con las pisadas (con sonido); al esprintar, arma baja y cruzada | Cabeceo vertical y leve giro por paso |
+| Lateral | Se inclina hacia el lado del movimiento | Giro suave (~1°) |
+| Disparo | Salta atrás y arriba con giro aleatorio; más fuerte en escopeta y francotirador | Patada corta que vuelve sola |
+| Saltar / aterrizar | Se queda atrás al subir, sube al caer, golpe y rebote al tocar suelo | Se hunde y rebota |
+| Ratón | Inercia con rebote | — |
+| Reposo / agachado | Respiración; arma ladeada al agacharse | — |
+
+Apuntando con la mira, todo se reduce. Es solo visual: las balas salen de la cabeza (`Arsenal.aimRay`), no de la
+cámara sacudida, así que la puntería y el retroceso real no cambian. La retícula se abre al disparar y esprintar.
+
 ## Controles
 
 | Tecla | Acción |

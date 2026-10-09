@@ -203,7 +203,10 @@ export class Hud {
     this.toggle('crosshair', 'enemy', a.aimEnemy);
     const xo = Math.max(0, 1 - a.aimK * 2.2) * (1 - 0.6 * a.sprintK);
     this.style('crosshair', 'opacity', xo.toFixed(2));
-    this.style('crosshair', '--s', `${(wd.kind === 'pellets' ? 22 : 5 + a.spread() * 280).toFixed(1)}px`);
+    // Retícula viva: se abre con la dispersión real, cada disparo y al esprintar/saltar, y se cierra suave.
+    const xs = (wd.kind === 'pellets' ? 22 : 5 + a.spread() * 280) + a.recoil * 9 + a.sprintK * 6;
+    this.xs = this.xs === undefined ? xs : this.xs + (xs - this.xs) * (1 - Math.exp(-(xs > this.xs ? 30 : 9) * dt));
+    this.style('crosshair', '--s', `${this.xs.toFixed(1)}px`);
 
     let hint = '';
     const box = d.boxes.length ? d.boxPrompt() : '';

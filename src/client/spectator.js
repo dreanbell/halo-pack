@@ -134,6 +134,7 @@ export class Spectator {
     player.yaw.rotation.set(0, yaw, 0);
     player.pitch.rotation.set(pitch, 0, 0);
     this.ctx.camera.position.set(0, 0, 0);
+    this.ctx.camera.rotation.set(0, 0, 0);
     arsenal.vm.visible = false;
     t.tag.visible = false; // la etiqueta propia taparía la vista
 
