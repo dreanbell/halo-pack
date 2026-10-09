@@ -8,6 +8,15 @@ export const PATTERNS = ['LISO', 'CAMUFLAJE', 'RAYAS', 'HEXÁGONOS', 'DIGITAL', 
 export const MODELS = ['CLÁSICO', 'FEDERAL', 'MILITAR', 'RENEGADO', 'EXOTROOPER', 'COMANDO', 'COMANDO F', 'MONO', 'PATO', 'RANA', 'CHICA GANCHO', 'DADO PAR', 'DADO IMPAR'];
 
 export const DEFAULT_SKIN = { p: PRIMARY[0], s: SECONDARY[0], v: VISORS[0], h: 0, t: 0, m: 0 };
+// Armas con acabado de caja (src/shared/shop.js): f = { arma: acabado } viaja con la armadura en multijugador.
+export const GUN_IDS = ['rifle', 'pistol', 'smg', 'shotgun', 'dmr', 'sniper', 'plasma', 'needler', 'arc', 'battle', 'revolver', 'sawed', 'carbine'];
+export const FINISH_COUNT = 18;
+function sanitizeFinishes(f) {
+  const out = {};
+  if (!f || typeof f !== 'object') return out;
+  for (const id of GUN_IDS) if (Number.isInteger(f[id]) && f[id] > 0 && f[id] < FINISH_COUNT) out[id] = f[id];
+  return out;
+}
 
 const pick = (list, v, def) => (list.includes(v) ? v : def);
 const idx = (n, len) => (Number.isInteger(n) && n >= 0 && n < len ? n : 0);
@@ -22,6 +31,7 @@ export function sanitizeSkin(x) {
     h: idx(s.h, HELMETS.length),
     t: idx(s.t, PATTERNS.length),
     m: idx(s.m, MODELS.length),
+    f: sanitizeFinishes(s.f),
   };
 }
 

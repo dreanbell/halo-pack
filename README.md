@@ -32,6 +32,17 @@ terminar cada partida (o al salir a mitad, por lo conseguido):
 | Cascos | Centinela gratis · Halcón y Bastión 300 · Espectro 450 · Corsario 550 |
 | Patrones | Liso gratis · Camuflaje 150 · Rayas 200 · Hexágonos 250 · Digital 300 · Tigre 350 · Carbono 400 · Circuito 500 · Neón y Oro solo en cajas |
 
+**Progreso** (pestaña PROGRESO, `src/client/progress.js`): nivel 1-100 con XP (baja 10, a la cabeza +5, jefe 100,
+oleada superada 30, partida 50, victoria en todos contra todos 150). Cada nivel da ◈ 100 + 10 × nivel; cada 5 niveles
+una caja básica gratis (cada 10, rara; cada 25, legendaria). **Misiones**: 3 diarias y 2 semanales elegidas por fecha
+(bajas por tipo de arma, a la cabeza, granada, cuerpo a cuerpo, jefes, oleada, puntuación, suministros, partidas,
+todos contra todos, cajas), se reclaman a mano y una al día/semana se puede cambiar (⟳). **Recompensa diaria** por
+días seguidos: ◈ 50 · 75 · 100 · caja básica · 150 · 200 · caja épica (fallar un día reinicia la racha). Todo se guarda
+en el dispositivo y viaja en el código de respaldo; las cajas gratis se abren en la tienda sin gastar créditos.
+
+**Multijugador**: la armadura y los acabados de arma equipados viajan con el jugador (`skin.f`), así los demás ven tu
+arma de oro o tu armadura de neón.
+
 **Cajas** (tienda): ruleta de objetos que frena y se para en el premio. El premio se sortea antes de girar (en el
 navegador, o en el servidor si hay cuenta); la ruleta solo lo enseña. Repetido = créditos (◈ 25 / 60 / 150 / 400).
 
@@ -45,7 +56,7 @@ navegador, o en el servidor si hay cuenta); la ruleta solo lo enseña. Repetido 
 Dentro de cada rareza: 70 % acabado de arma (las 13 armas × 17 acabados) y 30 % pieza de armadura de esa rareza
 (modelos, cascos y patrones; Neón y Oro solo salen aquí). Acabados: comunes Ártico, Desierto, Bosque, Pizarra, Óxido ·
 raros Urbano, Selva, Tigre, Digital · épicos Neón, Magma, Hielo, Carbono rojo · legendarios Oro, Cromo, Plasma
-(animado), Dragón. Se equipan en TIENDA → TUS ACABADOS DE ARMA (solo visual; los demás jugadores ven el de fábrica).
+(animado), Dragón. Se equipan en TIENDA → TUS ACABADOS DE ARMA (solo visual; también los ven los demás jugadores).
 
 Cada artículo de la tienda muestra una miniatura 3D con tus colores (modelos de cuerpo entero, cascos en primer
 plano de la cabeza, patrones en el pecho), generada en segundo plano (`src/client/shopview.js`).
@@ -354,6 +365,7 @@ src/client/              El juego (navegador)
   quality.js             Calidad gráfica (AUTO/ALTA/MEDIA/BAJA) y resolución dinámica por FPS
   settings.js · settingsui.js   Ajustes del jugador (esquema, guardado) y su pantalla
   shopview.js · cases.js · profile.js   Miniaturas de la tienda · cajas (ruleta) · código de respaldo
+  progress.js            Nivel, XP, misiones diarias/semanales y recompensa diaria
   hud.js · effects.js · audio.js · spectator.js · touch.js · drop.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)

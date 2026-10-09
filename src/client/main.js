@@ -21,6 +21,7 @@ import { Home } from './home.js';
 import { Wallet, PRICES, ITEM_NAMES, KIND_NAMES } from './wallet.js';
 import { FINISHES, finishItem, finishOf, CASES, RARITIES, rarityOf, itemName, GUN_NAMES } from '../shared/shop.js';
 import { CaseOpener } from './cases.js';
+import { Progress, LOGIN, levelReward, MAX_LEVEL, dayKey } from './progress.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
 import { shopThumb } from './shopview.js';
@@ -161,12 +162,28 @@ function readSkin() {
   try { return sanitizeSkin(JSON.parse(localStorage.getItem(SKIN_KEY) ?? 'null') ?? DEFAULT_SKIN); } catch { return { ...DEFAULT_SKIN }; }
 }
 ctx.skin = readSkin();
-net.skin = ctx.skin;
+net.skin = ctx.skin; // con los acabados de arma en cuanto se lean (netSkin)
 arsenal.setSkin(ctx.skin);
 // Créditos y desbloqueos (lo que ya llevas equipado al estrenar el monedero queda desbloqueado).
 const wallet = (ctx.wallet = new Wallet(ctx.skin));
 const account = (ctx.account = new Account());
 wallet.attach(account);
+
+// Aviso arriba de la pantalla (subidas de nivel, misiones). En partida, el aviso del HUD.
+let noticeT = null;
+function notice(text) {
+  if (game.state === 'playing') { hud.toast(text, 2.4); return; }
+  const n = $('notice');
+  n.textContent = text;
+  n.classList.add('show');
+  clearTimeout(noticeT);
+  noticeT = setTimeout(() => n.classList.remove('show'), 2800);
+}
+// Progreso: nivel, misiones y recompensa diaria (progress.js). Las recompensas van al monedero de este dispositivo.
+const progress = (ctx.progress = new Progress({
+  grant: ({ coins, box }) => { if (coins) wallet.add(coins); if (box !== null && box !== undefined) wallet.addToken(box); },
+  notify: (t) => { notice(t); sfx.boxReveal?.(); },
+}));
 const armory = new Armory({
   canvas: $('armory-view'),
   skin: ctx.skin,
@@ -182,7 +199,7 @@ const armory = new Armory({
     ctx.skin = skin;
     try { localStorage.setItem(SKIN_KEY, JSON.stringify(skin)); } catch { /* sin almacenamiento */ }
     arsenal.setSkin(skin);
-    net.setSkin(skin);
+    net.setSkin(netSkin());
     home.setSkin(skin);
     renderHome();
     syncProfile({ skin });
@@ -213,8 +230,12 @@ function setFinish(id, f) {
   try { localStorage.setItem(FINISH_KEY, JSON.stringify(ctx.finishes)); } catch { /* sin almacenamiento */ }
   syncFinishes();
 }
+// Lo que ven los demás jugadores: armadura + acabados de arma equipados (y que tienes).
+const equippedFinishes = () => Object.fromEntries(Object.keys(ctx.finishes).map((id) => [id, finishFor(id)]).filter(([, f]) => f));
+const netSkin = () => ({ ...ctx.skin, f: equippedFinishes() });
 function syncFinishes() {
-  arsenal.setFinishes(Object.fromEntries(Object.keys(ctx.finishes).map((id) => [id, finishFor(id)])));
+  arsenal.setFinishes(equippedFinishes());
+  net.setSkin(netSkin());
   home.setWeapon(ctx.loadout[0], finishFor(ctx.loadout[0]));
 }
 function loadoutFor() {
@@ -323,6 +344,7 @@ function startSession(mode, rules = net.rules, map = mode === 'sp' ? ctx.spMap :
   Object.assign(game, { mode, wave: ctx.rules.startWave - 1, kills: 0, score: 0, time: 0, deathT: -1, respawnIn: 0, timeLeft, state: 'playing' });
   game.lifePending = false;
   game.paid = false;
+  progress.matchXp = 0;
   director.configure(mode, !online || net.isHost);
   arsenal.reset(loadoutFor());
   fx.clear();
@@ -420,17 +442,27 @@ game.onCoopOver = (extra = {}) => {
 async function payMatch(stats) {
   if (game.paid) return 0;
   game.paid = true;
+  game.xpGain = progress.matchEnd(stats);
   const n = await wallet.reward(stats);
   if (n) $('home-earn').textContent = `+${n} ◈ ÚLTIMA PARTIDA`;
   renderHome();
   return n;
 }
 function showEarned(n) {
-  if (!n) return;
-  const p = document.createElement('p');
-  p.className = 'earn';
-  p.innerHTML = `+${n} ◈ CRÉDITOS<small>Total: ◈ ${wallet.coins.toLocaleString('es-ES')} · gástalos en la TIENDA</small>`;
-  $('go-stats').appendChild(p);
+  if (n) {
+    const p = document.createElement('p');
+    p.className = 'earn';
+    p.innerHTML = `+${n} ◈ CRÉDITOS<small>Total: ◈ ${wallet.coins.toLocaleString('es-ES')} · gástalos en la TIENDA</small>`;
+    $('go-stats').appendChild(p);
+  }
+  const g = game.xpGain;
+  if (g?.xp) {
+    const p = document.createElement('p');
+    p.className = 'earn xp';
+    const up = g.ups.length ? ` · ¡NIVEL ${g.ups.at(-1).level}!` : '';
+    p.innerHTML = `+${g.xp} XP${up}<small>Nivel ${progress.level}${progress.need ? ` · ${progress.xp}/${progress.need} XP` : ''} · misiones en PROGRESO</small>`;
+    $('go-stats').appendChild(p);
+  }
 }
 
 function gameOver(timeUp = false) {
@@ -616,6 +648,7 @@ function renderHome() {
   card.append(b, sm);
   for (const id of ['home-loadout-mini', 'home-loadout']) $(id).replaceChildren(slotHtml(ctx.loadout[0], 'PRINCIPAL'), slotHtml(ctx.loadout[1], 'SECUNDARIA'));
   $('home-coins').textContent = wallet.coins.toLocaleString('es-ES');
+  renderProgress();
   $('shop-coins').textContent = wallet.coins.toLocaleString('es-ES');
   // Tienda: modelos, cascos y patrones; comprar con créditos, equipar lo que ya tienes.
   const sections = [];
@@ -684,12 +717,113 @@ function renderCases() {
       odds.append(o);
     }
     const price = document.createElement('small');
-    price.textContent = `ABRIR · ◈ ${box.price.toLocaleString('es-ES')}`;
+    const free = wallet.tokens[c];
+    price.textContent = free ? `ABRIR GRATIS · ×${free}` : `ABRIR · ◈ ${box.price.toLocaleString('es-ES')}`;
+    if (free) { price.classList.add('free'); b.classList.remove('poor'); }
     b.append(art, name, odds, price);
     b.addEventListener('click', () => cases.open(c));
     return b;
   }));
 }
+// --- Progreso: nivel, recompensa diaria y misiones ------------------------------------------------------
+const rewardText = (r) => [r.coins ? `◈ ${r.coins}` : '', r.box !== null && r.box !== undefined ? CASES[r.box].name : ''].filter(Boolean).join(' + ');
+function loginTrack(el) {
+  const st = progress.loginState();
+  el.replaceChildren(...LOGIN.map((rw, k) => {
+    const d = document.createElement('div');
+    const day = k + 1, done = st.claimed ? day <= st.day : day < st.day;
+    d.className = 'login-day' + (rw.box !== undefined ? ' box' : '') + (done ? ' done' : '') + (!st.claimed && day === st.day ? ' today' : '');
+    d.innerHTML = `DÍA ${day}<b>${rw.box !== undefined ? '▣' : `◈${rw.coins}`}</b>${rw.box !== undefined ? CASES[rw.box].name.replace('CAJA ', '') : ''}`;
+    return d;
+  }));
+}
+function untilReset(weekly) {
+  const now = new Date(), end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  if (weekly) end.setDate(end.getDate() + ((8 - end.getDay()) % 7)); // próximo lunes
+  const h = Math.max(0, Math.round((end - now) / 36e5));
+  return h >= 24 ? `· QUEDAN ${Math.floor(h / 24)} D ${h % 24} H` : `· QUEDAN ${h} H`;
+}
+function missionList(el, kind) {
+  el.replaceChildren(...progress.missions(kind).map((m) => {
+    const d = document.createElement('div');
+    d.className = 'mission' + (m.claimed ? ' claimed' : m.complete ? ' complete' : '');
+    const p = document.createElement('p');
+    p.textContent = m.text;
+    const rw = document.createElement('small');
+    rw.textContent = `${m.n.toLocaleString('es-ES')}/${m.goal.toLocaleString('es-ES')} · ${rewardText(m)} · ${m.xp} XP`;
+    const info = document.createElement('div');
+    info.append(p, rw);
+    const act = document.createElement('div');
+    if (m.claimed) act.textContent = '✓';
+    else if (m.complete) {
+      const b = document.createElement('button');
+      b.className = 'claim';
+      b.textContent = 'RECLAMAR';
+      b.addEventListener('click', () => {
+        const res = progress.claim(kind, m.id);
+        if (res) { sfx.boxReveal?.(); notice(`+${rewardText(res)} · +${res.xp} XP`); }
+        renderHome();
+      });
+      act.append(b);
+    } else if (progress.canReroll(kind)) {
+      const b = document.createElement('button');
+      b.className = 'secondary rr';
+      b.title = 'Cambiar esta misión (una vez)';
+      b.textContent = '⟳';
+      b.addEventListener('click', () => { progress.reroll(kind, m.id); renderHome(); });
+      act.append(b);
+    }
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.innerHTML = `<i style="width:${Math.round((m.n / m.goal) * 100)}%"></i>`;
+    d.append(info, act, bar);
+    return d;
+  }));
+}
+function renderProgress() {
+  const lv = progress.level, need = progress.need, k = need ? progress.xp / need : 1;
+  $('home-level').textContent = lv;
+  $('home-xp-fill').style.width = `${Math.round(k * 100)}%`;
+  $('pg-level').textContent = lv;
+  $('pg-fill').style.width = `${Math.round(k * 100)}%`;
+  $('pg-xp').textContent = need ? `${progress.xp.toLocaleString('es-ES')} / ${need.toLocaleString('es-ES')} XP` : 'NIVEL MÁXIMO';
+  $('pg-next').textContent = lv < MAX_LEVEL ? `Siguiente nivel (${lv + 1}): ${rewardText(levelReward(lv + 1))}` : '¡Has llegado al nivel máximo!';
+  loginTrack($('pg-login'));
+  $('pg-login-claim').disabled = progress.loginState().claimed;
+  $('pg-login-claim').textContent = progress.loginState().claimed ? 'VUELVE MAÑANA' : 'RECLAMAR';
+  $('pg-daily-reset').textContent = untilReset(false);
+  $('pg-weekly-reset').textContent = untilReset(true);
+  missionList($('pg-daily'), 'daily');
+  missionList($('pg-weekly'), 'weekly');
+  const n = progress.pending();
+  $('prog-badge').hidden = !n;
+  $('prog-badge').textContent = n;
+}
+function claimLogin() {
+  const r = progress.claimLogin();
+  if (!r) return;
+  sfx.unlock();
+  sfx.boxReveal?.();
+  notice(`DÍA ${r.day}: +${rewardText(r)}${r.box !== undefined ? ' · ábrela en la TIENDA' : ''}`);
+  $('daily-modal').classList.add('hidden');
+  renderHome();
+}
+$('pg-login-claim').addEventListener('click', claimLogin);
+$('daily-claim').addEventListener('click', claimLogin);
+$('daily-later').addEventListener('click', () => { dailyLater = true; $('daily-modal').classList.add('hidden'); });
+// Al abrir el juego (o volver otro día al menú): ventana de la recompensa diaria si no se ha cobrado.
+let dailyLater = false; // «más tarde»: no vuelve a salir hasta recargar (sigue en PROGRESO)
+function offerDaily() {
+  if (dailyLater || game.state !== 'menu' || progress.loginState().claimed) return;
+  const st = progress.loginState();
+  $('daily-sub').textContent = st.day > 1 ? `¡${st.day} días seguidos! No pierdas la racha.` : 'Entra cada día: el día 7 hay una caja épica.';
+  loginTrack($('daily-track'));
+  $('daily-modal').classList.remove('hidden');
+}
+setTimeout(offerDaily, 1800);
+addEventListener('focus', () => { if (progress.s.daily?.key !== dayKey()) { progress.roll(); progress.save(); renderHome(); } offerDaily(); });
+progress.onChange(() => { if (game.state === 'menu') renderProgress(); });
+
 // Inventario de acabados de arma: tocar uno lo equipa en esa arma (otra vez: vuelve al de fábrica).
 function renderInventory() {
   const owned = [...wallet.owned].filter((k) => k.startsWith('w:')).map((k) => Number(k.slice(2)))
@@ -733,6 +867,7 @@ const cases = new CaseOpener({
     renderHome();
   },
   onClose: () => renderHome(),
+  onOpened: () => progress.event('cases'),
 });
 
 renderHome();
@@ -757,7 +892,7 @@ function applySkin(skin) {
   ctx.skin = skin;
   try { localStorage.setItem(SKIN_KEY, JSON.stringify(skin)); } catch { /* sin almacenamiento */ }
   arsenal.setSkin(skin);
-  net.setSkin(skin);
+  net.setSkin(netSkin());
   home.setSkin(skin);
   armory.avatar?.setSkin(skin);
   armory.syncControls();
@@ -840,7 +975,7 @@ $('prof-name').addEventListener('input', () => {
 $('prof-copy').addEventListener('click', async () => {
   const code = encodeBackup({
     name: localName(), coins: wallet.coins, owned: [...wallet.owned], earned: wallet.earned,
-    skin: ctx.skin, loadout: ctx.loadout, best: readBest(), finishes: ctx.finishes,
+    skin: ctx.skin, loadout: ctx.loadout, best: readBest(), finishes: ctx.finishes, tokens: wallet.localTokens, progress: progress.s,
   });
   const box = $('prof-code');
   box.value = code;
@@ -878,6 +1013,7 @@ $('prof-load').addEventListener('click', () => {
     home.setWeapon(d.loadout[0], finishFor(d.loadout[0]));
   }
   if (d.skin) applySkin(fitSkin(sanitizeSkin(d.skin)));
+  if (d.progress) progress.load(d.progress);
   if (d.finishes) {
     try { localStorage.setItem(FINISH_KEY, JSON.stringify(d.finishes)); } catch { /* sin almacenamiento */ }
     ctx.finishes = readFinishes();
@@ -1128,6 +1264,7 @@ net.on('feed', (m) => {
   if (m.killer === net.id) {
     hud.hitMarker(true);
     sfx.kill();
+    if (game.mode === 'dm') progress.kill({ weapon: arsenal.w?.id, head: !!m.head, dm: true });
     hud.toast(m.head ? `TIRO A LA CABEZA · ${victim.text}` : `ELIMINASTE A ${victim.text}`);
   } else if (m.victim === net.id && m.killer !== null) {
     hud.banner('ELIMINADO', `POR ${playerName(m.killer).toUpperCase()}`, 2);
@@ -1190,6 +1327,8 @@ net.on('ekill', (m) => {
   if (m.by === net.id && !director.authority) {
     hud.hitMarker(true);
     sfx.kill();
+    const boss = Object.values(CFG.enemies).some((e) => e.boss && e.label === m.label);
+    progress.kill({ weapon: arsenal.w?.id, head: !!m.head, boss });
   }
 });
 

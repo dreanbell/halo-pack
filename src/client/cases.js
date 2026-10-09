@@ -32,7 +32,7 @@ export class CaseOpener {
     if (this.busy) return;
     const box = CASES[c];
     this.d.sfx.unlock?.();
-    if (this.d.wallet.coins < box.price) {
+    if (!this.d.wallet.tokens[c] && this.d.wallet.coins < box.price) {
       this.d.message(`Te faltan ◈ ${(box.price - this.d.wallet.coins).toLocaleString('es-ES')} para la ${box.name.toLowerCase()}. ¡Juega para ganar más!`);
       if (!$('case-open').classList.contains('hidden')) $('case-note').textContent = 'No te quedan créditos suficientes.';
       return;
@@ -122,9 +122,10 @@ export class CaseOpener {
     $('case-name').textContent = itemName(r.kind, r.i);
     $('case-rarity').textContent = rar.name;
     $('case-note').textContent = r.dup ? `Ya lo tenías: se convierte en ◈ ${r.refund}.` : '¡Nuevo! Ya es tuyo.';
+    this.d.onOpened?.(r);
     $('case-equip').hidden = false; // nuevo o repetido, ya es tuyo
     $('case-again').hidden = false;
-    $('case-again').textContent = `ABRIR OTRA · ◈ ${CASES[this.c].price}`;
+    $('case-again').textContent = this.d.wallet.tokens[this.c] ? `ABRIR OTRA · GRATIS ×${this.d.wallet.tokens[this.c]}` : `ABRIR OTRA · ◈ ${CASES[this.c].price}`;
     $('case-close').hidden = false;
     this.busy = false;
   }

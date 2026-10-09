@@ -134,6 +134,7 @@ export class SupplyDrop {
     this.flip = 0;
     this.cycle = 0;
     this.ctx.sfx.boxOpen();
+    if (owner === this.ctx.director.myId()) this.ctx.progress?.event('drops');
   }
 
   takeable(me) {

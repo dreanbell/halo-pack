@@ -847,7 +847,11 @@ export class Director {
     s.score += e.cfg.score;
     s.credits += e.cfg.score;
     game.score += e.cfg.score;
-    if (killer === me) game.kills++;
+    if (killer === me) {
+      game.kills++;
+      // Progreso (misiones/XP): arma en la mano, o granada / cuerpo a cuerpo si el daño vino de ahí.
+      this.ctx.progress?.kill({ weapon: arsenal.w?.id, head: !!head, boss: !!e.cfg.boss, src: this.ctx.killSrc ?? null });
+    }
     if (this.online) {
       const msg = { id: e.id, by: killer, head: !!head, label: e.cfg.label };
       net.bcast('ekill', msg);
@@ -921,6 +925,7 @@ export class Director {
     const { world, hud, sfx } = this.ctx;
     const mine = by === null || by === this.myId();
     let kills = 0, hits = 0;
+    if (mine) this.ctx.killSrc = 'grenade';
     for (const e of this.enemies) {
       if (e.dead || e.replica) continue;
       const c = e.center(new THREE.Vector3());
@@ -932,6 +937,7 @@ export class Director {
       hits++;
       if (res.killed) kills++;
     }
+    this.ctx.killSrc = null;
     if (mine && hits) { hud.hitMarker(kills > 0); sfx.hit(); }
     if (mine && kills) sfx.kill();
   }

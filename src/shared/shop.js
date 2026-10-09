@@ -1,6 +1,6 @@
 // Economía compartida por el juego y el servidor de cuentas: precios de la tienda, cajas y créditos por partida.
 // Módulo puro (sin navegador): el servidor lo usa para validar compras, abrir cajas y calcular recompensas.
-import { MODELS, HELMETS, PATTERNS } from './skins.js';
+import { MODELS, HELMETS, PATTERNS, GUN_IDS, FINISH_COUNT } from './skins.js';
 
 export const START_COINS = 300;
 // Precios por tipo de artículo (índice = el de la lista de skins.js). 0 = gratis desde el principio;
@@ -16,7 +16,7 @@ export const itemPrice = (kind, i) => (Number.isInteger(i) ? PRICES[kind]?.[i] ?
 
 // --- Acabados de arma (solo en cajas) ----------------------------------------------------------------------
 // Artículo «w:i» con i = arma × 32 + acabado. El acabado 0 (DE FÁBRICA) lo tiene todo el mundo.
-export const GUN_IDS = ['rifle', 'pistol', 'smg', 'shotgun', 'dmr', 'sniper', 'plasma', 'needler', 'arc', 'battle', 'revolver', 'sawed', 'carbine'];
+export { GUN_IDS };
 export const GUN_NAMES = {
   rifle: 'AR-9', pistol: 'ION', smg: 'VIPER', shotgun: 'ESCOPETA', dmr: 'DMR', sniper: 'FRANCOTIRADOR', plasma: 'PLASMA',
   needler: 'AGUJAS', arc: 'ARCO', battle: 'BATALLA', revolver: 'REVÓLVER', sawed: 'RECORTADA', carbine: 'CARABINA',
@@ -29,6 +29,7 @@ export const FINISHES = [
   { name: 'NEÓN', r: 2 }, { name: 'MAGMA', r: 2 }, { name: 'HIELO', r: 2 }, { name: 'CARBONO ROJO', r: 2 },
   { name: 'ORO', r: 3 }, { name: 'CROMO', r: 3 }, { name: 'PLASMA', r: 3 }, { name: 'DRAGÓN', r: 3 },
 ];
+if (FINISHES.length !== FINISH_COUNT) throw new Error('FINISH_COUNT (skins.js) no coincide con FINISHES');
 export const finishItem = (gun, f) => GUN_IDS.indexOf(gun) * 32 + f;
 export const finishOf = (i) => ({ gun: GUN_IDS[Math.floor(i / 32)], f: i % 32 });
 export const isFinishItem = (i) => Number.isInteger(i) && i >= 0 && !!GUN_IDS[Math.floor(i / 32)] && (i % 32) > 0 && (i % 32) < FINISHES.length;

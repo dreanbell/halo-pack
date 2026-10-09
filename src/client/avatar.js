@@ -196,7 +196,7 @@ function suitTexture() {
 
 export function skinMaterials(skinIn) {
   const skin = sanitizeSkin(skinIn);
-  const key = JSON.stringify(skin);
+  const key = JSON.stringify({ ...skin, f: 0 }); // los acabados de arma no cambian la armadura
   if (matCache.has(key)) return matCache.get(key);
   const visorCol = new THREE.Color(skin.v);
   const m = {

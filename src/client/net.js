@@ -11,7 +11,7 @@ const TIMEOUT = 15000;
 const HEARTBEAT = 2000; // ms entre pings
 const SILENCE = 9000; // ms sin mensajes = conexión perdida
 
-export const BUILD = '1.28.0';
+export const BUILD = '1.29.0';
 export const DEBUG = new URLSearchParams(location.search).has('debug');
 
 export const makeCode = () => Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
@@ -321,8 +321,9 @@ export class Net {
   }
 
   setSkin(skin) {
+    const same = JSON.stringify(skin) === JSON.stringify(this.skin);
     this.skin = skin;
-    if (this.active) this.send('skin', { skin });
+    if (this.active && !same) this.send('skin', { skin });
   }
 
   disconnect() {

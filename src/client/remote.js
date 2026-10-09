@@ -74,7 +74,7 @@ class RemotePlayer {
     this.vel.fromArray(s.v);
     this.alive = !!s.a;
     this.weapon = s.w;
-    if (typeof s.w === 'string') this.avatar.setWeapon(s.w);
+    if (typeof s.w === 'string') this.avatar.setWeapon(s.w, this.avatar.skin.f?.[s.w] ?? 0); // con su acabado de caja
     this.health = s.hp;
     this.shield = s.sh;
   }

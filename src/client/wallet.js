@@ -18,7 +18,9 @@ export class Wallet {
       this.coins = Math.max(0, Math.floor(data.coins));
       this.owned = new Set(data.owned);
       this.earned = data.earned ?? 0;
+      this.localTokens = Array.isArray(data.tokens) ? [0, 1, 2, 3].map((c) => Math.max(0, Math.floor(data.tokens[c]) || 0)) : [0, 0, 0, 0];
     } else {
+      this.localTokens = [0, 0, 0, 0];
       this.coins = START_COINS;
       this.owned = new Set();
       this.earned = 0;
@@ -52,15 +54,16 @@ export class Wallet {
   }
 
   // Restaurar un código de respaldo: sustituye el progreso de este navegador.
-  restore({ coins, owned, earned }) {
+  restore({ coins, owned, earned, tokens }) {
     this.localCoins = coins;
     this.localOwned = new Set(owned);
     this.localEarned = earned;
+    if (Array.isArray(tokens)) this.localTokens = [0, 1, 2, 3].map((c) => Math.max(0, Math.min(99, Math.floor(tokens[c]) || 0)));
     this.save();
   }
 
   save() {
-    try { localStorage.setItem(KEY, JSON.stringify({ coins: this.localCoins, owned: [...this.localOwned], earned: this.localEarned ?? 0 })); } catch { /* sin almacenamiento */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ coins: this.localCoins, owned: [...this.localOwned], earned: this.localEarned ?? 0, tokens: this.localTokens })); } catch { /* sin almacenamiento */ }
     this.emit();
   }
 
@@ -91,10 +94,28 @@ export class Wallet {
     return true;
   }
 
-  // Abre la caja c → { kind, i, r, dup, refund }, o null si faltan créditos. Con cuenta sortea el servidor.
+  // Cajas gratis (recompensas de nivel, misiones y días seguidos): solo en el monedero de este dispositivo.
+  get tokens() { return this.remote ? [0, 0, 0, 0] : this.localTokens; }
+  addToken(c) {
+    if (!CASES[c]) return;
+    this.localTokens[c]++;
+    this.save();
+  }
+
+  // Abre la caja c → { kind, i, r, dup, refund, free }, o null si faltan créditos. Con cuenta sortea el servidor.
+  // Si hay una caja gratis de ese tipo, se usa primero.
   async openCase(c) {
     const box = CASES[c];
     if (!box) return null;
+    if (!this.remote && this.localTokens[c] > 0) {
+      this.localTokens[c]--;
+      const it = rollCase(c, rnd);
+      const key = `${it.kind}:${it.i}`, dup = this.localOwned.has(key), refund = dup ? DUP_REFUND[it.r] : 0;
+      this.localCoins += refund;
+      if (!dup) this.localOwned.add(key);
+      this.save();
+      return { ...it, dup, refund, free: true };
+    }
     if (this.remote) {
       try { return (await this.account.call('open', { c })).result; } catch (e) { if (e.status === 402) return null; throw e; }
     }

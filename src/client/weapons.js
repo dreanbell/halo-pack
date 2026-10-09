@@ -839,7 +839,9 @@ export class Arsenal {
     if (!best) return;
     // Golpe por la espalda = eliminación instantánea.
     const back = best.facing().dot(_o.set(player.pos.x - best.pos.x, 0, player.pos.z - best.pos.z).normalize()) < -0.3;
+    this.ctx.killSrc = 'melee';
     const res = best.takeDamage(back ? 9999 : M.damage, { part: 'body' });
+    this.ctx.killSrc = null;
     hud.hitMarker(res.killed);
     fx.sparks(best.center(), best.cfg.glow);
     if (res.killed) {
