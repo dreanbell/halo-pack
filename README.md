@@ -63,6 +63,9 @@ node server.js            # o npm start · puerto 8080; otro: node server.js 900
 
 La consola muestra la dirección de red local (p. ej. `http://192.168.1.20:8080`). Los demás la abren en el navegador → **MULTIJUGADOR LAN** → **SERVIDOR LAN DE ESTE EQUIPO**. Si no conectan, permite "Node.js" en el firewall para redes privadas o abre el puerto TCP 8080.
 
+### Móvil y tablet
+Se juega en horizontal con controles táctiles: mitad izquierda = joystick (al tope hacia delante, esprintas), mitad derecha = apuntar, y botones de disparo, salto, agacharse, recarga, cambio de arma, granada, golpe, mira y usar caja. Entra a pantalla completa si el navegador lo permite. Para forzarlos o quitarlos: `?touch=1` / `?touch=0`.
+
 ### Un jugador en local
 No necesita build ni dependencias: three.js y PeerJS van incluidos en `vendor/`.
 

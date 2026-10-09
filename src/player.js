@@ -17,6 +17,7 @@ export class Player {
     this.vel = new THREE.Vector3();
     this._eye = new THREE.Vector3();
     this.keys = new Set();
+    this.stick = { x: 0, y: 0, m: 0, sprint: false }; // joystick táctil (m: intensidad 0..1)
 
     addEventListener('keydown', (e) => {
       this.keys.add(e.code);
@@ -96,8 +97,9 @@ export class Player {
     if (!this.alive) return this.deathAnim(dt);
     const { world, sfx } = this.ctx;
     const k = this.keys;
-    const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
-    const s = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
+    const st = this.stick, analog = st.m > 0; // joystick táctil
+    const f = analog ? -st.y : (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    const s = analog ? st.x : (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
     const crouchHeld = k.has('ControlLeft') || k.has('KeyC');
     // Margen para pulsar agachar justo antes de alcanzar velocidad o de tocar suelo.
     const tap = this.crouchBuf > 0;
@@ -125,7 +127,7 @@ export class Player {
       sfx.slide?.();
     }
     this.justLanded = false;
-    const shift = k.has('ShiftLeft') || k.has('ShiftRight');
+    const shift = k.has('ShiftLeft') || k.has('ShiftRight') || st.sprint;
     // Agachar recién pulsado con Shift+avance: se sigue acelerando unos instantes para entrar en deslizamiento.
     const pending = !this.sliding && tap && crouchHeld && shift && f > 0 && this.onGround && this.slideCD <= 0;
     this.crouching = (crouchHeld && !pending) || this.sliding;
@@ -157,7 +159,8 @@ export class Player {
       // En el aire se conserva la inercia si ya se va más rápido que la velocidad objetivo.
       const ctl = this.onGround ? P.groundAccel : P.airControl;
       const a = 1 - Math.exp(-ctl * dt);
-      const tx = wx * speed, tz = wz * speed;
+      const gain = analog && !this.sprinting ? st.m : 1; // joystick: velocidad proporcional
+      const tx = wx * speed * gain, tz = wz * speed * gain;
       if ((this.onGround || wl > 0) && !(this.liftT > 0)) {
         this.vel.x += (tx - this.vel.x) * a;
         this.vel.z += (tz - this.vel.z) * a;
