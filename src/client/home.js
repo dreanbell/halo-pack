@@ -50,9 +50,10 @@ export class Home {
     this.avatar?.setSkin(skin);
   }
 
-  setWeapon(id) {
+  setWeapon(id, finish = 0) {
     this.weapon = id;
-    this.avatar?.setWeapon(id);
+    this.finish = finish;
+    this.avatar?.setWeapon(id, finish);
   }
 
   show() {
@@ -63,7 +64,7 @@ export class Home {
       this.avatar.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
       this.group.add(this.avatar.root);
       this.avatar.root.position.y = 0.08;
-      if (this.weapon) this.avatar.setWeapon(this.weapon);
+      if (this.weapon) this.avatar.setWeapon(this.weapon, this.finish);
     }
     this.worldId = null;
     this.ctx.scene.add(this.group);

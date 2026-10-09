@@ -159,8 +159,8 @@ export class Armory {
         b.classList.toggle('selected', b.dataset.value === String(value));
         if (!key) continue;
         const price = this.locked(key, Number(b.dataset.value));
-        b.classList.toggle('locked', price > 0);
-        if (price > 0) b.dataset.price = `🔒 ${price}`; else delete b.dataset.price;
+        b.classList.toggle('locked', price !== 0);
+        if (price !== 0) b.dataset.price = price < 0 ? '🔒 CAJAS' : `🔒 ${price}`; else delete b.dataset.price;
       }
     };
     mark('sw-p', this.skin.p);

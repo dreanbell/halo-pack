@@ -19,6 +19,8 @@ import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
 import { DEFAULT_SKIN, sanitizeSkin, MODELS } from '../shared/skins.js';
 import { Home } from './home.js';
 import { Wallet, PRICES, ITEM_NAMES, KIND_NAMES } from './wallet.js';
+import { FINISHES, finishItem, finishOf, CASES, RARITIES, rarityOf, itemName, GUN_NAMES } from '../shared/shop.js';
+import { CaseOpener } from './cases.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
 import { shopThumb } from './shopview.js';
@@ -26,7 +28,7 @@ import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../sh
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
 import { buildAlien } from './aliens.js';
-import { loadGunModels } from './guns.js';
+import { loadGunModels, tickFinishes } from './guns.js';
 import { loadDropModel } from './drop.js';
 import { loadPlayerModels, requestPlayerModel } from './playermodels.js';
 import { S, onSettings } from './settings.js';
@@ -37,6 +39,7 @@ const BEST_KEY = 'ringfall.best';
 const NAME_KEY = 'ringfall.name';
 const SKIN_KEY = 'ringfall.skin';
 const LOADOUT_KEY = 'ringfall.loadout';
+const FINISH_KEY = 'ringfall.finishes';
 const MAP_KEY = 'ringfall.map';
 const SP_RULES_KEY = 'ringfall.sprules';
 const $ = (id) => document.getElementById(id);
@@ -171,8 +174,9 @@ const armory = new Armory({
   onLocked: (k, v) => {
     if (game.state === 'menu') {
       selectTab('shop');
-      $('shop-msg').textContent = `${ITEM_NAMES[k][v]} está bloqueado: cómpralo por ◈ ${wallet.price(k, v)}.`;
-    } else hud.toast?.(`BLOQUEADO · ◈ ${wallet.price(k, v)} EN LA TIENDA`);
+      const p = wallet.price(k, v);
+      $('shop-msg').textContent = p < 0 ? `${ITEM_NAMES[k][v]} solo sale en las cajas.` : `${ITEM_NAMES[k][v]} está bloqueado: cómpralo por ◈ ${p}.`;
+    } else hud.toast?.(wallet.price(k, v) < 0 ? 'BLOQUEADO · SOLO EN CAJAS' : `BLOQUEADO · ◈ ${wallet.price(k, v)} EN LA TIENDA`);
   },
   onChange: (skin) => {
     ctx.skin = skin;
@@ -195,6 +199,24 @@ function readLoadout() {
   return [...CFG.defaultLoadout];
 }
 ctx.loadout = readLoadout();
+// Acabados de arma equipados (cajas): { arma: acabado }. Solo los que tienes.
+function readFinishes() {
+  try {
+    const f = JSON.parse(localStorage.getItem(FINISH_KEY) ?? '{}');
+    return Object.fromEntries(Object.entries(f).filter(([id, k]) => CFG.weapons[id] && Number.isInteger(k) && k > 0 && k < FINISHES.length));
+  } catch { return {}; }
+}
+ctx.finishes = readFinishes();
+const finishFor = (id) => (ctx.finishes[id] && wallet.owns('w', finishItem(id, ctx.finishes[id])) ? ctx.finishes[id] : 0);
+function setFinish(id, f) {
+  if (f) ctx.finishes[id] = f; else delete ctx.finishes[id];
+  try { localStorage.setItem(FINISH_KEY, JSON.stringify(ctx.finishes)); } catch { /* sin almacenamiento */ }
+  syncFinishes();
+}
+function syncFinishes() {
+  arsenal.setFinishes(Object.fromEntries(Object.keys(ctx.finishes).map((id) => [id, finishFor(id)])));
+  home.setWeapon(ctx.loadout[0], finishFor(ctx.loadout[0]));
+}
 function loadoutFor() {
   return LOADOUTS[ctx.rules.loadout] ?? ctx.loadout;
 }
@@ -204,7 +226,7 @@ const loadoutMenu = new LoadoutMenu({
   set: (l) => {
     ctx.loadout = l;
     try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(l)); } catch { /* sin almacenamiento */ }
-    home.setWeapon(l[0]);
+    home.setWeapon(l[0], finishFor(l[0]));
     renderHome();
     syncProfile({ loadout: l });
   },
@@ -555,7 +577,8 @@ renderMenuMaps();
 // --- Inicio: avatar en 3D con pestañas (jugar, modos, mapas, armas, personalizar, tienda, ajustes) ---------
 const armoryOpts = document.querySelector('#armory .armory-opts');
 home.setSkin(ctx.skin);
-home.setWeapon(ctx.loadout[0]);
+syncFinishes();
+wallet.onChange(syncFinishes); // al iniciar o cerrar sesión cambian los acabados que tienes
 function selectTab(tab) {
   for (const b of $('home-nav').children) b.classList.toggle('selected', b.dataset.tab === tab);
   for (const sec of $('home-panel').children) sec.hidden = sec.dataset.panel !== tab;
@@ -606,6 +629,8 @@ function renderHome() {
       const owned = wallet.owns(kind, i), price = wallet.price(kind, i), equipped = skin[kind] === i;
       const c = document.createElement('button');
       c.className = 'shop-card' + (equipped ? ' equipped' : owned ? ' owned' : ' locked') + (!owned && wallet.coins < price ? ' poor' : '');
+      const rr = rarityOf(kind, i);
+      if (rr >= 0) c.style.setProperty('--rc', RARITIES[rr].color);
       // Miniatura 3D del artículo con tus colores (se genera en segundo plano; mientras, un marcador).
       const ico = document.createElement('span');
       ico.className = 'thumb loading';
@@ -616,10 +641,11 @@ function renderHome() {
       });
       const t = document.createElement('b'); t.textContent = label;
       const p = document.createElement('small');
-      p.textContent = equipped ? 'EQUIPADO' : owned ? 'EQUIPAR' : `◈ ${price.toLocaleString('es-ES')}`;
+      p.textContent = equipped ? 'EQUIPADO' : owned ? 'EQUIPAR' : price < 0 ? 'SOLO EN CAJAS' : `◈ ${price.toLocaleString('es-ES')}`;
       if (!owned) p.classList.add('price');
       c.append(ico, t, p);
       c.addEventListener('click', async () => {
+        if (!owned && price < 0) { $('shop-msg').textContent = `${label} solo sale en las cajas (${RARITIES[rr].name.toLowerCase()}).`; return; }
         if (!owned) {
           let ok;
           try { ok = await wallet.buy(kind, i); } catch (e) { $('shop-msg').textContent = e.message; return; }
@@ -635,7 +661,80 @@ function renderHome() {
     sections.push(h, grid);
   }
   $('shop-grid').replaceChildren(...sections);
+  renderCases();
+  renderInventory();
 }
+// Cajas: precio, probabilidades por rareza y botón de abrir.
+function renderCases() {
+  $('shop-cases').replaceChildren(...CASES.map((box, c) => {
+    const b = document.createElement('button');
+    b.className = 'case-card' + (wallet.coins < box.price ? ' poor' : '');
+    b.style.setProperty('--rc', RARITIES[box.odds.findLastIndex((p) => p > 0)].color);
+    const art = document.createElement('span');
+    art.className = `case-art c${c}`;
+    const name = document.createElement('b');
+    name.textContent = box.name;
+    const odds = document.createElement('span');
+    odds.className = 'case-odds';
+    for (const [r, p] of box.odds.entries()) {
+      if (!p) continue;
+      const o = document.createElement('i');
+      o.style.color = RARITIES[r].color;
+      o.textContent = `${RARITIES[r].name} ${p}%`;
+      odds.append(o);
+    }
+    const price = document.createElement('small');
+    price.textContent = `ABRIR · ◈ ${box.price.toLocaleString('es-ES')}`;
+    b.append(art, name, odds, price);
+    b.addEventListener('click', () => cases.open(c));
+    return b;
+  }));
+}
+// Inventario de acabados de arma: tocar uno lo equipa en esa arma (otra vez: vuelve al de fábrica).
+function renderInventory() {
+  const owned = [...wallet.owned].filter((k) => k.startsWith('w:')).map((k) => Number(k.slice(2)))
+    .sort((a, b) => FINISHES[b % 32].r - FINISHES[a % 32].r || a - b);
+  if (!owned.length) {
+    const p = document.createElement('p');
+    p.className = 'tip';
+    p.textContent = 'Aún no tienes acabados. Salen en las cajas: abre una para conseguir tu primera arma especial.';
+    $('shop-inv').replaceChildren(p);
+    return;
+  }
+  const grid = document.createElement('div');
+  grid.className = 'shop-grid';
+  grid.append(...owned.map((i) => {
+    const { gun, f } = finishOf(i), on = finishFor(gun) === f;
+    const c = document.createElement('button');
+    c.className = 'shop-card gun' + (on ? ' equipped' : ' owned');
+    c.style.setProperty('--rc', RARITIES[FINISHES[f].r].color);
+    const ico = document.createElement('span');
+    ico.className = 'thumb loading';
+    shopThumb('w', i, ctx.skin, (url) => { if (url) { ico.style.backgroundImage = `url(${url})`; ico.classList.remove('loading'); } });
+    const t = document.createElement('b'); t.textContent = `${GUN_NAMES[gun]}`;
+    const n = document.createElement('small'); n.className = 'fin'; n.textContent = FINISHES[f].name;
+    const p = document.createElement('small'); p.textContent = on ? 'EQUIPADO' : 'EQUIPAR';
+    c.append(ico, t, n, p);
+    c.addEventListener('click', () => {
+      setFinish(gun, on ? 0 : f);
+      $('shop-msg').textContent = on ? `${GUN_NAMES[gun]}: acabado de fábrica.` : `${itemName('w', i)} equipado.`;
+      renderHome();
+    });
+    return c;
+  }));
+  $('shop-inv').replaceChildren(grid);
+}
+const cases = new CaseOpener({
+  wallet, sfx,
+  skin: () => ctx.skin,
+  message: (t) => { $('shop-msg').textContent = t; },
+  onEquip: (r) => {
+    if (r.kind === 'w') { const { gun, f } = finishOf(r.i); setFinish(gun, f); } else armory.set({ [r.kind]: r.i });
+    renderHome();
+  },
+  onClose: () => renderHome(),
+});
+
 renderHome();
 setTimeout(renderHome, 1500); // miniaturas de armas listas
 
@@ -667,7 +766,7 @@ function applySkin(skin) {
 function onLoggedIn() {
   const p = account.profile;
   if (p.skin) applySkin(fitSkin(p.skin)); else applySkin(fitSkin(ctx.skin));
-  if (p.loadout?.every((id) => CFG.weapons[id])) { ctx.loadout = p.loadout; home.setWeapon(p.loadout[0]); }
+  if (p.loadout?.every((id) => CFG.weapons[id])) { ctx.loadout = p.loadout; home.setWeapon(p.loadout[0], finishFor(p.loadout[0])); }
   account.call('profile', { skin: ctx.skin, loadout: ctx.loadout }).catch(() => {});
   try { if (!localStorage.getItem(NAME_KEY)) localStorage.setItem(NAME_KEY, p.name); } catch { /* sin almacenamiento */ }
   renderHome();
@@ -741,7 +840,7 @@ $('prof-name').addEventListener('input', () => {
 $('prof-copy').addEventListener('click', async () => {
   const code = encodeBackup({
     name: localName(), coins: wallet.coins, owned: [...wallet.owned], earned: wallet.earned,
-    skin: ctx.skin, loadout: ctx.loadout, best: readBest(),
+    skin: ctx.skin, loadout: ctx.loadout, best: readBest(), finishes: ctx.finishes,
   });
   const box = $('prof-code');
   box.value = code;
@@ -776,9 +875,14 @@ $('prof-load').addEventListener('click', () => {
   if (d.loadout?.length === 2 && d.loadout.every((id) => CFG.weapons[id]) && d.loadout[0] !== d.loadout[1]) {
     ctx.loadout = d.loadout;
     try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(d.loadout)); } catch { /* sin almacenamiento */ }
-    home.setWeapon(d.loadout[0]);
+    home.setWeapon(d.loadout[0], finishFor(d.loadout[0]));
   }
   if (d.skin) applySkin(fitSkin(sanitizeSkin(d.skin)));
+  if (d.finishes) {
+    try { localStorage.setItem(FINISH_KEY, JSON.stringify(d.finishes)); } catch { /* sin almacenamiento */ }
+    ctx.finishes = readFinishes();
+    syncFinishes();
+  }
   $('prof-code').value = '';
   $('best').textContent = readBest().toLocaleString('es-ES');
   $('acc-msg').textContent = `¡Progreso recuperado! Bienvenido, ${d.name || 'Jugador'}.`;
@@ -1174,6 +1278,7 @@ function netTick(dt) {
 }
 
 function tick(dt) {
+  tickFinishes(performance.now() / 1000);
   // En multijugador la partida sigue aunque el jugador esté en pausa.
   const running = game.state === 'playing' || (game.state === 'paused' && game.mode !== 'sp');
   if (running) {

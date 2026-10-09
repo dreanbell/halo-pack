@@ -1,5 +1,5 @@
 // Código de respaldo del perfil local (sin servidor ni contraseña): nombre, créditos, desbloqueos, armadura,
-// armas y récord en un texto «RF1-…» que se copia y se pega en otro dispositivo o tras borrar el navegador.
+// armas, acabados de arma y récord en un texto «RF1-…» que se copia y se pega en otro dispositivo o tras borrar el navegador.
 // La suma de control solo detecta códigos mal copiados; no es una protección (el progreso local es editable).
 const PREFIX = 'RF1-';
 
@@ -14,7 +14,7 @@ const fromB64 = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/
 // data: { name, coins, owned[], earned, skin, loadout, best }
 export function encodeBackup(data) {
   const body = toB64(JSON.stringify({
-    n: data.name, c: data.coins, o: data.owned, e: data.earned, s: data.skin, l: data.loadout, b: data.best,
+    n: data.name, c: data.coins, o: data.owned, e: data.earned, s: data.skin, l: data.loadout, b: data.best, f: data.finishes,
   }));
   return `${PREFIX}${body}.${sum(body)}`;
 }
@@ -31,10 +31,11 @@ export function decodeBackup(text) {
   return {
     name: String(d.n ?? '').trim().slice(0, 16),
     coins: int(d.c),
-    owned: Array.isArray(d.o) ? d.o.map(String).filter((k) => /^[a-z]+:\d+$/.test(k)).slice(0, 200) : [],
+    owned: Array.isArray(d.o) ? d.o.map(String).filter((k) => /^[a-z]+:\d+$/.test(k)).slice(0, 600) : [],
     earned: int(d.e),
     skin: d.s && typeof d.s === 'object' ? d.s : null,
     loadout: Array.isArray(d.l) ? d.l.map(String).slice(0, 2) : null,
     best: int(d.b),
+    finishes: d.f && typeof d.f === 'object' ? d.f : null,
   };
 }

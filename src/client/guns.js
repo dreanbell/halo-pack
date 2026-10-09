@@ -900,7 +900,7 @@ function buildTemplate(id) {
   return tpl;
 }
 
-export function buildGun(id) {
+export function buildGun(id, finish = 0) {
   if (!BUILDERS[id] && !MODELS.has(id)) id = 'rifle';
   const tpl = buildTemplate(id);
   const group = tpl.group.clone();
@@ -912,9 +912,176 @@ export function buildGun(id) {
     if (OWN_MAT.includes(name)) o.traverse((c) => { if (c.isMesh) c.material = c.material.clone(); });
     parts[name] = o;
   }
+  if (finish) applyFinish(group, finish);
   return {
     group, parts, grips: tpl.grips, sight: new THREE.Vector3().fromArray(tpl.sight), eye: tpl.eye,
     muzzle: group.getObjectByName('muzzle'), eject: group.getObjectByName('eject'),
   };
 }
 
+
+// --- Acabados de arma (cajas de la tienda) -------------------------------------------------------------------
+// Repintan las piezas de carcasa (metal, polímero, pintura, madera, caparazón alienígena); miras, lentes,
+// brillos y empuñaduras de goma se quedan como están. El índice es el de FINISHES (src/shared/shop.js).
+const FIN_BASE = ['blk', 'park', 'steel', 'polyBlk', 'polyGrey', 'polyFde', 'od', 'tan', 'white', 'walnut', 'walnutDark', 'carbon', 'hull', 'alPurple', 'alTeal', 'alGreen', 'alBone'];
+// color · metal · rough · tex: dibujo (canvas) · glow: color de lo que brilla · emi: intensidad · gloss · anim
+const FIN_LOOK = {
+  1: { color: 0xe6ebf0, metal: 0.15, rough: 0.6 }, // ÁRTICO
+  2: { color: 0xc4a06a, metal: 0.1, rough: 0.7 }, // DESIERTO
+  3: { color: 0x4d6a39, metal: 0.1, rough: 0.65 }, // BOSQUE
+  4: { color: 0x5a6570, metal: 0.55, rough: 0.45 }, // PIZARRA
+  5: { tex: 'rust', metal: 0.4, rough: 0.85 }, // ÓXIDO
+  6: { tex: 'urban', metal: 0.15, rough: 0.6 }, // URBANO
+  7: { tex: 'jungle', metal: 0.1, rough: 0.65 }, // SELVA
+  8: { tex: 'tiger', metal: 0.2, rough: 0.5 }, // TIGRE
+  9: { tex: 'digital', metal: 0.15, rough: 0.55 }, // DIGITAL
+  10: { tex: 'neon', metal: 0.5, rough: 0.35, glow: 0x3ff2ff, emi: 2.2 }, // NEÓN
+  11: { tex: 'magma', metal: 0.2, rough: 0.8, glow: 0xff6a1a, emi: 2.6, anim: 'pulse' }, // MAGMA
+  12: { tex: 'ice', metal: 0.1, rough: 0.12, gloss: true }, // HIELO
+  13: { tex: 'carbonRed', metal: 0.45, rough: 0.35, gloss: true }, // CARBONO ROJO
+  14: { color: 0xffc23a, metal: 1, rough: 0.2, gloss: true }, // ORO
+  15: { color: 0xf4f6fa, metal: 1, rough: 0.04, gloss: true }, // CROMO
+  16: { tex: 'plasma', metal: 0.3, rough: 0.3, glow: 0xff4dff, emi: 2.4, anim: 'flow', gloss: true }, // PLASMA
+  17: { tex: 'dragon', metal: 0.6, rough: 0.35, glow: 0xffb020, emi: 1.8, anim: 'pulse', gloss: true }, // DRAGÓN
+};
+const FIN_TEX = new Map(), FIN_MATS = new Map(), FIN_ANIM = [];
+let finBase = null;
+
+// Dibujo del acabado: { map (color), emi (máscara de brillo) }. Enlosables (ruido periódico) a 256 px.
+function finishTex(kind) {
+  if (FIN_TEX.has(kind)) return FIN_TEX.get(kind);
+  const S = 256, N = S * S, r = mulberry32(kind.length * 7919 + kind.charCodeAt(0));
+  const col = new Uint8ClampedArray(N * 4), emi = new Float32Array(N);
+  let glows = false;
+  const hex = (h) => [(h >> 16) & 255, (h >> 8) & 255, h & 255];
+  const put = (i, c, k = 1) => { col[i * 4] = c[0] * k; col[i * 4 + 1] = c[1] * k; col[i * 4 + 2] = c[2] * k; col[i * 4 + 3] = 255; };
+  // Camuflaje por umbrales de ruido: paleta de oscuro a claro.
+  const camo = (cells, pal, cuts) => {
+    const f = fbm(S, r, cells, 3);
+    for (let i = 0; i < N; i++) { let k = 0; while (k < cuts.length && f[i] > cuts[k]) k++; put(i, hex(pal[k])); }
+  };
+  if (kind === 'rust') camo(4, [0x3b2418, 0x6d3a1c, 0x8f5428, 0x5a4a40], [0.42, 0.52, 0.6]);
+  else if (kind === 'urban') camo(3, [0x1d2024, 0x5d646c, 0x9aa1a8, 0xd6dade], [0.4, 0.5, 0.6]);
+  else if (kind === 'jungle') camo(3, [0x1f2a17, 0x3e5a28, 0x6a7a3a, 0x5a4026], [0.42, 0.52, 0.6]);
+  else if (kind === 'tiger') {
+    const f = fbm(S, r, 4, 3);
+    for (let i = 0; i < N; i++) {
+      const x = i % S, y = (i / S) | 0, w = Math.sin((x / S) * Math.PI * 2 * 5 + f[i] * 9 + (y / S) * Math.PI * 2);
+      put(i, w > 0.55 ? hex(0x14100c) : hex(0xe0761e), 0.85 + f[i] * 0.3);
+    }
+  } else if (kind === 'digital') {
+    const f = fbm(S, r, 3, 3), B = 8;
+    for (let i = 0; i < N; i++) {
+      const x = i % S, y = (i / S) | 0, v = f[((y / B | 0) * B) * S + (x / B | 0) * B];
+      put(i, hex(v > 0.6 ? 0xcfe2f2 : v > 0.5 ? 0x4f86c6 : v > 0.42 ? 0x23476e : 0x0f1d30));
+    }
+  } else if (kind === 'neon') {
+    glows = true;
+    for (let i = 0; i < N; i++) {
+      const x = i % S, y = (i / S) | 0, gx = Math.min(x % 64, 64 - (x % 64)), gy = Math.min(y % 64, 64 - (y % 64));
+      const line = Math.max(0, 1 - Math.min(gx, gy) / 3), diag = Math.max(0, 1 - Math.abs(((x + y) % 128) - 64) / 2.5) * ((y / 64 | 0) % 2);
+      const e = Math.min(1, line + diag);
+      emi[i] = e;
+      put(i, e > 0.1 ? [140, 245, 255] : [12, 16, 22], e > 0.1 ? e : 1);
+    }
+  } else if (kind === 'magma') {
+    glows = true;
+    const f = fbm(S, r, 5, 4);
+    for (let i = 0; i < N; i++) {
+      const crack = Math.max(0, 1 - Math.abs(f[i] - 0.5) * 22);
+      emi[i] = crack;
+      put(i, crack > 0.15 ? [255, 120 + crack * 100, 30] : [28 + f[i] * 30, 22 + f[i] * 16, 20]);
+    }
+  } else if (kind === 'ice') {
+    const f = fbm(S, r, 6, 4);
+    for (let i = 0; i < N; i++) {
+      const crack = Math.max(0, 1 - Math.abs(f[i] - 0.5) * 30);
+      put(i, [150 + crack * 100 + f[i] * 40, 205 + crack * 50, 240 + crack * 15]);
+    }
+  } else if (kind === 'carbonRed') {
+    for (let i = 0; i < N; i++) {
+      const x = i % S, y = (i / S) | 0, cx = (x / 16) | 0, cy = (y / 16) | 0, u = (x % 16) / 16, v = (y % 16) / 16;
+      const t = (cx + cy) % 2 ? Math.sin(u * Math.PI) : Math.sin(v * Math.PI);
+      put(i, (cx + cy) % 4 < 2 ? [150 * t + 30, 18, 22] : [30 * t + 12, 30 * t + 12, 34 * t + 14]);
+    }
+  } else if (kind === 'plasma') {
+    glows = true;
+    const f = fbm(S, r, 3, 4), g2 = fbm(S, r, 6, 2);
+    for (let i = 0; i < N; i++) {
+      const band = Math.max(0, 1 - Math.abs(Math.sin((f[i] * 6 + g2[i]) * Math.PI)) * 3.2);
+      emi[i] = band;
+      put(i, [40 + band * 215, 10 + band * 120, 70 + band * 185]);
+    }
+  } else if (kind === 'dragon') {
+    glows = true;
+    for (let i = 0; i < N; i++) {
+      const x = i % S, y = (i / S) | 0, row = (y / 32) | 0, sx = (x + (row % 2) * 16) % 32, sy = y % 32;
+      const d = Math.hypot(sx - 16, sy) / 22; // escamas: arcos solapados
+      const edge = Math.max(0, 1 - Math.abs(d - 0.92) * 14);
+      emi[i] = edge;
+      put(i, edge > 0.2 ? [255, 190, 70] : [90 - d * 50, 14, 18]);
+    }
+  }
+  const mk = (data) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = S;
+    c.getContext('2d').putImageData(new ImageData(data, S, S), 0, 0);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = 8;
+    return t;
+  };
+  const map = mk(col);
+  map.colorSpace = THREE.SRGBColorSpace;
+  let emiTex = null;
+  if (glows) {
+    const e = new Uint8ClampedArray(N * 4);
+    for (let i = 0; i < N; i++) { e[i * 4] = e[i * 4 + 1] = e[i * 4 + 2] = emi[i] * 255; e[i * 4 + 3] = 255; }
+    emiTex = mk(e);
+  }
+  const out = { map, emi: emiTex };
+  FIN_TEX.set(kind, out);
+  return out;
+}
+
+function finishMat(base, f) {
+  const key = `${base.uuid}|${f}`;
+  if (FIN_MATS.has(key)) return FIN_MATS.get(key);
+  const L = FIN_LOOK[f], m = base.clone();
+  if (L.tex) {
+    const t = finishTex(L.tex);
+    m.map = t.map;
+    m.color.set(0xffffff);
+    if (t.emi) { m.emissive.set(L.glow); m.emissiveMap = t.emi; m.emissiveIntensity = L.emi; }
+  } else m.color.set(L.color);
+  if (!L.glow) { m.emissive.set(0x000000); m.emissiveMap = null; m.emissiveIntensity = 0; }
+  m.metalness = L.metal;
+  m.roughness = L.rough;
+  if (m.isMeshPhysicalMaterial) { m.iridescence = 0; m.clearcoat = L.gloss ? 0.8 : 0; }
+  if (L.gloss) m.bumpScale = (m.bumpScale ?? 1) * 0.35; // acabados pulidos: menos relieve
+  if (L.anim) FIN_ANIM.push({ m, kind: L.anim, base: L.emi });
+  m.needsUpdate = true;
+  FIN_MATS.set(key, m);
+  return m;
+}
+
+// Pone el acabado f (0 = de fábrica) en un arma ya construida.
+export function applyFinish(group, f = 0) {
+  finBase ??= new Set(FIN_BASE.map((k) => mats()[k]));
+  if (f && !FIN_LOOK[f]) f = 0;
+  group.traverse((o) => {
+    if (!o.isMesh) return;
+    const orig = o.userData.baseMat ?? o.material;
+    if (!finBase.has(orig)) return;
+    o.userData.baseMat = orig;
+    o.material = f ? finishMat(orig, f) : orig;
+  });
+}
+
+// Acabados animados (magma y dragón laten; el plasma fluye).
+export function tickFinishes(t) {
+  for (const a of FIN_ANIM) {
+    if (a.kind === 'pulse') a.m.emissiveIntensity = a.base * (0.7 + 0.3 * Math.sin(t * 2.2));
+    else if (a.m.emissiveMap) { a.m.emissiveMap.offset.set(t * 0.06, t * 0.025); a.m.map.offset.copy(a.m.emissiveMap.offset); }
+  }
+}

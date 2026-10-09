@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import { Avatar } from './avatar.js';
 import { studio } from './gunview.js';
 import { requestPlayerModel } from './playermodels.js';
+import { buildGun } from './guns.js';
+import { finishOf } from '../shared/shop.js';
 
 // Miniaturas 3D de la tienda: el artículo puesto en un soldado con tus colores.
-// Modelos: cuerpo entero · cascos: primer plano de la cabeza · patrones: torso. Se generan en segundo plano
+// Modelos: cuerpo entero · cascos: primer plano de la cabeza · patrones: torso · acabados: el arma de perfil. Se generan en segundo plano
 // (una por turno, con un renderer temporal que se libera al acabar) y se guardan por artículo + colores.
 const SIZE = 192;
 const cache = new Map(); // clave → dataURL
@@ -12,17 +14,19 @@ const waiting = new Map(); // clave → [callbacks]
 const queue = [];
 let r = null, scene = null, cam = null, idleT = null, busy = false;
 
-const keyOf = (kind, i, skin) => `${kind}|${i}|${skin.p}|${skin.s}|${skin.v}${kind === 'm' ? `|${skin.h}|${skin.t}` : ''}`;
+const keyOf = (kind, i, skin) => (kind === 'w' ? `w|${i}` : `${kind}|${i}|${skin.p}|${skin.s}|${skin.v}${kind === 'm' ? `|${skin.h}|${skin.t}` : ''}`);
 
 // Pide la miniatura; cb(url) se llama al tenerla (al momento si ya estaba hecha).
-export function shopThumb(kind, i, skin, cb) {
+export function shopThumb(kind, i, skin, cb, prio = false) {
   const key = keyOf(kind, i, skin);
   if (cache.has(key)) { cb(cache.get(key)); return; }
   if (waiting.has(key)) { waiting.get(key).push(cb); return; }
   waiting.set(key, [cb]);
   // Cascos y patrones sobre el soldado clásico (son piezas suyas); los modelos, con su propio cuerpo.
   const look = kind === 'm' ? { ...skin, m: i } : { ...skin, m: 0, [kind]: i };
-  queue.push({ key, kind, skin: look });
+  // prio: va delante (p. ej. el premio de una caja, que tiene que estar listo al pararse la ruleta).
+  const job = { key, kind, i, skin: kind === 'w' ? { m: 0 } : look };
+  if (prio) queue.unshift(job); else queue.push(job);
   pump();
 }
 
@@ -75,8 +79,9 @@ function pump() {
 }
 
 const _b = new THREE.Box3(), _c = new THREE.Vector3(), _s = new THREE.Vector3(), _h = new THREE.Vector3();
-function render({ kind, skin }) {
+function render({ kind, i, skin }) {
   if (!setup()) return '';
+  if (kind === 'w') return renderGun(i);
   const a = new Avatar(skin);
   a.root.rotation.y = Math.PI - 0.45; // tres cuartos, mirando a la cámara
   scene.add(a.root);
@@ -104,5 +109,26 @@ function render({ kind, skin }) {
   r.render(scene, cam);
   const url = r.domElement.toDataURL('image/png');
   a.dispose();
+  return url;
+}
+
+// Arma con su acabado, de perfil (cañón a la derecha) y algo picada.
+function renderGun(i) {
+  const { gun, f } = finishOf(i);
+  const g = buildGun(gun, f).group, holder = new THREE.Group();
+  holder.add(g);
+  holder.rotation.set(0.12, -Math.PI / 2 + 0.25, 0);
+  scene.add(holder);
+  holder.updateMatrixWorld(true);
+  _b.setFromObject(holder, true);
+  _b.getCenter(_c);
+  _b.getSize(_s);
+  const half = Math.max(_s.x, _s.y, _s.z * 0.6) * 0.6;
+  const dist = half / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+  cam.position.set(_c.x, _c.y + dist * 0.12, _c.z + dist);
+  cam.lookAt(_c);
+  r.render(scene, cam);
+  const url = r.domElement.toDataURL('image/png');
+  scene.remove(holder);
   return url;
 }

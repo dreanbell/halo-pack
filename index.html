@@ -174,6 +174,10 @@
         <div class="shop-balance"><span>CRÉDITOS</span><b>◈ <span id="shop-coins">0</span></b></div>
         <p class="tip">Gana créditos jugando: bajas, oleadas superadas y puntuación (en todos contra todos, bajas y victorias). Los colores y el visor son gratis.</p>
         <p class="tip shop-msg" id="shop-msg"></p>
+        <h4 class="shop-kind">CAJAS</h4>
+        <div id="shop-cases" class="case-grid"></div>
+        <h4 class="shop-kind">TUS ACABADOS DE ARMA</h4>
+        <div id="shop-inv"></div>
         <div id="shop-grid"></div>
       </section>
       <section data-panel="account" hidden>
@@ -244,6 +248,23 @@
       <button id="btn-start" class="cta">▶ JUGAR</button>
     </div>
     <div class="home-hint"><span class="desktop-only">Arrastra para girar · rueda para acercar</span><span class="touch-only">Arrastra para girar · pellizca para acercar</span></div>
+  </div>
+
+  <div id="case-open" class="overlay hidden">
+    <div class="case-box">
+      <h2 id="case-title">CAJA</h2>
+      <div class="reel" id="reel"><div class="reel-strip" id="reel-strip"></div><i class="reel-mark"></i></div>
+      <div class="case-result" id="case-result" hidden>
+        <span class="thumb" id="case-thumb"></span>
+        <div><small id="case-rarity"></small><b id="case-name"></b><p id="case-note"></p></div>
+      </div>
+      <div class="row-buttons">
+        <button id="case-skip" class="secondary">SALTAR</button>
+        <button id="case-equip" hidden>EQUIPAR</button>
+        <button id="case-again" class="secondary" hidden>ABRIR OTRA</button>
+        <button id="case-close" class="secondary" hidden>CERRAR</button>
+      </div>
+    </div>
   </div>
 
   <div id="pause" class="overlay hidden">
@@ -369,6 +390,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/client/main.js?v=1.27.0"></script>
+  <script type="module" src="src/client/main.js?v=1.28.0"></script>
 </body>
 </html>

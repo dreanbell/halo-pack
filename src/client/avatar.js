@@ -37,7 +37,7 @@ function finishTexture(c, repeat) {
 }
 
 function armorTexture(skin) {
-  const key = `${skin.p}|${skin.s}|${skin.t}`;
+  const key = `${skin.p}|${skin.s}|${skin.t}${skin.t === 8 ? `|${skin.v}` : ''}`;
   if (texCache.has(key)) return texCache.get(key);
   const S = 512;
   const [c, g] = canvas(S);
@@ -116,6 +116,36 @@ function armorTexture(skin) {
       g.stroke();
       g.beginPath(); g.arc(x, y, 7, 0, TAU); g.fill();
     }
+  } else if (skin.t === 8) { // neón: fondo oscuro con rejilla y trazos luminosos (brillan: emissiveMap)
+    g.fillStyle = '#05080c';
+    g.fillRect(0, 0, S, S);
+    g.strokeStyle = shade(skin.v, 0.1);
+    g.shadowColor = skin.v;
+    g.shadowBlur = 10;
+    g.lineWidth = 3;
+    for (let p = 0; p < S; p += 64) {
+      g.beginPath(); g.moveTo(p, 0); g.lineTo(p, S); g.stroke();
+      g.beginPath(); g.moveTo(0, p); g.lineTo(S, p); g.stroke();
+    }
+    g.lineWidth = 5;
+    for (let i = 0; i < 14; i++) {
+      const x = Math.floor(Math.random() * 8) * 64, y = Math.floor(Math.random() * 8) * 64;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + 64, y + 64); g.stroke();
+    }
+    g.shadowBlur = 0;
+  } else if (skin.t === 9) { // oro: dorado con grabado de volutas
+    const grd = g.createLinearGradient(0, 0, S, S);
+    grd.addColorStop(0, '#b8862b'); grd.addColorStop(0.5, '#f3cf6a'); grd.addColorStop(1, '#a8761f');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, S, S);
+    g.strokeStyle = 'rgba(90,55,10,0.45)';
+    g.lineWidth = 2.5;
+    for (let i = 0; i < 26; i++) {
+      const x = Math.random() * S, y = Math.random() * S, rr = 14 + Math.random() * 26;
+      g.beginPath();
+      for (let a = 0; a < TAU * 1.6; a += 0.2) g.lineTo(x + Math.cos(a) * rr * (a / 10), y + Math.sin(a) * rr * (a / 10));
+      g.stroke();
+    }
   }
   // Ruido de fabricación.
   const img = g.getImageData(0, 0, S, S);
@@ -180,6 +210,9 @@ export function skinMaterials(skinIn) {
     glow: new THREE.MeshBasicMaterial({ color: visorCol.clone().multiplyScalar(1.15) }),
     gun: new THREE.MeshStandardMaterial({ color: 0x2b3036, metalness: 0.75, roughness: 0.32 }),
   };
+  // Patrones de caja: ORO metálico y pulido; NEÓN con líneas que brillan.
+  if (skin.t === 9) Object.assign(m.armor, { metalness: 0.95, roughness: 0.22 });
+  if (skin.t === 8) Object.assign(m.armor, { emissive: new THREE.Color(0xffffff), emissiveMap: m.armor.map, emissiveIntensity: 0.55 });
   matCache.set(key, m);
   return m;
 }
@@ -404,11 +437,12 @@ export class Avatar {
   }
 
   // Cambia el arma que lleva en las manos (las manos se recolocan por IK en sus empuñaduras).
-  setWeapon(id) {
-    if (this.weaponId === id) return;
+  setWeapon(id, finish = 0) {
+    if (this.weaponId === id && this.finish === finish) return;
     this.weaponId = id;
+    this.finish = finish;
     this.gun.clear();
-    const model = buildGun(id);
+    const model = buildGun(id, finish);
     this.gun.add(model.group);
     this.grips = model.grips;
   }

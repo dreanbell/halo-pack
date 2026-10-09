@@ -30,7 +30,22 @@ terminar cada partida (o al salir a mitad, por lo conseguido):
 |---|---|
 | Modelos | Clásico gratis · Federal y Militar 400 · Comando y Comando F 500 · Renegado 600 · Mono, Pato y Rana 750 · Exotrooper 900 · Dados 1 000 · Chica gancho 1 200 |
 | Cascos | Centinela gratis · Halcón y Bastión 300 · Espectro 450 · Corsario 550 |
-| Patrones | Liso gratis · Camuflaje 150 · Rayas 200 · Hexágonos 250 · Digital 300 · Tigre 350 · Carbono 400 · Circuito 500 |
+| Patrones | Liso gratis · Camuflaje 150 · Rayas 200 · Hexágonos 250 · Digital 300 · Tigre 350 · Carbono 400 · Circuito 500 · Neón y Oro solo en cajas |
+
+**Cajas** (tienda): ruleta de objetos que frena y se para en el premio. El premio se sortea antes de girar (en el
+navegador, o en el servidor si hay cuenta); la ruleta solo lo enseña. Repetido = créditos (◈ 25 / 60 / 150 / 400).
+
+| Caja | Precio | Común | Raro | Épico | Legendario |
+|---|---|---|---|---|---|
+| Básica | 100 | 70 % | 22 % | 6 % | 2 % |
+| Rara | 250 | 40 % | 40 % | 15 % | 5 % |
+| Épica | 500 | 10 % | 45 % | 35 % | 10 % |
+| Legendaria | 1 000 | — | 25 % | 50 % | 25 % |
+
+Dentro de cada rareza: 70 % acabado de arma (las 13 armas × 17 acabados) y 30 % pieza de armadura de esa rareza
+(modelos, cascos y patrones; Neón y Oro solo salen aquí). Acabados: comunes Ártico, Desierto, Bosque, Pizarra, Óxido ·
+raros Urbano, Selva, Tigre, Digital · épicos Neón, Magma, Hielo, Carbono rojo · legendarios Oro, Cromo, Plasma
+(animado), Dragón. Se equipan en TIENDA → TUS ACABADOS DE ARMA (solo visual; los demás jugadores ven el de fábrica).
 
 Cada artículo de la tienda muestra una miniatura 3D con tus colores (modelos de cuerpo entero, cascos en primer
 plano de la cabeza, patrones en el pecho), generada en segundo plano (`src/client/shopview.js`).
@@ -338,6 +353,7 @@ src/client/              El juego (navegador)
   world.js · maps.js     Kit de construcción procedural y colisiones · los mapas
   quality.js             Calidad gráfica (AUTO/ALTA/MEDIA/BAJA) y resolución dinámica por FPS
   settings.js · settingsui.js   Ajustes del jugador (esquema, guardado) y su pantalla
+  shopview.js · cases.js · profile.js   Miniaturas de la tienda · cajas (ruleta) · código de respaldo
   hud.js · effects.js · audio.js · spectator.js · touch.js · drop.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)

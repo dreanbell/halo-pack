@@ -4,12 +4,12 @@
 // - Datos en un JSON (por defecto data/accounts.json; RINGFALL_DATA para otra carpeta), escrito de forma atómica.
 // API (JSON, CORS abierto para que el juego publicado en otra web pueda usarla), bajo /api/account/:
 //   POST register {name, password, local?} · POST login {name, password} · POST logout · GET me
-//   POST buy {kind, i} · POST reward {mode, kills, wave, score, won, time} · POST profile {skin?, loadout?}
+//   POST buy {kind, i} · POST open {c} (caja) · POST reward {mode, kills, wave, score, won, time} · POST profile {skin?, loadout?}
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { sanitizeSkin } from '../src/shared/skins.js';
-import { START_COINS, PRICES, itemPrice, matchReward } from '../src/shared/shop.js';
+import { START_COINS, PRICES, itemPrice, matchReward, CASES, rollCase, DUP_REFUND } from '../src/shared/shop.js';
 
 const SESSION_DAYS = 30;
 const REWARD_GAP = 25 * 1000; // entre dos partidas cobradas
@@ -125,6 +125,7 @@ export function createAccounts(dir, log = () => {}) {
     async buy(req, body, ip, u) {
       const kind = String(body.kind), i = Number(body.i), price = itemPrice(kind, i);
       if (price === null || !PRICES[kind]) return [400, { error: 'Artículo desconocido.' }];
+      if (price < 0) return [400, { error: 'Ese artículo solo sale en cajas.' }];
       if (!owns(u, kind, i)) {
         if (u.coins < price) return [402, { error: 'Créditos insuficientes.', profile: profile(u) }];
         u.coins -= price;
@@ -132,6 +133,19 @@ export function createAccounts(dir, log = () => {}) {
         save();
       }
       return [200, { profile: profile(u) }];
+    },
+
+    // Caja: el servidor cobra y sortea (aleatorio criptográfico). Repetido → créditos.
+    async open(req, body, ip, u) {
+      const c = Number(body.c), box = CASES[c];
+      if (!Number.isInteger(c) || !box) return [400, { error: 'Caja desconocida.' }];
+      if (u.coins < box.price) return [402, { error: 'Créditos insuficientes.', profile: profile(u) }];
+      u.coins -= box.price;
+      const it = rollCase(c, () => crypto.randomInt(0, 2 ** 32) / 2 ** 32), key = `${it.kind}:${it.i}`;
+      const dup = u.owned.includes(key), refund = dup ? DUP_REFUND[it.r] : 0;
+      if (dup) u.coins += refund; else u.owned.push(key);
+      save();
+      return [200, { result: { ...it, dup, refund }, profile: profile(u) }];
     },
 
     async reward(req, body, ip, u) {

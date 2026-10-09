@@ -635,3 +635,83 @@ body.touch #menu.home .home-panel { backdrop-filter: none; background: rgba(5, 1
   padding: 3px 6px; background: rgba(0, 0, 0, 0.45); pointer-events: none; font-variant-numeric: tabular-nums;
 }
 #fps-meter[hidden] { display: none; }
+
+/* --- Cajas (tienda) --- */
+.shop-card[style*="--rc"] { border-bottom: 3px solid var(--rc); }
+.shop-card.gun .thumb { aspect-ratio: 16 / 10; }
+.shop-card small.fin { color: var(--rc, #e9fbff); letter-spacing: 0.1em; }
+.case-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.case-card {
+  margin: 0; padding: 10px 8px; text-align: center; border-color: color-mix(in srgb, var(--rc) 55%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 14%, transparent), rgba(0, 0, 0, 0.25));
+}
+.case-card:hover { box-shadow: 0 0 18px color-mix(in srgb, var(--rc) 45%, transparent); }
+.case-card b { display: block; font-size: 13px; letter-spacing: 0.1em; color: #fff; margin-top: 6px; }
+.case-card small { display: block; font-size: 11px; letter-spacing: 0.15em; color: #ffd27a; margin-top: 4px; }
+.case-card.poor small { color: #ff7a7a; }
+.case-odds { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 8px; margin-top: 4px; font-size: 10px; letter-spacing: 0.05em; }
+.case-odds i { font-style: normal; }
+/* Caja dibujada: tapa, cuerpo con franjas y emblema, brillo de su rareza. */
+.case-art {
+  position: relative; display: block; width: 74%; aspect-ratio: 1.35; margin: 4px auto 0; border-radius: 4px;
+  background: linear-gradient(180deg, #2b3440 0 26%, #11161c 26% 30%, #232c36 30%), #232c36;
+  border: 2px solid var(--rc); box-shadow: 0 0 16px color-mix(in srgb, var(--rc) 40%, transparent), inset 0 -8px 16px rgba(0, 0, 0, 0.5);
+  transition: transform 0.2s;
+}
+.case-art::before { content: ''; position: absolute; left: 0; right: 0; top: 46%; height: 16%; background: repeating-linear-gradient(-45deg, var(--rc) 0 6px, transparent 6px 12px); opacity: 0.55; }
+.case-art::after {
+  content: '◈'; position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%); font-size: 22px; color: #fff;
+  text-shadow: 0 0 10px var(--rc), 0 0 2px var(--rc);
+}
+.case-card:hover .case-art { transform: translateY(-3px) rotate(-2deg); }
+.case-art.c3 { animation: case-shine 2.4s ease-in-out infinite; }
+@keyframes case-shine { 50% { box-shadow: 0 0 28px var(--rc), inset 0 -8px 16px rgba(0, 0, 0, 0.5); } }
+
+#case-open { z-index: 30; align-items: center; background: radial-gradient(ellipse at center, rgba(8, 16, 26, 0.92), rgba(0, 0, 0, 0.97)); }
+.case-box { width: min(980px, 100%); text-align: center; }
+.case-box h2 { font-size: clamp(22px, 4vw, 36px); letter-spacing: 0.3em; color: #e9fbff; margin: 0 0 18px; }
+.reel {
+  position: relative; height: 196px; overflow: hidden; border-top: 2px solid var(--hud-dim); border-bottom: 2px solid var(--hud-dim);
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.85), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.85)), rgba(10, 20, 30, 0.7);
+}
+.reel-strip { display: flex; gap: 8px; height: 100%; padding: 12px 0; box-sizing: border-box; will-change: transform; }
+.reel-strip.fast .rc { filter: blur(1.2px); }
+.rc {
+  flex: none; width: 140px; display: flex; flex-direction: column; justify-content: space-between; padding: 6px; box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), color-mix(in srgb, var(--rc) 22%, transparent));
+  border-bottom: 4px solid var(--rc); transition: transform 0.3s, box-shadow 0.3s;
+}
+.rc .thumb { flex: 1; background: center / contain no-repeat; position: relative; }
+.rc .thumb.loading::after { content: ''; position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px; border: 2px solid var(--hud-dim); border-top-color: var(--hud); border-radius: 50%; animation: shop-spin 0.8s linear infinite; }
+.rc b { font-size: 11px; letter-spacing: 0.04em; color: #e9fbff; line-height: 1.2; min-height: 2.4em; }
+.reel-mark { position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: #ffd27a; box-shadow: 0 0 12px #ffd27a; z-index: 2; }
+.reel-mark::before, .reel-mark::after { content: ''; position: absolute; left: 50%; margin-left: -8px; border: 8px solid transparent; }
+.reel-mark::before { top: 0; border-top-color: #ffd27a; }
+.reel-mark::after { bottom: 0; border-bottom-color: #ffd27a; }
+#case-open.done .rc:not(.win) { opacity: 0.35; transition: opacity 0.4s; }
+.rc.win { transform: scale(1.12); box-shadow: 0 0 30px var(--rc), inset 0 0 20px color-mix(in srgb, var(--rc) 35%, transparent); z-index: 1; }
+#case-open.done .reel { animation: case-flash 0.9s ease-out; }
+@keyframes case-flash { 0% { box-shadow: 0 0 0 0 var(--rc); background-color: color-mix(in srgb, var(--rc) 60%, transparent); } 100% { box-shadow: 0 0 60px -10px var(--rc); } }
+#case-open.r3.done .case-box h2 { animation: case-gold 1.2s ease-in-out infinite; color: var(--rc); }
+@keyframes case-gold { 50% { text-shadow: 0 0 24px var(--rc); } }
+.case-result { display: flex; gap: 18px; align-items: center; justify-content: center; margin: 18px auto 4px; text-align: left; animation: case-pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1); }
+.case-result .thumb { width: 150px; height: 120px; background: center / contain no-repeat; filter: drop-shadow(0 0 14px var(--rc)); }
+.case-result small { display: block; font-size: 14px; letter-spacing: 0.3em; color: var(--rc); font-weight: 700; }
+.case-result b { display: block; font-size: clamp(18px, 3vw, 26px); letter-spacing: 0.1em; color: #fff; }
+.case-result p { margin: 6px 0 0; color: #cfeff8; font-size: 14px; }
+@keyframes case-pop { from { transform: scale(0.6); opacity: 0; } }
+.case-box .row-buttons button { font-size: 15px; padding: 9px 18px; margin-top: 14px; }
+@media (max-width: 680px), (max-height: 460px) {
+  .reel { height: 150px; }
+  .rc { width: 140px; }
+  .case-result .thumb { width: 100px; height: 80px; }
+  .case-box h2 { margin-bottom: 10px; }
+}
+#case-open.prep .reel-strip { opacity: 0; }
+#case-open .reel-strip { transition: opacity 0.25s; }
+#case-open.prep .reel::after {
+  content: 'ABRIENDO…'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 14px; letter-spacing: 0.4em;
+  color: #e9fbff; padding: 64px 30px 0; background: center 0 / 120px 54px no-repeat linear-gradient(180deg, #2b3440 0 26%, #11161c 26% 30%, #232c36 30%);
+  animation: case-shake 0.12s linear infinite;
+}
+@keyframes case-shake { 25% { transform: translate(-51%, -50%) rotate(-1deg); } 75% { transform: translate(-49%, -50%) rotate(1deg); } }

@@ -5,7 +5,7 @@ import { v3 } from './net.js';
 import { skinMaterials, Avatar } from './avatar.js';
 import { hasPlayerModel, requestPlayerModel } from './playermodels.js';
 import { DEFAULT_SKIN } from '../shared/skins.js';
-import { buildGun, GUN_INFO } from './guns.js';
+import { buildGun, applyFinish, GUN_INFO } from './guns.js';
 import { Spring, damp } from './feel.js';
 import { S } from './settings.js';
 
@@ -256,9 +256,15 @@ export class Arsenal {
     return out;
   }
 
+  // Acabados de arma equipados (cajas de la tienda): { id: acabado }.
+  setFinishes(map) {
+    this.finishes = map;
+    for (const [id, g] of this.models) applyFinish(g.group, map[id] ?? 0);
+  }
+
   model(id) {
     if (this.models.has(id)) return this.models.get(id);
-    const gun = buildGun(id);
+    const gun = buildGun(id, this.finishes?.[id] ?? 0);
     const pistolLike = id === 'pistol';
     this.arm(gun.group, gun.grips.r, [0.32, 0.42, 0], 1);
     this.arm(gun.group, gun.grips.l, pistolLike ? [0.45, -0.45, 0.15] : [0.62, -0.42, 0], -1);
