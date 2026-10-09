@@ -5,27 +5,32 @@ Todos los modelos de esta carpeta proceden de **OpenGameArt.org** y están publi
 La licencia se comprobó en la página de cada recurso (campo «License(s): CC0») el 2026-10-09.
 CC0 no exige atribución; se mantiene igualmente como cortesía y trazabilidad.
 
-Conversión: los originales (.blend / .obj / .fbx / .glb) se exportaron a `.glb` con Blender 4.0.2
-(exportador glTF oficial, animaciones incluidas). No se modificó la geometría.
+| Archivo | Recurso original | Autor (OpenGameArt) | Página | Formato original | Usado para |
+|---|---|---|---|---|---|
+| `giant-mutant.glb` | Giant Mutant | Eldritch Grim | https://opengameart.org/content/giant-mutant | .glb (78 704 triángulos; animaciones Death, Giant Run, idle, Jump Slam, Left/Right Punch) | Ravager («Mutante de Carne») y Warlord |
+| `horror-run.glb` | 3D Horror Game Monster | HorrorGameMaker.com (publicado como «City Building Game Art») | https://opengameart.org/content/3d-horror-game-monster | .fbx (Run.fbx) + texturas Unity aparte | Warden, Skitter y Stalker |
+| `darsh.glb` | Darsh (Undead Creature) | Eldritch Grim | https://opengameart.org/content/darsh-undead-creature | .glb (animación Idle) | Bombardier |
+| `angler.glb` | 3D Angler Man | DREAM_SEARCH_REPEAT | https://opengameart.org/content/3d-angler-man | .blend (sin animación) | Drone y Overseer |
 
-| Archivo | Recurso original | Autor (OpenGameArt) | Página | Formato original | Triángulos | Animaciones |
-|---|---|---|---|---|---|---|
-| `darsh.glb` | Darsh (Undead Creature) | Eldritch Grim | https://opengameart.org/content/darsh-undead-creature | .glb | 17 818 | Idle |
-| `giant-mutant.glb` | Giant Mutant | Eldritch Grim | https://opengameart.org/content/giant-mutant | .glb | 78 704 | Death, Giant Run, idle, Jump Slam, Left Punch, Right Punch |
-| `fatty.glb` | Fatty | Drummyfish | https://opengameart.org/content/fatty | .obj (+ texturas) | 22 304 | — |
-| `glutton.glb` | Glutton Demon | Teh_Bucket | https://opengameart.org/content/glutton-demon | .blend | 8 556 | glutton_Walk |
-| `angler.glb` | 3D Angler Man | DREAM_SEARCH_REPEAT | https://opengameart.org/content/3d-angler-man | .blend | 9 524 | — |
-| `alien-bug.glb` | Alien Bug Animated | CDmir | https://opengameart.org/content/alien-bug-animated | .glb | 1 240 | Attack.000, Attack.001, Idle, Run |
-| `horror-run.glb` (+ `horror-run_albedo.png`, `horror-run_normal.png`) | 3D Horror Game Monster | HorrorGameMaker.com («City Building Game Art») | https://opengameart.org/content/3d-horror-game-monster | .fbx (Run.fbx) + texturas Unity | 3 584 | Run |
+## Cambios respecto a los originales
 
-Notas:
-- `horror-run`: las texturas venían aparte (Unity); se reescalaron de 2048 a 1024 px. Su README dice:
-  «Credit "HorrorGameMaker.com", this is not mandatory.»
-- `glutton.glb`: su material original es de tipo «toon» y no se exporta a glTF; queda sin textura
-  (habrá que asignarle material de carne en el juego).
-- Descartados: «Octaminator» (las texturas referencian un diseño de un tercero, raymoohawk),
-  «Mutant Grunt» (texturas ausentes), «Wolf Mutant» (estilo vóxel), «Forest Monster» y
-  «Hydrach» (no encajan / formato .rar/.7z).
+Convertidos con Blender 4.0.2 (exportador glTF oficial):
+- Se eliminaron objetos auxiliares (esferas de forma de hueso, luces, armaduras/curvas de control sobrantes).
+- `giant-mutant`: geometría reducida al 25 % aprox. (Decimate, ~19 700 triángulos).
+- `darsh`: geometría reducida al 50 % (~8 900 triángulos).
+- `angler`: geometría reducida al 70 % (~6 700 triángulos).
+- `horror-run`: solo la armadura del personaje y su animación Run; texturas (albedo y normales) incrustadas
+  y reescaladas a 1024 px. Su README dice: «Credit "HorrorGameMaker.com", this is not mandatory.»
 
-Cargador: `vendor/three/addons/` contiene `GLTFLoader.js`, `BufferGeometryUtils.js` y
-`SkeletonUtils.js` de three.js r160 (licencia MIT, misma que `vendor/three/LICENSE`).
+En el juego (`src/monsters.js`) se les aplica un material de carne, animación procedural y añadidos
+geométricos propios (boca, dientes, ojos, tentáculos, tumores, hueso). Esos añadidos son originales de este proyecto.
+
+## Descartados durante la búsqueda
+
+«Alien Bug Animated», «Glutton Demon» y «Fatty» (también CC0) no encajaban con las hitboxes o con su animación;
+«Octaminator» se descartó porque sus texturas referencian el diseño de un tercero (raymoohawk).
+
+## Código de terceros
+
+`vendor/three/addons/` contiene `GLTFLoader.js`, `BufferGeometryUtils.js` y `SkeletonUtils.js` de three.js r160
+(paquete npm `three@0.160.0`), licencia MIT, la misma que `vendor/three/LICENSE`.

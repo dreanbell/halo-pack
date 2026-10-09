@@ -18,6 +18,7 @@ import { Spectator } from './spectator.js';
 import { DEFAULT_SKIN, sanitizeSkin } from './skins.js';
 import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from './rules.js';
 import { renderRules } from './setup.js';
+import { loadMonsters } from './monsters.js';
 
 const BEST_KEY = 'ringfall.best';
 const NAME_KEY = 'ringfall.name';
@@ -68,6 +69,8 @@ function readMap() {
 }
 ctx.spMap = readMap();
 loadMap(ctx.spMap);
+// Modelos de criaturas (si tardan, los primeros enemigos usan el modelo procedural).
+const monstersReady = loadMonsters();
 ctx.fx = new Effects(scene);
 ctx.net = new Net();
 ctx.remotes = new RemotePlayers(ctx);
@@ -739,4 +742,4 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // Acceso para depuración y pruebas automatizadas.
-window.__ringfall = { ctx, newGame, tick, armory, loadMap, startSession };
+window.__ringfall = { ctx, newGame, tick, armory, loadMap, startSession, monstersReady };

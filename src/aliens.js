@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CFG } from './config.js';
 import { plate } from './avatar.js';
+import { attachMonster } from './monsters.js';
 
 // Modelos procedurales de los alienígenas (miran a +Z). Cada constructor devuelve un "rig":
 // { root, hitMeshes, muzzle, bodyMat, shieldMat?, legs[], arms[], head, torso, extras } y animate() lo mueve.
@@ -185,9 +186,11 @@ class Rig {
       this.glowMat.opacity = 0.35 + s.cloak * 0.65;
       this.glowMat.transparent = true;
     }
+    this.monster?.update(dt, s);
   }
 
   dispose() {
+    this.monster?.dispose();
     this.root.parent?.remove(this.root);
     for (const m of this.mats) m.dispose();
   }
@@ -383,5 +386,7 @@ export function buildAlien(type) {
   BUILD[type].call(rig, rig);
   rig.root.scale.setScalar(rig.cfg.scale);
   rig.root.traverse((o) => { if (o.isMesh && o.userData.part) o.castShadow = true; });
+  // Si el modelo de criatura está cargado, sustituye la apariencia (el rig sigue como esqueleto de hitboxes).
+  rig.monster = attachMonster(rig, type);
   return rig;
 }

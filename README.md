@@ -96,6 +96,18 @@ Todo es procedural (sin imágenes externas): paneles de aleación con vetas lumi
 | **WARLORD** (jefe) | Oleadas 5, 15, 25… | Abanico de plasma, salto con onda expansiva, embestida con aviso, refuerzos al 50 % y 25 %, furia en la 2.ª fase |
 | **OVERSEER** (jefe) | Oleadas 10, 20… | Vuela; lluvia de orbes explosivos, bombardeo de morteros, picados con onda expansiva y drones de refuerzo |
 
+**Aspecto:** criaturas de terror orgánico (carne expuesta, bocas verticales con dientes, varios ojos, tentáculos, tumores, placas de hueso). Usan modelos 3D **CC0** de OpenGameArt (`vendor/assets/monsters/`, procedencia en `ATTRIBUTION.md`) con material de carne y añadidos procedurales anclados a sus huesos (`src/monsters.js`). Solo cambia la apariencia: vida, daño, IA, hitboxes y red son los mismos; la hitbox de la cabeza sigue a la cabeza del modelo.
+
+| Enemigo | Criatura |
+|---|---|
+| Ravager | **Mutante de Carne**: encorvado, cabeza hundida en el pecho, boca vertical con lengua colgante, 6 ojos, tentáculos en espalda y cuello, brazo derecho hipertrofiado |
+| Warden | Soldado parasitado: restos de armadura cubiertos de tejido y tumores |
+| Skitter | Corredor despellejado con mandíbula abierta y espinas |
+| Stalker | Alargado y delgado, cresta de hueso, racimo de ojos y tentáculos sobre los hombros |
+| Bombardier | Masa jorobada con sacos de ácido y una cabeza-boca sobre un tallo |
+| Drone / Overseer | Organismos flotantes con ojos y tentáculos (el Overseer, enorme y con corona de ojos) |
+| Warlord | El Mutante de Carne gigante, acorazado de hueso y con corona de tentáculos |
+
 **Dificultad:** cada oleada trae más enemigos, con +12 % de vida y +5 % de daño, aparecen más rápido y hay más a la vez (hasta 26). En cooperativo escala además con el número de jugadores. Los jefes son más duros cada vez que vuelven y sueltan munición y granadas al morir.
 
 ## Armas
@@ -198,7 +210,8 @@ src/skins.js        Opciones de armadura y validación
 src/armory.js       Pantalla de armería con vista previa 3D
 src/guns.js         Modelos de las armas
 src/box.js          Caja misteriosa del cooperativo
-src/aliens.js       Modelos y animación de los alienígenas (quitina, escudos de energía)
+src/aliens.js       Rig procedural de los enemigos (hitboxes, escudos) y modelo de respaldo
+src/monsters.js     Criaturas de carne: carga de modelos GLB, material, animación y añadidos
 src/config.js       Tuning: armas, enemigos, oleadas
 src/mapinfo.js      Catálogo de mapas (lo comparten navegador y servidor)
 src/maps.js         Distribución y ambiente de cada mapa
