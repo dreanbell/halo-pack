@@ -1,7 +1,18 @@
 import * as THREE from 'three';
 import { Avatar } from './avatar.js';
 import { skyEnvironment } from './world.js';
-import { PRIMARY, SECONDARY, VISORS, HELMETS, PATTERNS, randomSkin, sanitizeSkin } from './skins.js';
+import { PRIMARY, SECONDARY, VISORS, HELMETS, PATTERNS, MODELS, randomSkin, sanitizeSkin } from './skins.js';
+
+// Qué opciones afectan a cada modelo (0 = procedural).
+const MODEL_NOTE = [
+  'Soldado procedural: colores, casco y patrón.',
+  'Armadura de asalto (textura propia). El casco y el color del visor sí cambian.',
+  'Armadura de asalto en verde militar. El casco y el color del visor sí cambian.',
+  'Armadura de asalto renegada. El casco y el color del visor sí cambian.',
+  'Servoarmadura pesada pintada con tus colores y patrón.',
+  'Comando de baja poligonización, teñido con el color principal.',
+  'Comando de baja poligonización, teñido con el color principal.',
+];
 
 // Armería: vista previa 3D (renderer propio) + selector de colores, casco y patrón.
 export class Armory {
@@ -119,6 +130,7 @@ export class Armory {
     swatches($('sw-p'), PRIMARY, 'p');
     swatches($('sw-s'), SECONDARY, 's');
     swatches($('sw-v'), VISORS, 'v');
+    chips($('ch-m'), MODELS, 'm');
     chips($('ch-h'), HELMETS, 'h');
     chips($('ch-t'), PATTERNS, 't');
     $('btn-skin-random').addEventListener('click', () => this.set(randomSkin()));
@@ -133,5 +145,7 @@ export class Armory {
     mark('sw-v', this.skin.v);
     mark('ch-h', this.skin.h);
     mark('ch-t', this.skin.t);
+    mark('ch-m', this.skin.m);
+    document.getElementById('model-note').textContent = MODEL_NOTE[this.skin.m] ?? '';
   }
 }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { sanitizeSkin } from './skins.js';
 import { buildGun } from './guns.js';
+import { PlayerModel, hasPlayerModel } from './playermodels.js';
 
 // Soldado acorazado procedural (diseño original): esqueleto de grupos + piezas compartidas.
 // Mira hacia -Z, como la cámara. Pies en y = 0.
@@ -233,7 +234,22 @@ export class Avatar {
     this.slideK = 0;
     this.t = Math.random() * 10;
     this.root = new THREE.Group();
+    this.hipY = HIP_Y;
+    this.lowerArm = LOWER;
     this.build();
+    this.syncModel();
+  }
+
+  // Skin 3D (modelo importado) o soldado procedural. El esqueleto procedural se queda (invisible con
+  // modelo): sigue animando, lleva el arma y las hitboxes, y el modelo copia su pose.
+  syncModel() {
+    const want = hasPlayerModel(this.skin.m) ? this.skin.m : 0;
+    if (this.model && this.model.m === want) this.model.applySkin(this.skin);
+    else {
+      this.model?.dispose();
+      this.model = want ? new PlayerModel(this, want) : null;
+    }
+    for (const m of this.meshes) m.visible = !this.model;
   }
 
   mesh(parent, geo, role, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) {
@@ -392,6 +408,7 @@ export class Avatar {
     this.m = skinMaterials(next);
     for (const m of this.meshes) m.material = this.m[m.userData.role];
     if (helmetChanged) this.buildHelmet();
+    this.syncModel();
   }
 
   // Asocia las cajas de impacto a un jugador remoto.
@@ -447,6 +464,10 @@ export class Avatar {
     // Muerte: cae de bruces.
     this.body.rotation.x = -this.deadK * Math.PI / 2;
     this.body.position.y = this.deadK * 0.16;
+
+    // Si el modelo de la skin terminó de cargar después de crear el avatar, se pone ahora.
+    if (!this.model && this.skin.m && hasPlayerModel(this.skin.m)) this.syncModel();
+    this.model?.update();
   }
 
   // IK de dos huesos: lleva la mano al punto (x, y, z) del fusil; el codo apunta hacia fuera y abajo.
@@ -468,6 +489,7 @@ export class Avatar {
   }
 
   dispose() {
+    this.model?.dispose();
     this.root.parent?.remove(this.root);
   }
 }

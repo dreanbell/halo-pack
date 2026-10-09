@@ -4,8 +4,10 @@ export const SECONDARY = ['#1e2226', '#3a3f46', '#c9ced6', '#a0262b', '#1f4f7a',
 export const VISORS = ['#ffb340', '#45d6ff', '#ff4d6a', '#7dff6a', '#d8d8ff'];
 export const HELMETS = ['CENTINELA', 'HALCÓN', 'BASTIÓN'];
 export const PATTERNS = ['LISO', 'CAMUFLAJE', 'RAYAS', 'HEXÁGONOS'];
+// Modelo del soldado: 0 = procedural (colores y patrón); el resto son modelos 3D (src/playermodels.js).
+export const MODELS = ['CLÁSICO', 'FEDERAL', 'MILITAR', 'RENEGADO', 'EXOTROOPER', 'COMANDO', 'COMANDO F'];
 
-export const DEFAULT_SKIN = { p: PRIMARY[0], s: SECONDARY[0], v: VISORS[0], h: 0, t: 0 };
+export const DEFAULT_SKIN = { p: PRIMARY[0], s: SECONDARY[0], v: VISORS[0], h: 0, t: 0, m: 0 };
 
 const pick = (list, v, def) => (list.includes(v) ? v : def);
 const idx = (n, len) => (Number.isInteger(n) && n >= 0 && n < len ? n : 0);
@@ -19,10 +21,11 @@ export function sanitizeSkin(x) {
     v: pick(VISORS, s.v, DEFAULT_SKIN.v),
     h: idx(s.h, HELMETS.length),
     t: idx(s.t, PATTERNS.length),
+    m: idx(s.m, MODELS.length),
   };
 }
 
 export function randomSkin() {
   const r = (l) => l[(Math.random() * l.length) | 0];
-  return { p: r(PRIMARY), s: r(SECONDARY), v: r(VISORS), h: (Math.random() * HELMETS.length) | 0, t: (Math.random() * PATTERNS.length) | 0 };
+  return { p: r(PRIMARY), s: r(SECONDARY), v: r(VISORS), h: (Math.random() * HELMETS.length) | 0, t: (Math.random() * PATTERNS.length) | 0, m: (Math.random() * MODELS.length) | 0 };
 }

@@ -20,6 +20,7 @@ import { DEFAULT_SKIN, sanitizeSkin } from './skins.js';
 import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from './rules.js';
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
+import { loadPlayerModels } from './playermodels.js';
 
 const BEST_KEY = 'ringfall.best';
 const NAME_KEY = 'ringfall.name';
@@ -72,6 +73,8 @@ ctx.spMap = readMap();
 loadMap(ctx.spMap);
 // Modelos de criaturas (si tardan, los primeros enemigos usan el modelo procedural).
 const monstersReady = loadMonsters();
+// Skins 3D del soldado (los avatares se actualizan solos cuando terminan de cargar).
+const playersReady = loadPlayerModels();
 ctx.fx = new Effects(scene);
 ctx.net = new Net();
 ctx.remotes = new RemotePlayers(ctx);
@@ -758,4 +761,4 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // Acceso para depuración y pruebas automatizadas.
-window.__ringfall = { ctx, newGame, tick, armory, loadMap, startSession, monstersReady };
+window.__ringfall = { ctx, newGame, tick, armory, loadMap, startSession, monstersReady, playersReady };
