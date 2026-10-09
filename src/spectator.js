@@ -29,8 +29,7 @@ export class Spectator {
     });
     document.addEventListener('mousemove', (e) => {
       if (!viewing() || Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;
-      this.orbitYaw -= e.movementX * 0.0025;
-      this.orbitPitch = clamp(this.orbitPitch - e.movementY * 0.0025, -1.1, 0.9);
+      this.orbit(e.movementX, e.movementY);
     });
     document.addEventListener('wheel', (e) => {
       if (viewing()) this.dist = clamp(this.dist + Math.sign(e.deltaY) * 0.4, DIST.min, DIST.max);
@@ -41,6 +40,12 @@ export class Spectator {
       else if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.cycle(-1);
       else if (e.code === 'KeyR') { this.orbitYaw = 0; this.orbitPitch = 0; this.dist = DIST.def; }
     });
+  }
+
+  orbit(dx, dy) {
+    if (!this.active || this.delay > 0) return;
+    this.orbitYaw -= dx * 0.0025;
+    this.orbitPitch = clamp(this.orbitPitch - dy * 0.0025, -1.1, 0.9);
   }
 
   // preferId: a quién seguir primero (p. ej. quien te eliminó). delay: segundos de animación de muerte antes de cambiar.

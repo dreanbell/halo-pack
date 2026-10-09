@@ -2,7 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#05121c" />
   <title>Ringfall — Demo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -90,7 +93,31 @@
     <div id="banner"><h2 id="banner-title"></h2><p id="banner-sub"></p></div>
     <div id="toast"></div>
     <div id="vignette"></div>
+
+    <div id="touch">
+      <div id="t-pad"></div>
+      <div id="t-stick"><div id="t-knob"></div></div>
+      <button id="t-pause" class="tb" data-act="pause" aria-label="Pausa">❚❚</button>
+      <button id="t-board" class="tb hidden" data-key="Tab" aria-label="Marcador">☰</button>
+      <div class="t-combat">
+        <button id="t-fire" class="tb" data-act="fire" aria-label="Disparar">✹</button>
+        <button id="t-jump" class="tb" data-key="Space" aria-label="Saltar">▲</button>
+        <button id="t-crouch" class="tb" data-key="KeyC" aria-label="Agacharse">▼</button>
+        <button id="t-melee" class="tb" data-key="KeyF" aria-label="Golpe">GOLPE</button>
+        <button id="t-reload" class="tb" data-key="KeyR" aria-label="Recargar">↻</button>
+        <button id="t-gren" class="tb" data-key="KeyG" aria-label="Granada">◆</button>
+        <button id="t-swap" class="tb" data-key="KeyQ" aria-label="Cambiar arma">⇄ <span id="t-swap-label"></span></button>
+        <button id="t-alt" class="tb" data-act="alt" aria-label="Mira">◎</button>
+        <button id="t-use" class="tb hidden" data-key="KeyE" aria-label="Usar">USAR</button>
+      </div>
+      <div class="t-spec">
+        <button class="tb" data-act="prev" aria-label="Jugador anterior">◀</button>
+        <button class="tb" data-act="next" aria-label="Jugador siguiente">▶</button>
+      </div>
+    </div>
   </div>
+
+  <div id="rotate"><div><b>⟳</b><p>Gira el móvil para jugar</p></div></div>
 
   <div id="menu" class="overlay">
     <div class="panel">
@@ -109,6 +136,12 @@
         <button id="btn-armory" class="secondary">ARMERÍA · PERSONALIZAR SOLDADO</button>
       </div>
       <p class="best">Récord: <b id="best">0</b></p>
+      <div class="touch-help">
+        <p><b>Izquierda</b>: arrastra para moverte (al tope hacia delante, esprintas)</p>
+        <p><b>Derecha</b>: arrastra para apuntar · <b>✹</b> disparar (también apunta al arrastrar)</p>
+        <p><b>▲</b> saltar · <b>▼</b> agacharse · <b>↻</b> recargar · <b>⇄</b> cambiar arma · <b>◆</b> granada · <b>◎</b> apuntar (toque para activar/quitar) · <b>▼</b> corriendo = deslizarse</p>
+        <p class="tip">Juega en horizontal. Si tu navegador lo permite, se pone a pantalla completa.</p>
+      </div>
       <details class="controls-box"><summary>CONTROLES</summary>
       <div class="controls">
         <kbd>WASD</kbd><span>Moverse</span>
@@ -128,7 +161,6 @@
       </div>
       <p class="tip">La pistola de iones destroza escudos; la carabina remata. Los escudos se recargan si te cubres.</p>
       </details>
-      <p id="touch-warn" class="warn hidden">Esta demo requiere teclado y ratón.</p>
       <p class="note">Proyecto fan original. No usa assets, nombres ni código de ninguna franquicia comercial. <span class="build"></span></p>
     </div>
   </div>
@@ -136,7 +168,7 @@
   <div id="pause" class="overlay hidden">
     <div class="panel">
       <h2>PAUSA</h2>
-      <p>Haz clic para continuar</p>
+      <p><span class="desktop-only">Haz clic</span><span class="touch-only">Toca la pantalla</span> para continuar</p>
       <p id="pause-mp" class="status hidden">En multijugador la partida sigue en marcha.</p>
       <button id="btn-quit" class="secondary">SALIR AL MENÚ</button>
     </div>
