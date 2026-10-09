@@ -6,7 +6,10 @@ import { Q } from './quality.js';
 
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
 const _s = new THREE.Vector3(), _c = new THREE.Color(), _c2 = new THREE.Color();
-const Z = new THREE.Vector3(0, 0, 1);
+const Z = new THREE.Vector3(0, 0, 1), _q2 = new THREE.Quaternion();
+// Colores temporales (emit copia los valores al momento): evitan crear objetos en cada impacto.
+const _t = [0, 1, 2, 3, 4, 5].map(() => new THREE.Color());
+const tint = (k, hex, mul = 1) => _t[k].set(hex).multiplyScalar(mul);
 const rnd = (a, b) => a + Math.random() * (b - a);
 const n = (k) => Math.max(1, Math.round(k * Q.fx)); // número de partículas según calidad
 
@@ -218,7 +221,7 @@ class Decals {
 
   add(point, normal, size, color = 0xffffff) {
     _q.setFromUnitVectors(Z, normal);
-    _q.multiply(new THREE.Quaternion().setFromAxisAngle(Z, Math.random() * 6.28));
+    _q.multiply(_q2.setFromAxisAngle(Z, Math.random() * 6.28));
     _m.compose(_v.copy(point).addScaledVector(normal, 0.012), _q, _s.set(size, size, 1));
     this.mesh.setMatrixAt(this.i, _m);
     this.mesh.setColorAt(this.i, _c.set(color));
@@ -277,7 +280,7 @@ const col = (hex, k = 1) => new THREE.Color(hex).multiplyScalar(k);
 const C = {
   white: col(0xffffff), spark: col(0xffd27a, 3), sparkEnd: col(0xff6a1a, 0.6), flash: col(0xfff0c8, 2.5),
   fire0: col(0xffd890, 1.5), fire1: col(0xff6a14, 1.1), fire2: col(0x5a1a08, 0.4), smoke0: col(0x2a2826), smoke1: col(0x6a6662),
-  muzzleSmoke: col(0xb8b4ae), blood: col(0x6e0a08), bloodMist: col(0x8a1410), debris: col(0x1c1814), vapor: col(0xd8dde4),
+  muzzleSmoke: col(0xb8b4ae), beacon: col(0x88ff44, 2), blood: col(0x6e0a08), bloodMist: col(0x8a1410), debris: col(0x1c1814), vapor: col(0xd8dde4),
 };
 
 export class Effects {
@@ -285,6 +288,7 @@ export class Effects {
     this.scene = scene;
     this.items = [];
     this.ground = null; // (x, z, y) → altura del suelo; lo asigna main al cargar mapa
+    this._p = new THREE.Vector3();
     const tex = atlas();
     this.add_ = new Particles(scene, tex, true, 2400);
     this.norm = new Particles(scene, tex, false, 1200);
@@ -296,6 +300,28 @@ export class Effects {
     this.lightT = 0;
     this.lightMax = 0.35;
     scene.add(this.light);
+  }
+
+  // Mallas temporales con los materiales que aparecen al disparar (casquillos, granada, proyectil, anillo),
+  // para compilar sus shaders al cargar el mapa y no en el primer disparo.
+  warmObjects() {
+    this.initCasings();
+    return [
+      new THREE.Mesh(this.casingGeo.rifle, this.casingMat.brass), new THREE.Mesh(this.casingGeo.shell, this.casingMat.hull),
+      new THREE.Mesh(this.casingGeo.rifle, new THREE.MeshStandardMaterial({ color: 0x3f5a2c, emissive: 0x000000, roughness: 0.5 })),
+      new THREE.Mesh(this.casingGeo.rifle, new THREE.MeshBasicMaterial({ color: 0xffffff })),
+      new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })),
+    ].map((m) => { m.castShadow = true; return m; });
+  }
+
+  initCasings() {
+    if (this.casingGeo) return;
+    const c = (r, l) => new THREE.CylinderGeometry(r, r * 0.92, l, 8);
+    this.casingGeo = { rifle: c(0.0036, 0.026), small: c(0.003, 0.018), big: c(0.0052, 0.036), shell: c(0.0098, 0.032) };
+    this.casingMat = {
+      brass: new THREE.MeshStandardMaterial({ color: 0xd2a64e, metalness: 1, roughness: 0.28 }),
+      hull: new THREE.MeshStandardMaterial({ color: 0xb0261c, metalness: 0.1, roughness: 0.5 }),
+    };
   }
 
   add(obj, life, tick, shared = false) {
@@ -323,12 +349,12 @@ export class Effects {
     const energy = !!(d.alien || d.heat || d.kind === 'projectile');
     const sniper = !!d.boltAction, pellet = d.kind === 'pellets';
     const speed = energy ? 160 : sniper ? 900 : 520;
-    const c = energy ? col(color, 2.2) : _c2.set(color).lerp(C.white, 0.55).multiplyScalar(sniper ? 4 : 3).clone();
+    const c = energy ? tint(0, color, 2.2) : tint(0, color).lerp(C.white, 0.55).multiplyScalar(sniper ? 4 : 3);
     this.add_.emit({
       p: a, v: _v.copy(dir).multiplyScalar(speed), life: dist / speed + 0.02, max: dist, s0: energy ? 0.08 : sniper ? 0.05 : pellet ? 0.02 : 0.03,
       c0: c, a: pellet ? 0.8 : 1, fi: 0, frame: STREAK, stretch: energy ? 0.025 : sniper ? 0.02 : 0.016,
     });
-    if (energy) this.add_.emit({ p: a, v: _v.copy(dir).multiplyScalar(speed), life: dist / speed, s0: 0.22, c0: col(color, 1.2), a: 0.6, fi: 0, frame: GLOW });
+    if (energy) this.add_.emit({ p: a, v: _v.copy(dir).multiplyScalar(speed), life: dist / speed, s0: 0.22, c0: tint(1, color, 1.2), a: 0.6, fi: 0, frame: GLOW });
     // Francotirador: estela de vapor que queda flotando.
     if (sniper) this.norm.emit({ p: b, str: _v.subVectors(b, a), life: 1.6, s0: 0.04, s1: 0.14, c0: C.vapor, a: 0.4, fi: 0.02, frame: GLOW, stretch: 1 });
   }
@@ -336,7 +362,7 @@ export class Effects {
   // Fogonazo en el mundo: destello, chispas hacia delante y humo del cañón.
   muzzle(pos, dir, d = {}) {
     const energy = !!(d.alien || d.heat), k = d.flash ?? 0.8;
-    const c = energy ? col(d.tracer, 1.6) : C.flash;
+    const c = energy ? tint(0, d.tracer, 1.6) : C.flash;
     this.add_.emit({ p: pos, life: 0.05, s0: 0.35 * k, s1: 0.5 * k, c0: c, a: 0.9, fi: 0, frame: energy ? GLOW : FIRE });
     if (!energy) {
       for (let i = 0; i < n(3 * k); i++) {
@@ -365,14 +391,14 @@ export class Effects {
   // power: ~0.5 (subfusil) … 2 (francotirador). energy: color del arma de energía o null.
   impact(point, normal, hit = null, power = 1, energy = null) {
     const s = hit ? this.surface(hit) : { metal: false, color: _c.set(0x8a7a66) };
-    const dust = s.color.clone().multiplyScalar(1.25);
-    const p = _s.copy(point).addScaledVector(normal, 0.03).clone();
+    const dust = _t[2].copy(s.color).multiplyScalar(1.25), chip = _t[3].copy(s.color).multiplyScalar(0.6);
+    const p = this._p.copy(point).addScaledVector(normal, 0.03);
     if (energy) {
-      const ec = col(energy, 2);
+      const ec = tint(0, energy, 2), ecEnd = tint(1, energy, 0.3);
       this.add_.emit({ p, life: 0.12, s0: 0.25 * power, s1: 0.5 * power, c0: ec, a: 0.9, fi: 0, frame: GLOW });
       for (let i = 0; i < n(8 * power); i++) {
         _v.copy(normal).multiplyScalar(rnd(2, 5)).add(_w.randomDirection().multiplyScalar(3));
-        this.add_.emit({ p, v: _v, life: rnd(0.2, 0.4), s0: 0.02, c0: ec, c1: col(energy, 0.3), fi: 0, frame: STREAK, stretch: 0.03, grav: 6, drag: 2 });
+        this.add_.emit({ p, v: _v, life: rnd(0.2, 0.4), s0: 0.02, c0: ec, c1: ecEnd, fi: 0, frame: STREAK, stretch: 0.03, grav: 6, drag: 2 });
       }
       this.norm.emit({ p, v: _v.copy(normal).multiplyScalar(0.6), life: 0.8, s0: 0.1, s1: 0.45 * power, c0: C.smoke0, a: 0.35, fi: 0.1, frame: SMOKE, drag: 2, grav: -0.4 });
       this.holes.add(point, normal, rnd(0.14, 0.2) * Math.max(0.75, Math.min(1.6, power)), 0x3a2016);
@@ -394,7 +420,7 @@ export class Effects {
       }
       for (let i = 0; i < n(7 * power); i++) {
         _v.copy(normal).multiplyScalar(rnd(2, 5.5)).add(_w.randomDirection().multiplyScalar(2.2));
-        this.norm.emit({ p, v: _v, life: rnd(0.5, 0.9), s0: rnd(0.03, 0.06), c0: s.color.clone().multiplyScalar(0.6), a: 1, fi: 0, frame: GLOW, grav: 12, drag: 0.5, floor: this.groundAt(p) });
+        this.norm.emit({ p, v: _v, life: rnd(0.5, 0.9), s0: rnd(0.03, 0.06), c0: chip, a: 1, fi: 0, frame: GLOW, grav: 12, drag: 0.5, floor: this.groundAt(p) });
       }
     }
     this.holes.add(point, normal, rnd(0.12, 0.17) * Math.max(0.75, Math.min(1.6, power)), 0xffffff);
@@ -402,7 +428,7 @@ export class Effects {
 
   // Sangre (criaturas de carne y jugadores sin escudo): niebla en el punto y gotas en la dirección de la bala.
   blood(point, dir, power = 1, hex = 0x6e0a08) {
-    const c = col(hex), mist = col(hex, 1.4);
+    const c = tint(0, hex), mist = tint(1, hex, 1.4);
     for (let i = 0; i < n(2 + power); i++) {
       _v.copy(dir).multiplyScalar(rnd(0.5, 1.6)).add(_w.randomDirection().multiplyScalar(0.5));
       this.norm.emit({ p: point, v: _v, life: rnd(0.35, 0.6), s0: 0.2, s1: rnd(0.5, 0.8) * power, c0: mist, a: 0.7, fi: 0.03, frame: SMOKE, drag: 4, grav: 0.5, rv: rnd(-2, 2) });
@@ -415,11 +441,11 @@ export class Effects {
 
   // Escudo de energía: chispazo del color del escudo.
   shieldHit(point, color, power = 1) {
-    const c = col(color, 1.6);
+    const c = tint(0, color, 1.6), cEnd = tint(1, color, 0.3);
     this.add_.emit({ p: point, life: 0.14, s0: 0.35 * power, s1: 0.7 * power, c0: c, a: 0.7, fi: 0, frame: GLOW });
     for (let i = 0; i < n(9 * power); i++) {
       _v.randomDirection().multiplyScalar(rnd(2, 6));
-      this.add_.emit({ p: point, v: _v, life: rnd(0.15, 0.35), s0: 0.022, c0: c, c1: col(color, 0.3), fi: 0, frame: STREAK, stretch: 0.03, drag: 3 });
+      this.add_.emit({ p: point, v: _v, life: rnd(0.15, 0.35), s0: 0.022, c0: c, c1: cEnd, fi: 0, frame: STREAK, stretch: 0.03, drag: 3 });
     }
   }
 
@@ -438,7 +464,7 @@ export class Effects {
 
   // Compatibilidad: estallido simple de partículas brillantes (aparición de enemigos, invocaciones).
   burst(pos, color, count = 10, speed = 5, life = 0.35, size = 0.08, gravity = 12) {
-    const c = col(color, 1.8);
+    const c = tint(0, color, 1.8);
     for (let i = 0; i < n(count); i++) {
       _v.randomDirection().multiplyScalar(speed * rnd(0.3, 1));
       this.add_.emit({ p: pos, v: _v, life: life * rnd(0.6, 1), s0: size * 1.4, s1: size * 0.4, c0: c, a: 1, fi: 0, frame: GLOW, grav: gravity, drag: 1 });
@@ -452,13 +478,13 @@ export class Effects {
 
   // Estela de proyectiles (agujas, cañón de arco, plasma enemigo).
   trail(pos, color, size = 0.15) {
-    this.add_.emit({ p: pos, life: 0.22, s0: size, s1: size * 0.3, c0: col(color, 1.6), a: 0.7, fi: 0, frame: GLOW });
+    this.add_.emit({ p: pos, life: 0.22, s0: size, s1: size * 0.3, c0: tint(0, color, 1.6), a: 0.7, fi: 0, frame: GLOW });
   }
 
   // Estela de humo de la granada en vuelo + parpadeo.
   grenadeTrail(pos, blink) {
     this.norm.emit({ p: pos, v: _v.set(rnd(-0.2, 0.2), 0.3, rnd(-0.2, 0.2)), life: 0.7, s0: 0.05, s1: 0.28, c0: C.smoke1, a: 0.22, fi: 0.1, frame: SMOKE, drag: 2 });
-    if (blink) this.add_.emit({ p: pos, life: 0.05, s0: 0.35, c0: col(0x88ff44, 2), a: 0.9, fi: 0, frame: GLOW });
+    if (blink) this.add_.emit({ p: pos, life: 0.05, s0: 0.35, c0: C.beacon, a: 0.9, fi: 0, frame: GLOW });
   }
 
   // --- Explosiones ------------------------------------------------------------------
@@ -540,14 +566,7 @@ export class Effects {
 
   // Casquillo expulsado: cae, rebota una vez en floorY y desaparece. kind: rifle | small | big | shell.
   casing(pos, vel, kind, floorY) {
-    if (!this.casingGeo) {
-      const c = (r, l) => new THREE.CylinderGeometry(r, r * 0.92, l, 8);
-      this.casingGeo = { rifle: c(0.0036, 0.026), small: c(0.003, 0.018), big: c(0.0052, 0.036), shell: c(0.0098, 0.032) };
-      this.casingMat = {
-        brass: new THREE.MeshStandardMaterial({ color: 0xd2a64e, metalness: 1, roughness: 0.28 }),
-        hull: new THREE.MeshStandardMaterial({ color: 0xb0261c, metalness: 0.1, roughness: 0.5 }),
-      };
-    }
+    this.initCasings();
     const mesh = new THREE.Mesh(this.casingGeo[kind] ?? this.casingGeo.rifle, kind === 'shell' ? this.casingMat.hull : this.casingMat.brass);
     mesh.position.copy(pos);
     mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.PI / 2);

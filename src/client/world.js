@@ -607,6 +607,19 @@ export function createWorld(scene, mapId) {
       const ground = add(new THREE.Mesh(geo, mat));
       ground.rotation.x = -Math.PI / 2;
       ground.receiveShadow = true;
+      // Rayos (balas, línea de visión, retícula): el suelo es un plano, así que la intersección es analítica
+      // en vez de recorrer sus 8 192 triángulos (era el grueso del coste de cada disparo).
+      const half = size / 2, hitNormal = new THREE.Vector3(0, 0, 1);
+      ground.raycast = (raycaster, hits) => {
+        const r = raycaster.ray, gy = ground.position.y;
+        if (r.direction.y >= -1e-6 || r.origin.y < gy) return; // solo desde arriba (cara frontal)
+        const t = (gy - r.origin.y) / r.direction.y;
+        if (t < raycaster.near || t > raycaster.far) return;
+        const x = r.origin.x + r.direction.x * t, z = r.origin.z + r.direction.z * t;
+        if (Math.abs(x) > half || Math.abs(z) > half) return;
+        const a = Math.round(((half + z) / size) * seg) * (seg + 1) + Math.round(((half + x) / size) * seg); // vértice más cercano (color)
+        hits.push({ distance: t, point: new THREE.Vector3(x, gy, z), object: ground, face: { a, b: a, c: a, normal: hitNormal, materialIndex: 0 }, faceIndex: 0 });
+      };
       solids.push(ground);
       return ground;
     },

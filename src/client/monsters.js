@@ -14,6 +14,8 @@ const DIR = new URL('../../vendor/assets/monsters/', import.meta.url).href;
 const PI = Math.PI;
 const models = new Map();
 const standTimes = new Map();
+const fitBoxes = new Map(); // tipo → caja del modelo en su pose de referencia
+const bakeCache = new Map(); // `tipo:n` → geometrías fusionadas de la n-ésima fusión (iguales en todos los del tipo)
 const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _w = new THREE.Vector3();
 
 // --- Texturas ------------------------------------------------------------------
@@ -224,6 +226,8 @@ function inPlace(clip, scene) {
 class Monster {
   constructor(rig, type) {
     const def = (this.def = DEFS[type]);
+    this.type = type;
+    this.bakeN = 0;
     const gltf = models.get(def.file);
     const T = textures();
     this.rig = rig;
@@ -294,8 +298,15 @@ class Monster {
     spin.rotation.y = def.rotY;
     spin.add(model);
     fit.add(spin);
-    fit.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(fit, true), size = box.getSize(_s), c = box.getCenter(_p);
+    // Caja exacta del modelo animado (recorre todos los vértices con el esqueleto aplicado): igual para todos
+    // los de un tipo, así que se calcula una vez y se reutiliza (antes, en cada aparición: tirón de 10-25 ms).
+    let box = fitBoxes.get(type);
+    if (!box) {
+      fit.updateMatrixWorld(true);
+      box = new THREE.Box3().setFromObject(fit, true);
+      fitBoxes.set(type, box);
+    }
+    const size = box.getSize(_s), c = box.getCenter(_p);
     const k = def.fly ? def.size / Math.max(size.x, size.y, size.z) : def.height / size.y;
     const st = def.stretch ?? [1, 1, 1];
     fit.scale.set(k * st[0], k * st[1], k * st[2]);
@@ -441,20 +452,27 @@ class Monster {
   }
 
   // Fusiona los añadidos estáticos de cada ancla por material: muchas menos llamadas de dibujo.
+  // La geometría resultante es la misma en todos los monstruos de un tipo: se calcula con el primero y los
+  // demás la comparten (antes se fusionaba en cada aparición: ~5-10 ms por enemigo).
   bake(root) {
-    root.updateMatrixWorld(true);
-    _inv.copy(root.matrixWorld).invert();
+    const key = `${this.type}:${this.bakeN++}`, cached = bakeCache.get(key);
+    if (!cached) {
+      root.updateMatrixWorld(true);
+      _inv.copy(root.matrixWorld).invert();
+    }
     const groups = new Map(), drop = [];
     const visit = (o) => {
       for (const ch of [...o.children]) {
         if (ch.userData.dynamic) { this.bake(ch); continue; }
         if (ch.isMesh && !ch.isSkinnedMesh) {
-          let g = ch.geometry.index ? ch.geometry.toNonIndexed() : ch.geometry.clone();
-          for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
-          if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
-          g.applyMatrix4(_m.multiplyMatrices(_inv, ch.matrixWorld));
           if (!groups.has(ch.material)) groups.set(ch.material, []);
-          groups.get(ch.material).push(g);
+          if (!cached) {
+            const g = ch.geometry.index ? ch.geometry.toNonIndexed() : ch.geometry.clone();
+            for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+            if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+            g.applyMatrix4(_m.multiplyMatrices(_inv, ch.matrixWorld));
+            groups.get(ch.material).push(g);
+          }
           drop.push(ch);
         }
         if (!ch.isSkinnedMesh) visit(ch);
@@ -462,14 +480,20 @@ class Monster {
     };
     visit(root);
     for (const m of drop) m.parent.remove(m);
+    const out = cached ?? [];
+    let i = 0;
     for (const [mat, list] of groups) {
-      const merged = mergeGeometries(list, false);
-      for (const g of list) g.dispose();
+      let merged = cached?.[i++];
+      if (!merged) {
+        merged = mergeGeometries(list, false);
+        for (const g of list) g.dispose();
+        out.push(merged);
+      }
       const mesh = new THREE.Mesh(merged, mat);
       mesh.castShadow = mesh.receiveShadow = true;
       root.add(mesh);
-      this.baked.push(merged);
     }
+    if (!cached) bakeCache.set(key, out);
   }
 
   // Boca vertical: dos labios que se abren hacia los lados, dientes irregulares y lengua colgante.
@@ -496,7 +520,7 @@ class Monster {
   }
 
   dispose() {
-    for (const g of this.baked) g.dispose();
+    // Las geometrías fusionadas son compartidas por tipo (bakeCache): se conservan.
   }
 
   update(dt, s) {

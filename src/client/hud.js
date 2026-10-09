@@ -127,10 +127,13 @@ export class Hud {
 
   hitMarker(kill) {
     const h = this.el.hitmarker;
-    h.classList.remove('show', 'kill');
-    void h.offsetWidth; // reinicia la animación CSS
-    h.classList.add('show');
-    if (kill) h.classList.add('kill');
+    // Web Animations: reinicia sin forzar un recálculo de diseño (antes, offsetWidth en cada impacto).
+    h.classList.toggle('kill', kill);
+    this.hmAnim?.cancel();
+    this.hmAnim = h.animate([
+      { opacity: 1, transform: 'translate(-50%, -50%) rotate(45deg) scale(1.3)' },
+      { opacity: 0, transform: 'translate(-50%, -50%) rotate(45deg) scale(1)' },
+    ], { duration: kill ? 350 : 200, easing: 'ease-out' });
   }
 
   damage(angle, intensity) {

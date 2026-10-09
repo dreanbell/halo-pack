@@ -243,6 +243,13 @@ export class Arsenal {
     for (const m of this.skinMeshes) m.visible = !skinned;
   }
 
+  // Objetos que solo aparecen al disparar (fogonazos de las armas del equipo) para precompilar sus shaders.
+  warmObjects() {
+    const out = [];
+    for (const s of this.slots ?? []) { const g = this.model(s.id); if (!g.flash.visible) out.push(g.flash); }
+    return out;
+  }
+
   model(id) {
     if (this.models.has(id)) return this.models.get(id);
     const gun = buildGun(id);
@@ -988,7 +995,10 @@ export class Arsenal {
     this.gun.flash.visible = this.flashT > 0;
     this.muzzleLight.intensity = this.flashT > 0 ? 6 * (d.flash ?? 0.8) : 0;
 
-    // ¿Apunta a un enemigo? (retícula roja)
+    // ¿Apunta a un enemigo? (retícula roja). Solo es para la interfaz: basta con ~20 Hz.
+    this.aimT = (this.aimT ?? 0) - dt;
+    if (this.aimT > 0) return;
+    this.aimT = 0.05;
     this.aimRay(_o, _d);
     this.ray.set(_o, _d);
     const scoped = d.scope && this.zoom > 1.5;

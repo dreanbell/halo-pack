@@ -288,4 +288,10 @@ la resolución baja sola si los FPS caen de ~45 (y se recupera si sobran), los s
 el radar se dibuja a 20 Hz y en móvil no hay desenfoques CSS sobre el lienzo. La calidad solo cambia lo visual:
 colisiones, rocas, hitboxes y reglas son idénticas en todos los niveles (también entre jugadores con niveles distintos).
 
+**Sin tirones al disparar ni al aparecer enemigos:** al cargar el mapa y al empezar partida se compilan los shaders
+de todo (también lo que queda fuera de cámara) y se dibuja una vez, diminuto, un ejemplar de cada enemigo, fogonazo,
+casquillo y granada (se conservan para que three.js no borre sus shaders). Los rayos contra el suelo son analíticos
+(antes recorrían 8 192 triángulos por bala), la retícula consulta a 20 Hz, la caja y los añadidos fusionados de cada
+monstruo se calculan una vez por tipo, y la resolución dinámica solo cambia con caídas sostenidas.
+
 Para depurar, `window.__ringfall` expone `ctx`, `newGame()` y `tick(dt)`, que avanza la simulación sin renderizar.

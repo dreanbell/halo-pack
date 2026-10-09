@@ -20,6 +20,7 @@ import { DEFAULT_SKIN, sanitizeSkin } from '../shared/skins.js';
 import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../shared/rules.js';
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
+import { buildAlien } from './aliens.js';
 import { loadPlayerModels, requestPlayerModel } from './playermodels.js';
 import { Q, QUALITY_LEVELS, setQuality, needsReload, applyRenderer, trackFrame, beforeRender } from './quality.js';
 
@@ -36,6 +37,8 @@ console.info(`Ringfall v${BUILD}`);
 // Calidad (quality.js): en móvil, menos píxeles, sin antialias y sombras/detalle reducidos; resolución dinámica por FPS.
 const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: 'high-performance' });
 applyRenderer(renderer);
+// Leer el registro de cada shader bloquea hasta que termina de compilar: solo en modo diagnóstico.
+renderer.debug.checkShaderErrors = DEBUG;
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -55,6 +58,16 @@ let spRules = readSpRules();
 const ctx = { scene, camera, renderer, game, rules: spRules };
 ctx.sfx = new Sfx();
 ctx.hud = new Hud();
+const warmed = new Set(); // enemigos ya precalentados con las luces del mapa actual
+// Ejemplares del precalentado: se conservan (fuera de escena) porque three.js borra un shader cuando ningún
+// material lo usa, y entonces la primera aparición real volvería a compilarlo.
+const warmKeep = { rigs: [], mats: [] };
+function dropWarm() {
+  for (const rig of warmKeep.rigs) rig.dispose?.();
+  for (const m of warmKeep.mats) m.dispose();
+  warmKeep.rigs.length = warmKeep.mats.length = 0;
+  warmed.clear();
+}
 // Mapa: se reconstruye entero (geometría, luz, navegación) al cambiar.
 function loadMap(id, force = false) {
   if (!isMap(id)) id = DEFAULT_MAP;
@@ -65,7 +78,40 @@ function loadMap(id, force = false) {
   scene.environment = skyEnvironment(renderer, ctx.world.env);
   renderer.toneMappingExposure = ctx.world.exposure;
   ctx.nav = new NavGrid(ctx.world);
-  renderer.compile(scene, camera); // shaders compilados ya, sin tirones al ver cada material por primera vez
+  dropWarm(); // otro mapa, otras luces: otros shaders
+  prewarm();
+}
+// Compila ya los shaders de todo lo visible y de lo que solo aparece al disparar (fogonazos, casquillos,
+// granadas, proyectiles), para que el primer disparo no se trabe.
+// Incluye un ejemplar de cada enemigo (con su modelo de carne si ya cargó): se dibujan una vez, diminutos,
+// delante de la cámara, así también se suben sus texturas y búferes. Así la primera aparición de cada tipo
+// no traba la partida.
+function prewarm(enemies = false) {
+  const temp = ctx.fx?.warmObjects() ?? [], flashes = ctx.arsenal?.warmObjects() ?? [], rigs = [];
+  if (enemies) {
+    for (const type of Object.keys(CFG.enemies)) {
+      const rig = buildAlien(type), key = `${type}:${rig.monster ? 1 : 0}`;
+      if (warmed.has(key)) { rig.dispose?.(); continue; }
+      warmed.add(key);
+      rigs.push(rig);
+      temp.push(rig.root);
+    }
+  }
+  renderer.compile(scene, camera); // todo el mapa, también lo que queda fuera de la vista
+  if (!temp.length && !flashes.length) return;
+  const holder = new THREE.Group();
+  camera.updateMatrixWorld(true);
+  camera.getWorldPosition(holder.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(2));
+  holder.scale.setScalar(0.001);
+  for (const m of temp) holder.add(m);
+  scene.add(holder);
+  for (const f of flashes) { f.visible = true; f.userData.warmScale = f.scale.x; f.scale.setScalar(0.001); }
+  renderer.render(scene, camera);
+  for (const f of flashes) { f.visible = false; f.scale.setScalar(f.userData.warmScale); }
+  scene.remove(holder);
+  holder.clear();
+  warmKeep.rigs.push(...rigs);
+  for (const m of temp) if (!rigs.some((r) => r.root === m) && m.material !== ctx.fx.casingMat.brass && m.material !== ctx.fx.casingMat.hull) warmKeep.mats.push(m.material);
 }
 function readMap() {
   try { const id = localStorage.getItem(MAP_KEY); return isMap(id) ? id : DEFAULT_MAP; } catch { return DEFAULT_MAP; }
@@ -76,6 +122,8 @@ loadMap(ctx.spMap);
 // Monstruos: en segundo plano cuando el menú ya está a la vista (o al empezar partida, lo que llegue antes).
 const idle = window.requestIdleCallback ?? ((fn) => setTimeout(fn, 1200));
 const monstersReady = new Promise((ok) => idle(() => loadMonsters().then(ok), { timeout: 3000 }));
+// Si los modelos llegan con la partida ya empezada, se precalientan entonces (un único tirón en vez de uno por tipo).
+monstersReady.then(() => { if (game.state !== 'menu' && game.mode !== 'dm') prewarm(true); });
 // Skins 3D: se cargan bajo demanda; aquí solo la tuya (los avatares se actualizan solos al terminar).
 const playersReady = Promise.resolve().then(() => ctx.skin?.m && requestPlayerModel(ctx.skin.m)); // ctx.skin se lee más abajo
 const loadAllPlayerModels = loadPlayerModels; // pruebas
@@ -223,6 +271,7 @@ function startSession(mode, rules = net.rules, map = mode === 'sp' ? ctx.spMap :
   director.configure(mode, !online || net.isHost);
   arsenal.reset(loadoutFor());
   fx.clear();
+  prewarm(mode !== 'dm');
   hud.reset();
   spectator.stop();
   remotes.clear();

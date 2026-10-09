@@ -62,20 +62,22 @@ function setPr() {
 
 // Resolución dinámica: si la media de FPS cae por debajo de ~45, se reducen los píxeles (hasta minPr);
 // si sobra rendimiento de forma sostenida, se recuperan. Ventanas de 2 s; ignora pausas y pestañas ocultas.
-let acc = 0, frames = 0, good = 0;
+let acc = 0, frames = 0, good = 0, bad = 0;
 export function trackFrame(dtMs) {
   if (!renderer || dtMs > 1000) return; // pestaña oculta o carga de mapa: no cuenta
   acc += dtMs; frames++;
   if (acc < 2000) return;
   const fps = (frames * 1000) / acc;
   acc = 0; frames = 0;
+  // Cada cambio de resolución reasigna el lienzo (un tirón): solo tras dos ventanas lentas seguidas (o una muy
+  // lenta), y para subir hacen falta 4 buenas (8 s). Un pico breve al disparar no cambia nada.
   if (fps < 45 && maxPr() * scale > Q.minPr + 0.01) {
-    scale = Math.max(Q.minPr / maxPr(), scale * (fps < 30 ? 0.8 : 0.9));
     good = 0;
-    setPr();
+    if (++bad >= 2 || fps < 25) { scale = Math.max(Q.minPr / maxPr(), scale * (fps < 30 ? 0.8 : 0.9)); bad = 0; setPr(); }
   } else if (fps > 57 && scale < 1) {
-    if (++good >= 3) { scale = Math.min(1, scale * 1.1); good = 0; setPr(); }
-  } else good = 0;
+    bad = 0;
+    if (++good >= 4) { scale = Math.min(1, scale * 1.1); good = 0; setPr(); }
+  } else { good = 0; bad = 0; }
 }
 export const renderScale = () => (renderer ? renderer.getPixelRatio() : 1);
 
