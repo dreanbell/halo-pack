@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { GLTFLoader } from '../vendor/three/addons/loaders/GLTFLoader.js';
-import { clone as cloneSkinned } from '../vendor/three/addons/utils/SkeletonUtils.js';
-import { mergeVertices } from '../vendor/three/addons/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from '../../vendor/three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from '../../vendor/three/addons/utils/SkeletonUtils.js';
+import { mergeVertices } from '../../vendor/three/addons/utils/BufferGeometryUtils.js';
 
 // Skins 3D del soldado: modelos CC0 (vendor/assets/players, ver ATTRIBUTION.md) que copian la pose del
 // esqueleto procedural de avatar.js. El esqueleto procedural sigue animando (andar, agacharse, deslizarse,
@@ -9,7 +9,7 @@ import { mergeVertices } from '../vendor/three/addons/utils/BufferGeometryUtils.
 // el torso y la cabeza copian su orientación y brazos y piernas usan IK de dos huesos con sus propias
 // longitudes (manos en las empuñaduras del arma y pies donde pisa el avatar).
 
-const DIR = new URL('../vendor/assets/players/', import.meta.url).href;
+const DIR = new URL('../../vendor/assets/players/', import.meta.url).href;
 const PI = Math.PI;
 const UP = new THREE.Vector3(0, 1, 0);
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _e = new THREE.Vector3();
@@ -96,18 +96,24 @@ function tex(name, srgb = true) {
   return t;
 }
 
-export function loadPlayerModels() {
-  if (loading) return loading;
-  const loader = new GLTFLoader();
-  const files = [...new Set(DEFS.filter(Boolean).map((d) => d.file))];
-  loading = Promise.all(files.map(async (f) => {
-    try {
-      models.set(f, await loader.loadAsync(`${DIR}${f}.glb`));
-    } catch (e) {
+// Carga bajo demanda: cada modelo se pide la primera vez que alguien lo lleva (tú, otro jugador o la armería).
+const pending = new Map();
+let loader = null;
+export function requestPlayerModel(m) {
+  const f = DEFS[m]?.file;
+  if (!f) return Promise.resolve();
+  if (!pending.has(f)) {
+    loader ??= new GLTFLoader();
+    pending.set(f, loader.loadAsync(`${DIR}${f}.glb`).then((g) => { models.set(f, g); }, (e) => {
       console.warn(`Ringfall: no se pudo cargar la skin ${f}`, e);
-    }
-  }));
-  return loading;
+    }));
+  }
+  return pending.get(f);
+}
+
+// Todos (pruebas o precarga explícita).
+export function loadPlayerModels() {
+  return Promise.all(DEFS.map((d, m) => (d ? requestPlayerModel(m) : null)));
 }
 
 export const hasPlayerModel = (m) => !!DEFS[m] && models.has(DEFS[m].file);

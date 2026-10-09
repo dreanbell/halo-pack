@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Avatar } from './avatar.js';
 import { skyEnvironment } from './world.js';
-import { PRIMARY, SECONDARY, VISORS, HELMETS, PATTERNS, MODELS, randomSkin, sanitizeSkin } from './skins.js';
+import { PRIMARY, SECONDARY, VISORS, HELMETS, PATTERNS, MODELS, randomSkin, sanitizeSkin } from '../shared/skins.js';
 
 // Qué opciones afectan a cada modelo (0 = procedural).
 const MODEL_NOTE = [

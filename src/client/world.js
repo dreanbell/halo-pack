@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CFG, clamp } from './config.js';
-import { mapInfo } from './mapinfo.js';
+import { mapInfo } from '../shared/mapinfo.js';
 import { MAP_DEFS } from './maps.js';
 
 export function mulberry32(a) {

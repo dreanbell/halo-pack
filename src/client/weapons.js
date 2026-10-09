@@ -3,8 +3,8 @@ import { CFG, rand } from './config.js';
 import { glowTexture } from './world.js';
 import { v3 } from './net.js';
 import { skinMaterials, Avatar } from './avatar.js';
-import { hasPlayerModel } from './playermodels.js';
-import { DEFAULT_SKIN } from './skins.js';
+import { hasPlayerModel, requestPlayerModel } from './playermodels.js';
+import { DEFAULT_SKIN } from '../shared/skins.js';
 import { buildGun, GUN_INFO } from './guns.js';
 
 const W = CFG.weapons, G = CFG.grenade, M = CFG.melee;
@@ -222,6 +222,7 @@ export class Arsenal {
     if (this.fpParts) for (const list of Object.values(this.fpParts)) for (const p of list) p.geo.dispose();
     this.fpAvatar?.dispose();
     this.fpAvatar = this.fpParts = null;
+    if (this.skin.m) requestPlayerModel(this.skin.m);
     const use = !!this.skin.m && hasPlayerModel(this.skin.m);
     this.fpWanted = !!this.skin.m && !use; // modelo aún cargando: se reintenta en update()
     if (use) {

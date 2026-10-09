@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CFG, waveComposition, difficulty, rand } from './config.js';
-import { DIFFICULTY } from './rules.js';
+import { DIFFICULTY } from '../shared/rules.js';
 import { v3 } from './net.js';
 import { MysteryBox } from './box.js';
 import { buildAlien } from './aliens.js';
@@ -930,7 +930,7 @@ export class Director {
   snapshot() {
     const { game } = this.ctx;
     return {
-      w: game.wave, st: this.state, tm: +this.timer.toFixed(2), q: this.queue, sc: game.score, lv: this.lives,
+      w: game.wave, st: this.state, tm: +this.timer.toFixed(2), q: this.queue.length, sc: game.score, lv: this.lives,
       e: this.enemies.map((e) => [e.id, TYPES.indexOf(e.type), ...v3(e.pos), +e.group.rotation.y.toFixed(3), Math.round(e.hp), Math.round(e.shield), e.dead ? 1 : 0, Math.round(e.maxHp), Math.round(e.maxShield), e.flags]),
       p: this.pickups.map((p) => [p.id, p.kind, ...v3(p.mesh.position)]),
       s: [...this.scores].map(([id, s]) => [id, s.kills, s.score, s.credits]),
@@ -944,7 +944,7 @@ export class Director {
     game.score = s.sc;
     this.state = s.st;
     this.timer = s.tm;
-    this.queueN = s.q.length;
+    this.queueN = Array.isArray(s.q) ? s.q.length : s.q; // versiones anteriores mandaban la cola entera
     this.lives = s.lv ?? 0;
     this.scores = new Map(s.s.map(([id, kills, score, credits]) => [id, { kills, score, credits }]));
     game.kills = this.scores.get(this.net.id)?.kills ?? 0;

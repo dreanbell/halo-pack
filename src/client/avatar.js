@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { sanitizeSkin } from './skins.js';
+import { sanitizeSkin } from '../shared/skins.js';
 import { buildGun } from './guns.js';
-import { PlayerModel, hasPlayerModel } from './playermodels.js';
+import { PlayerModel, hasPlayerModel, requestPlayerModel } from './playermodels.js';
 
 // Soldado acorazado procedural (diseño original): esqueleto de grupos + piezas compartidas.
 // Mira hacia -Z, como la cámara. Pies en y = 0.
@@ -243,6 +243,7 @@ export class Avatar {
   // Skin 3D (modelo importado) o soldado procedural. El esqueleto procedural se queda (invisible con
   // modelo): sigue animando, lleva el arma y las hitboxes, y el modelo copia su pose.
   syncModel() {
+    if (this.skin.m) requestPlayerModel(this.skin.m); // si no está cargado, se pone solo al terminar (animate)
     const want = hasPlayerModel(this.skin.m) ? this.skin.m : 0;
     if (this.model && this.model.m === want) this.model.applySkin(this.skin);
     else {

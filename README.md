@@ -201,37 +201,38 @@ Pensado para jugar entre amigos: no hay anti-trampas. Para usar un servidor de e
 ## Estructura
 
 ```
-index.html          Marcado del HUD y los menús
-styles.css          Estilos
-server.js           Servidor LAN opcional (sin internet): HTTP estático + WebSocket
-src/room.js         Lógica de la sala (compartida por P2P y server.js)
-src/main.js         Arranque, estados, lobby, mensajes de red y bucle
-src/net.js          Red: anfitrión/invitado P2P (WebRTC) y cliente LAN (WebSocket)
-src/remote.js       Otros jugadores: interpolación, impactos y etiqueta de nombre
-src/avatar.js       Modelo del soldado, materiales por skin, animación e IK de brazos
-src/guns.js         Modelos de armas, pack de texturas procedurales y fichas (GUN_INFO)
-src/gunview.js      Vista previa 3D del arma y miniaturas
-src/loadout.js      Menú de armas (ranuras, rejilla, ficha técnica)
-src/skins.js        Opciones de armadura y validación
-src/armory.js       Pantalla de armería con vista previa 3D
-src/guns.js         Modelos de las armas
-src/box.js          Caja misteriosa del cooperativo
-src/aliens.js       Rig procedural de los enemigos (hitboxes, escudos) y modelo de respaldo
-src/monsters.js     Criaturas de carne: carga de modelos GLB, material, animación y añadidos
-src/playermodels.js Skins 3D del soldado: carga, materiales y retargeting con IK
-src/config.js       Tuning: armas, enemigos, oleadas
-src/mapinfo.js      Catálogo de mapas (lo comparten navegador y servidor)
-src/maps.js         Distribución y ambiente de cada mapa
-src/world.js        Kit de construcción procedural (texturas, cielo, terreno, piezas) y colisiones AABB
-src/nav.js          Rejilla de navegación + campo de flujo
-src/player.js       Movimiento FPS, escudo/salud y daño
-src/weapons.js      Armas, granadas, cuerpo a cuerpo y viewmodels
-src/enemies.js      IA enemiga, proyectiles, recogibles y oleadas
-src/effects.js      Trazadoras, chispas, explosiones y marcas de impacto
-src/hud.js          HUD y radar
-src/audio.js        Sonido sintetizado con WebAudio
-vendor/three/       three.js r160 (MIT)
-vendor/peerjs/      PeerJS 1.5.5 (MIT)
+index.html, styles.css   Entrada web: HUD, menús y estilos (raíz, la sirve GitHub Pages o el servidor LAN)
+
+src/shared/              Lógica común del navegador y del servidor Node (sin dependencias de navegador)
+  room.js                Sala multijugador: lobby, modo, mapa, reglas y marcador (P2P en el anfitrión y LAN en server/)
+  rules.js               Variantes de partida y reglas configurables
+  skins.js               Opciones de armadura/modelo y validación de lo que llega por red
+  mapinfo.js             Catálogo de mapas
+
+src/client/              El juego (navegador)
+  main.js                Arranque, estados, lobby, mensajes de red y bucle
+  net.js                 Red: anfitrión/invitado P2P (WebRTC) y cliente LAN (WebSocket)
+  config.js              Tuning: armas, enemigos, oleadas
+  player.js · weapons.js Movimiento FPS, escudo/salud · armas, granadas, cuerpo a cuerpo y viewmodels
+  enemies.js · nav.js    IA enemiga, proyectiles, recogibles, oleadas · rejilla y campo de flujo
+  aliens.js · monsters.js Rig de enemigos (hitboxes) · criaturas de carne (modelos GLB y añadidos)
+  avatar.js · playermodels.js · remote.js   Soldado procedural · skins 3D con IK · otros jugadores
+  armory.js · loadout.js · setup.js · gunview.js · guns.js   Armería, menú de armas, reglas, armas
+  world.js · maps.js     Kit de construcción procedural y colisiones · los mapas
+  hud.js · effects.js · audio.js · spectator.js · touch.js · box.js
+
+server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)
+  index.js               Arranque, sala única, latido y direcciones de red
+  static.js              Archivos estáticos con gzip en memoria y revalidación ETag (304)
+  ws.js                  WebSocket mínimo (RFC 6455)
+server.js                Atajo: `node server.js` arranca server/index.js
+
+scripts/check.js         Validación (`npm run check`): sintaxis de todo y carga de src/shared en Node
+vendor/                  three.js r160 y PeerJS 1.5.5 (MIT) · assets/ con modelos CC0 (ver sus ATTRIBUTION.md)
 ```
+
+**Rendimiento de carga:** al abrir el juego solo se descarga lo necesario para el menú; los monstruos se cargan en
+segundo plano (o al empezar partida) y cada skin 3D solo cuando alguien la lleva. El servidor LAN comprime con gzip
+(three.js pasa de 655 KB a 164 KB) y responde 304 a lo que no ha cambiado.
 
 Para depurar, `window.__ringfall` expone `ctx`, `newGame()` y `tick(dt)`, que avanza la simulación sin renderizar.

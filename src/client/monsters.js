@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { GLTFLoader } from '../vendor/three/addons/loaders/GLTFLoader.js';
-import { clone as cloneSkinned } from '../vendor/three/addons/utils/SkeletonUtils.js';
-import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from '../../vendor/three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from '../../vendor/three/addons/utils/SkeletonUtils.js';
+import { mergeGeometries } from '../../vendor/three/addons/utils/BufferGeometryUtils.js';
 
 // Criaturas de carne: modelos CC0 (vendor/assets/monsters, ver ATTRIBUTION.md) con material orgánico,
 // animación y añadidos procedurales (boca, ojos, tentáculos, bultos, hueso) anclados a sus huesos.
@@ -9,7 +9,7 @@ import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtil
 // la hitbox de la cabeza se desplaza a la cabeza del modelo para que los disparos a la cabeza cuadren.
 // Ejes del cuerpo: +Z delante, +Y arriba, medidas en metros sin la escala del tipo.
 
-const DIR = new URL('../vendor/assets/monsters/', import.meta.url).href;
+const DIR = new URL('../../vendor/assets/monsters/', import.meta.url).href;
 const PI = Math.PI;
 const models = new Map();
 const standTimes = new Map();
@@ -172,7 +172,14 @@ const DEFS = {
   overseer: { file: 'angler', size: 2.1, fly: true, rotY: PI / 2, tint: [1.1, 0.85, 1.1], mix: 0.5, eye: 0xff5050, build: overseer },
 };
 
-export async function loadMonsters() {
+let monstersLoading = null;
+// Idempotente: se llama en segundo plano tras abrir el menú y otra vez al empezar una partida con oleadas.
+export function loadMonsters() {
+  monstersLoading ??= loadAll();
+  return monstersLoading;
+}
+
+async function loadAll() {
   const loader = new GLTFLoader();
   const files = [...new Set(Object.values(DEFS).map((d) => d.file))];
   await Promise.all(files.map(async (f) => {

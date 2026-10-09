@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CFG } from './config.js';
 import { createWorld, skyEnvironment } from './world.js';
-import { MAPS, DEFAULT_MAP, isMap, mapInfo } from './mapinfo.js';
+import { MAPS, DEFAULT_MAP, isMap, mapInfo } from '../shared/mapinfo.js';
 import { Player } from './player.js';
 import { Arsenal } from './weapons.js';
 import { Director } from './enemies.js';
@@ -16,11 +16,11 @@ import { LoadoutMenu } from './loadout.js';
 import { gunThumbnails } from './gunview.js';
 import { Spectator } from './spectator.js';
 import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
-import { DEFAULT_SKIN, sanitizeSkin } from './skins.js';
-import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from './rules.js';
+import { DEFAULT_SKIN, sanitizeSkin } from '../shared/skins.js';
+import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../shared/rules.js';
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
-import { loadPlayerModels } from './playermodels.js';
+import { loadPlayerModels, requestPlayerModel } from './playermodels.js';
 
 const BEST_KEY = 'ringfall.best';
 const NAME_KEY = 'ringfall.name';
@@ -72,9 +72,12 @@ function readMap() {
 ctx.spMap = readMap();
 loadMap(ctx.spMap);
 // Modelos de criaturas (si tardan, los primeros enemigos usan el modelo procedural).
-const monstersReady = loadMonsters();
-// Skins 3D del soldado (los avatares se actualizan solos cuando terminan de cargar).
-const playersReady = loadPlayerModels();
+// Monstruos: en segundo plano cuando el menú ya está a la vista (o al empezar partida, lo que llegue antes).
+const idle = window.requestIdleCallback ?? ((fn) => setTimeout(fn, 1200));
+const monstersReady = new Promise((ok) => idle(() => loadMonsters().then(ok), { timeout: 3000 }));
+// Skins 3D: se cargan bajo demanda; aquí solo la tuya (los avatares se actualizan solos al terminar).
+const playersReady = Promise.resolve().then(() => ctx.skin?.m && requestPlayerModel(ctx.skin.m)); // ctx.skin se lee más abajo
+const loadAllPlayerModels = loadPlayerModels; // pruebas
 ctx.fx = new Effects(scene);
 ctx.net = new Net();
 ctx.remotes = new RemotePlayers(ctx);
@@ -209,6 +212,7 @@ function pickSpawn() {
 function startSession(mode, rules = net.rules, map = mode === 'sp' ? ctx.spMap : net.map) {
   sfx.unlock();
   loadMap(map);
+  if (mode !== 'dm') loadMonsters(); // por si se empieza antes de que termine la carga en segundo plano
   ctx.rules = sanitizeRules(mode, rules);
   const online = mode !== 'sp';
   const timeLeft = online ? net.timeLeft() : ctx.rules.timeLimit ? ctx.rules.timeLimit * 60 : Infinity;
@@ -698,15 +702,22 @@ addEventListener('resize', () => {
 });
 
 // --- Bucle -------------------------------------------------------------------
-let stateT = 0, boardT = 0;
+let stateT = 0, boardT = 0, lastSt = '', lastStT = 0;
 function netTick(dt) {
   stateT -= dt;
   if (stateT <= 0) {
     stateT = CFG.net.stateRate;
-    net.send('st', {
+    const st = {
       p: v3(player.pos), v: v3(player.vel), y: +player.yaw.rotation.y.toFixed(3), pt: +player.pitch.rotation.x.toFixed(3),
       h: +player.height.toFixed(2), a: player.alive ? 1 : 0, w: arsenal.w.id, hp: Math.round(player.health), sh: Math.round(player.shield),
-    });
+    };
+    // Quieto y sin cambios: no se reenvía (como mucho cada medio segundo, para que nadie quede desfasado).
+    const key = JSON.stringify(st), now = performance.now();
+    if (key !== lastSt || now - lastStT > 500) {
+      net.send('st', st);
+      lastSt = key;
+      lastStT = now;
+    }
   }
 }
 
@@ -761,4 +772,4 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // Acceso para depuración y pruebas automatizadas.
-window.__ringfall = { ctx, newGame, tick, armory, loadMap, startSession, monstersReady, playersReady };
+window.__ringfall = { ctx, newGame, tick, armory, loadMap, startSession, monstersReady, playersReady, loadAllPlayerModels };

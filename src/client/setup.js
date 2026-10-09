@@ -1,5 +1,5 @@
 // Panel de variante y ajustes de partida (un jugador y lobby multijugador).
-import { RULES, VARIANTS, variantsFor, variantDesc, defaultRules, isCustom, ruleVisible, formatRule, stepRule } from './rules.js';
+import { RULES, VARIANTS, variantsFor, variantDesc, defaultRules, isCustom, ruleVisible, formatRule, stepRule } from '../shared/rules.js';
 
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
