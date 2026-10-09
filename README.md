@@ -188,8 +188,11 @@ Se eligen en el menú (un jugador) o en la sala (solo el anfitrión; los demás 
 | **Ciudadela Glacial** | Nieve, atardecer, cordillera y nevada | Aguja central con muretes, terrazas elevadas a los lados, cristales de hielo |
 | **Cañón Ámbar** | Desierto, acantilados escalonados, tormenta de polvo | Crucero alienígena partido (con huecos y una escalera al casco), mesetas, agujas violetas |
 | **Plataforma Cenit** | Órbita nocturna sobre un gigante gaseoso | Estrado central, 4 torres con **ascensores gravitatorios**, barrera de energía |
+| **Puerto Neón** | Noche, lluvia y relámpagos con truenos | Patio de contenedores (algunos apilados), torre de control con ascensor, grúas pórtico |
+| **Templo de la Selva** | Jungla con bruma y luciérnagas | Pirámide escalonada de tres pisos, arcos, monolitos y muros en ruinas |
 
-Todo es procedural (sin imágenes externas): paneles de aleación con vetas luminosas y mapas de normales, terreno con relieve y color por altura y pendiente, cielo con sol, estrellas y nebulosa, nubes, hierba, nieve/polvo/motas y luces puntuales.
+Todo es procedural (sin imágenes externas): paneles de aleación con vetas luminosas y mapas de normales, terreno con relieve y color por altura y pendiente, cielo con sol, estrellas y nebulosa, nubes, hierba, nieve/polvo/motas, lluvia (segmentos animados, según la calidad), tormenta y luces puntuales. Cada mapa
+puede llevar su propio color de postprocesado (`grade`).
 
 ## Enemigos
 

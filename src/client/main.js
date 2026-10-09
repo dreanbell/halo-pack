@@ -192,6 +192,8 @@ function notice(text) {
 const music = (ctx.music = new Music(sfx));
 const startAudio = () => { sfx.unlock(); if (sfx.ctx) music.start(); };
 for (const ev of ['pointerdown', 'keydown', 'touchend']) addEventListener(ev, startAudio, { passive: true });
+// Truenos de los mapas con tormenta (world.js → storm).
+addEventListener('ringfall:thunder', (e) => setTimeout(() => sfx.thunder(e.detail.power), e.detail.delay * 1000));
 function musicMood() {
   const st = game.state;
   music.setDuck(st === 'paused' ? 0.45 : 1);

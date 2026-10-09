@@ -411,7 +411,7 @@ export function createWorld(scene, mapId) {
     },
 
     lights({ hemi = [0xd6eaff, 0x4a5a3a, 0.6], sun = [0xfff1d6, 2.4], fill }) {
-      add(new THREE.HemisphereLight(...hemi));
+      k.hemi = add(new THREE.HemisphereLight(...hemi));
       const l = new THREE.DirectionalLight(...sun);
       l.position.copy(k.sunDir).multiplyScalar(140);
       l.castShadow = true;
@@ -780,6 +780,53 @@ export function createWorld(scene, mapId) {
           if (pos[j + 1] < 0) pos[j + 1] += top; else if (pos[j + 1] > top) pos[j + 1] -= top;
         }
         geo.attributes.position.needsUpdate = true;
+      });
+    },
+
+    // Lluvia: segmentos que caen deprisa con algo de viento (cantidad según la calidad, como las partículas).
+    rain({ count = 1800, color = 0x9fb4d8, opacity = 0.32, top = 28, len = 0.9, wind = 2.5 } = {}) {
+      count = Math.round(count * Q.particles);
+      if (!count) return;
+      const E = H + 10, pos = new Float32Array(count * 6), speed = new Float32Array(count);
+      for (let i = 0; i < count; i++) {
+        const x = (rng() * 2 - 1) * E, y = rng() * top, z = (rng() * 2 - 1) * E;
+        pos.set([x, y, z, x, y + len, z], i * 6);
+        speed[i] = 16 + rng() * 6;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const lines = add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false })));
+      lines.frustumCulled = false;
+      animators.push((dt) => {
+        for (let i = 0; i < count; i++) {
+          const j = i * 6, dy = speed[i] * dt, dx = wind * dt;
+          pos[j + 1] -= dy; pos[j + 4] -= dy; pos[j] += dx; pos[j + 3] += dx;
+          if (pos[j + 1] < 0) { pos[j + 1] += top; pos[j + 4] += top; }
+          if (pos[j] > E) { pos[j] -= E * 2; pos[j + 3] -= E * 2; }
+        }
+        geo.attributes.position.needsUpdate = true;
+      });
+    },
+
+    // Tormenta: relámpagos de vez en cuando (la luz ambiente destella) y trueno con retardo (lo toca main.js).
+    storm({ every = [9, 20], power = 3.5 } = {}) {
+      const hemi = k.hemi;
+      if (!hemi) return;
+      const base = hemi.intensity;
+      let next = every[0] + rng() * (every[1] - every[0]), flash = 0;
+      animators.push((dt) => {
+        next -= dt;
+        if (next <= 0) {
+          next = every[0] + Math.random() * (every[1] - every[0]);
+          flash = 1;
+          const delay = 0.3 + Math.random() * 1.8;
+          dispatchEvent(new CustomEvent('ringfall:thunder', { detail: { delay, power: 1 - delay / 3 } }));
+        }
+        if (flash > 0) {
+          flash = Math.max(0, flash - dt * 3.2);
+          const f = flash > 0.75 || (flash > 0.35 && flash < 0.5) ? flash : flash * 0.2; // doble destello
+          hemi.intensity = base + f * power;
+        }
       });
     },
 
@@ -1266,7 +1313,7 @@ export function createWorld(scene, mapId) {
 
   return {
     id: info.id, info, half: H, root, colliders, solids, spawnPoints, lifts,
-    spawn: def.spawn, boxSpots: def.boxes, menuCam: def.menuCam ?? [0, 9, 34], env: def.env, exposure: def.exposure ?? 1,
+    spawn: def.spawn, boxSpots: def.boxes, menuCam: def.menuCam ?? [0, 9, 34], env: def.env, exposure: def.exposure ?? 1, grade: def.grade,
     groundHeightAt, resolveHorizontal, clampToArena, lineOfSight, pointInSolid, liftAt, update, dispose,
   };
 }

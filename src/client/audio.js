@@ -4,7 +4,7 @@ import { S, onSettings } from './settings.js';
 
 const BUSES = {
   volWeapons: ['rifle', 'pistol', 'shot', 'smg', 'shotgun', 'dmr', 'sniper', 'plasma', 'needle', 'arc', 'zoom', 'shell', 'casing', 'bolt', 'overheat', 'empty', 'reload', 'swap', 'throwG', 'melee'],
-  volCombat: ['explosion', 'hit', 'kill', 'shieldPop', 'shieldHit', 'shieldBreak', 'death'],
+  volCombat: ['explosion', 'hit', 'kill', 'shieldPop', 'shieldHit', 'shieldBreak', 'death', 'thunder'],
   volEnemies: ['mortar', 'boss', 'enemyShot', 'enemyMelee', 'spawn'],
   volPlayer: ['shieldRecharge', 'alarm', 'hurt', 'lift', 'slide', 'land', 'step'],
   volUi: ['boxOpen', 'boxTick', 'boxReveal', 'deny', 'pickup', 'wave', 'medal'],
@@ -248,6 +248,13 @@ export class Sfx {
     this.tone({ freq: 330, dur: 0.35, type: 'triangle', gain: 0.15, delay: 0.15 });
     this.tone({ freq: 440, dur: 0.6, type: 'triangle', gain: 0.15, delay: 0.3 });
   }
+  // Trueno lejano: estallido grave y retumbo largo.
+  thunder(power = 1) {
+    const k = Math.max(0.25, Math.min(1, power));
+    this.noise({ dur: 0.35, freq: 900, type: 'lowpass', gain: 0.35 * k });
+    this.noise({ dur: 2.6, freq: 160, freqEnd: 60, type: 'lowpass', gain: 0.55 * k, attack: 0.08, delay: 0.1 });
+  }
+
   // Medalla: acorde ascendente (tier 0 discreto · 1 brillante · 2 épico con golpe grave).
   medal(tier = 0) {
     const base = [660, 784, 988][tier] ?? 660;
