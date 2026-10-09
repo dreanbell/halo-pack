@@ -21,6 +21,7 @@ import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../sh
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
 import { loadPlayerModels, requestPlayerModel } from './playermodels.js';
+import { Q, QUALITY_LEVELS, setQuality, needsReload, applyRenderer, trackFrame, beforeRender } from './quality.js';
 
 const BEST_KEY = 'ringfall.best';
 const NAME_KEY = 'ringfall.name';
@@ -32,11 +33,10 @@ const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.build')) el.textContent = `v${BUILD}${DEBUG ? ' · diagnóstico' : ''}`;
 console.info(`Ringfall v${BUILD}`);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.25 : 2)); // móvil: menos píxeles, más FPS
+// Calidad (quality.js): en móvil, menos píxeles, sin antialias y sombras/detalle reducidos; resolución dinámica por FPS.
+const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: 'high-performance' });
+applyRenderer(renderer);
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 $('app').appendChild(renderer.domElement);
@@ -56,15 +56,16 @@ const ctx = { scene, camera, renderer, game, rules: spRules };
 ctx.sfx = new Sfx();
 ctx.hud = new Hud();
 // Mapa: se reconstruye entero (geometría, luz, navegación) al cambiar.
-function loadMap(id) {
+function loadMap(id, force = false) {
   if (!isMap(id)) id = DEFAULT_MAP;
-  if (ctx.world?.id === id) return;
+  if (ctx.world?.id === id && !force) return;
   ctx.world?.dispose();
   scene.environment?.userData.target?.dispose();
   ctx.world = createWorld(scene, id);
   scene.environment = skyEnvironment(renderer, ctx.world.env);
   renderer.toneMappingExposure = ctx.world.exposure;
   ctx.nav = new NavGrid(ctx.world);
+  renderer.compile(scene, camera); // shaders compilados ya, sin tirones al ver cada material por primera vez
 }
 function readMap() {
   try { const id = localStorage.getItem(MAP_KEY); return isMap(id) ? id : DEFAULT_MAP; } catch { return DEFAULT_MAP; }
@@ -369,6 +370,29 @@ function renderMaps(el, current, editable, pick) {
   const desc = el.nextElementSibling;
   if (desc?.classList.contains('map-desc')) desc.textContent = mapInfo(current).desc;
 }
+// Selector de gráficos (menú). Se reconstruye el mapa actual con el nuevo nivel de detalle.
+const QUALITY_NAMES = { auto: 'AUTO', alta: 'ALTA', media: 'MEDIA', baja: 'BAJA' };
+function renderQuality() {
+  const el = $('menu-quality');
+  el.replaceChildren(...QUALITY_LEVELS.map((lv) => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (Q.choice === lv ? ' selected' : '');
+    b.textContent = QUALITY_NAMES[lv];
+    b.addEventListener('click', () => {
+      if (Q.choice === lv) return;
+      setQuality(lv);
+      applyRenderer(renderer);
+      loadMap(ctx.world.id, true);
+      renderQuality();
+    });
+    return b;
+  }));
+  const notes = [];
+  if (Q.choice === 'auto') notes.push(`Automático: ${QUALITY_NAMES[Q.level]} en este dispositivo`);
+  if (needsReload()) notes.push('El suavizado de bordes cambia al recargar la página');
+  $('quality-note').textContent = notes.join(' · ');
+}
+renderQuality();
 function renderMenuMaps() {
   const pick = (id) => {
     ctx.spMap = id;
@@ -765,11 +789,13 @@ function tick(dt) {
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
+  trackFrame(now - last);
   tick(Math.min((now - last) / 1000, 0.05));
   last = now;
+  beforeRender();
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
 
 // Acceso para depuración y pruebas automatizadas.
-window.__ringfall = { ctx, newGame, tick, armory, loadMap, startSession, monstersReady, playersReady, loadAllPlayerModels };
+window.__ringfall = { Q, setQuality, ctx, newGame, tick, armory, loadMap, startSession, monstersReady, playersReady, loadAllPlayerModels };

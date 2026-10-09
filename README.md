@@ -219,6 +219,7 @@ src/client/              El juego (navegador)
   avatar.js · playermodels.js · remote.js   Soldado procedural · skins 3D con IK · otros jugadores
   armory.js · loadout.js · setup.js · gunview.js · guns.js   Armería, menú de armas, reglas, armas
   world.js · maps.js     Kit de construcción procedural y colisiones · los mapas
+  quality.js             Calidad gráfica (AUTO/ALTA/MEDIA/BAJA) y resolución dinámica por FPS
   hud.js · effects.js · audio.js · spectator.js · touch.js · box.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)
@@ -234,5 +235,22 @@ vendor/                  three.js r160 y PeerJS 1.5.5 (MIT) · assets/ con model
 **Rendimiento de carga:** al abrir el juego solo se descarga lo necesario para el menú; los monstruos se cargan en
 segundo plano (o al empezar partida) y cada skin 3D solo cuando alguien la lleva. El servidor LAN comprime con gzip
 (three.js pasa de 655 KB a 164 KB) y responde 304 a lo que no ha cambiado.
+
+**Rendimiento gráfico (móvil):** el menú tiene un selector **GRÁFICOS** (AUTO · ALTA · MEDIA · BAJA, se guarda en el
+navegador; también `?q=baja` en la URL). AUTO elige ALTA en escritorio y MEDIA o BAJA en móvil según núcleos y memoria.
+
+| | ALTA | MEDIA | BAJA |
+|---|---|---|---|
+| Densidad de píxeles máx. | 2 | 1,25 | 1 |
+| Sombras | 2048 px, suaves | 1024 px, a 30 Hz | no |
+| Antialias | sí | no | no |
+| Hierba · partículas · árboles · nubes | 100 % | 45 · 45 · 70 · 60 % | 0 · 20 · 45 · 35 % |
+| Luces puntuales · texturas · mapas de normales | 6 · 512 px · sí | 3 · 256 px · sí | 1 · 256 px · no |
+| Esqueletos de monstruos | 60 Hz | 60 Hz | 30 Hz |
+
+En todos los niveles: las piezas estáticas del mapa se fusionan por material (valle: 454 → 77 llamadas de dibujo),
+la resolución baja sola si los FPS caen de ~45 (y se recupera si sobran), los shaders se compilan al cargar el mapa,
+el radar se dibuja a 20 Hz y en móvil no hay desenfoques CSS sobre el lienzo. La calidad solo cambia lo visual:
+colisiones, rocas, hitboxes y reglas son idénticas en todos los niveles (también entre jugadores con niveles distintos).
 
 Para depurar, `window.__ringfall` expone `ctx`, `newGame()` y `tick(dt)`, que avanza la simulación sin renderizar.

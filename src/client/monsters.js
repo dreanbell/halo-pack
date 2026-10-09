@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from '../../vendor/three/addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from '../../vendor/three/addons/utils/BufferGeometryUtils.js';
+import { Q } from './quality.js';
 
 // Criaturas de carne: modelos CC0 (vendor/assets/monsters, ver ATTRIBUTION.md) con material orgánico,
 // animación y añadidos procedurales (boca, ojos, tentáculos, bultos, hueso) anclados a sus huesos.
@@ -520,7 +521,9 @@ class Monster {
       if (idle) idle.setEffectiveWeight(rest * (run ? 1 - moving : 1));
       if (atk) atk.setEffectiveWeight(this.wAtk);
       if (tel) tel.setEffectiveWeight(this.wTel);
-      this.mixer.update(dt);
+      // Calidad BAJA: el esqueleto se evalúa un fotograma sí y otro no (mitad de CPU en animación).
+      this.mixDt = (this.mixDt ?? 0) + dt;
+      if (!Q.halfAnim || (this.mixF = !this.mixF)) { this.mixer.update(this.mixDt); this.mixDt = 0; }
     }
     // Una extremidad más grande que la otra.
     if (this.bigArm) this.bigArm.scale.setScalar(this.bigArmK);

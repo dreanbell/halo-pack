@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Avatar } from './avatar.js';
 import { skyEnvironment } from './world.js';
+import { Q } from './quality.js';
 import { PRIMARY, SECONDARY, VISORS, HELMETS, PATTERNS, MODELS, randomSkin, sanitizeSkin } from '../shared/skins.js';
 
 // Qué opciones afectan a cada modelo (0 = procedural).
@@ -35,7 +36,7 @@ export class Armory {
   init() {
     if (this.renderer) return;
     const r = (this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true }));
-    r.setPixelRatio(Math.min(devicePixelRatio, 2));
+    r.setPixelRatio(Math.min(devicePixelRatio, Q.level === 'alta' ? 2 : 1.25)); // vista previa: en móvil, menos píxeles
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.shadowMap.enabled = true;

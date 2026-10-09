@@ -239,6 +239,10 @@ export class Hud {
 
     this.toggle('radar', 'hidden', !r.radar);
     if (!r.radar) return;
+    // El radar no necesita 60 Hz: ~20 Hz basta y ahorra rasterizar el lienzo 2D en cada fotograma (sobre todo en móvil).
+    this.radarT = (this.radarT ?? 0) - dt;
+    if (this.radarT > 0) return;
+    this.radarT = 0.05;
     const view = sp ? ctx.remotes.get(sp.id) : null;
     if (view) this.drawRadar(view.pos, view.yaw, d.enemies, ctx.remotes.list().filter((x) => x !== view), g.mode);
     else this.drawRadar(p.pos, p.yaw.rotation.y, d.enemies, ctx.remotes.list(), g.mode);

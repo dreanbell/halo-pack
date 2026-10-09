@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildGun } from './guns.js';
 import { skyEnvironment } from './world.js';
+import { Q } from './quality.js';
 import { CFG } from './config.js';
 
 // Iluminación de estudio común a la vista previa y a las miniaturas.
@@ -79,12 +80,12 @@ export class GunViewer {
   init() {
     if (this.renderer) return;
     const r = (this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true }));
-    r.setPixelRatio(Math.min(devicePixelRatio, 2));
+    r.setPixelRatio(Math.min(devicePixelRatio, Q.level === 'alta' ? 2 : 1.25)); // vista previa: en móvil, menos píxeles
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.3;
     r.shadowMap.enabled = true;
-    r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.shadowMap.type = Q.soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     this.scene = new THREE.Scene();
     const key = studio(this.scene, r);
     key.castShadow = true;

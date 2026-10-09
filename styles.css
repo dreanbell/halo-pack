@@ -165,6 +165,10 @@ button {
 }
 button:hover, button:focus-visible { background: rgba(127, 231, 255, 0.18); outline: none; }
 .best { margin-top: 14px; font-size: 16px; }
+.quality { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+.quality > span { letter-spacing: 0.2em; font-size: 13px; opacity: 0.8; }
+.quality .chip { font-size: 12px; padding: 5px 10px; }
+.quality-note { margin: 6px 0 0; min-height: 1em; }
 .menu-buttons { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
 button.secondary { font-size: 16px; padding: 8px 22px; margin-top: 18px; border-color: var(--hud-dim); }
 button:disabled { opacity: 0.4; cursor: default; background: transparent; }
@@ -462,3 +466,7 @@ body.touch .controls-box { display: none; }
   .stepper { justify-content: flex-start; margin-bottom: 8px; }
   .stepper b, .stepper button.toggle { min-width: 7em; }
 }
+
+/* Móvil: sin desenfoques ni sombras con filtro sobre el lienzo 3D (se recomponen cada fotograma). */
+body.touch .panel { backdrop-filter: none; background: rgba(5, 18, 28, 0.82); }
+body.touch #weapon-icon, body.touch #scope .glow, body.touch #scope.enemy .glow { filter: none; }

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { Q } from './quality.js';
 import { CFG, clamp } from './config.js';
 import { mapInfo } from '../shared/mapinfo.js';
 import { MAP_DEFS } from './maps.js';
+import { mergeGeometries } from '../../vendor/three/addons/utils/BufferGeometryUtils.js';
 
 export function mulberry32(a) {
   return () => {
@@ -20,11 +22,17 @@ function canvas(w, h, draw) {
   return c;
 }
 
+// Calidad MEDIA/BAJA: las texturas de superficie (cuadradas, ≥512 px) se reducen a Q.tex (menos memoria de vídeo y ancho de banda).
+function shrink(c) {
+  if (c.width !== c.height || c.width <= Q.tex) return c;
+  return canvas(Q.tex, Q.tex, (g, w, h) => { g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, w, h); });
+}
+
 function toTex(c, srgb = true) {
-  const t = new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(shrink(c));
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
+  t.anisotropy = Q.level === 'alta' ? 8 : 2;
   return t;
 }
 
@@ -44,6 +52,8 @@ function noiseFill(g, w, h, base, amount, rnd = Math.random) {
 
 // Mapa de normales (espacio tangente) a partir de un lienzo de alturas en gris.
 function normalTex(hc, strength = 2) {
+  if (!Q.normals) return null; // calidad BAJA: sin mapas de normales (ahorra carga y coste por píxel)
+  hc = shrink(hc);
   const w = hc.width, h = hc.height;
   const src = hc.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
   const out = canvas(w, h, () => {});
@@ -187,7 +197,7 @@ function panelSet(base, rnd, { size = 512, glow = true, style = 'forerunner' } =
 }
 
 function rockSet(base, rnd, { snow = false } = {}) {
-  const S = 512;
+  const S = Math.min(512, Q.tex), K = S / 512; // ruido por píxel en JS: se genera ya a la resolución final
   const fb = valueNoise((rnd() * 1e9) | 0);
   const height = canvas(S, S, (g) => {
     const img = g.createImageData(S, S);
@@ -207,7 +217,7 @@ function rockSet(base, rnd, { snow = false } = {}) {
     for (let i = 0; i < 18; i++) {
       let x = rnd() * S, y = rnd() * S;
       g.beginPath(); g.moveTo(x, y);
-      for (let k = 0; k < 6; k++) { x += (rnd() - 0.5) * 60; y += rnd() * 40; g.lineTo(x, y); }
+      for (let k = 0; k < 6; k++) { x += (rnd() - 0.5) * 60 * K; y += rnd() * 40 * K; g.lineTo(x, y); }
       g.stroke();
     }
   });
@@ -219,7 +229,7 @@ function rockSet(base, rnd, { snow = false } = {}) {
     g.globalCompositeOperation = 'source-over';
     for (let i = 0; i < 120; i++) {
       g.fillStyle = `rgba(${rnd() < 0.5 ? '255,240,220' : '20,15,10'},${0.04 + rnd() * 0.06})`;
-      g.beginPath(); g.arc(rnd() * S, rnd() * S, 4 + rnd() * 26, 0, 7); g.fill();
+      g.beginPath(); g.arc(rnd() * S, rnd() * S, (4 + rnd() * 26) * K, 0, 7); g.fill();
     }
     if (snow) {
       const d = g.getImageData(0, 0, S, S), hd = height.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, S, S).data;
@@ -349,7 +359,10 @@ export function createWorld(scene, mapId) {
   let pointLights = 0;
 
   const add = (o) => { root.add(o); return o; };
-  const track = (t) => { disposables.add(t); return t; };
+  const track = (t) => { if (t) disposables.add(t); return t; };
+  // Decorado según calidad: se omiten piezas (fracción f) sin dejar de consumir el generador aleatorio,
+  // así el resto del mapa (rocas, estructuras, colisiones) es idéntico en todos los niveles y entre jugadores.
+  const thin = (f) => { let a = 0; return () => { const prev = a; a += f; return Math.floor(a) > Math.floor(prev); }; };
 
   const k = {
     H, rng, root, THREE, glowTexture, add,
@@ -391,7 +404,7 @@ export function createWorld(scene, mapId) {
             #include <colorspace_fragment>
           }`,
       });
-      const sky = add(new THREE.Mesh(new THREE.SphereGeometry(1800, 48, 24), mat));
+      const sky = add(new THREE.Mesh(new THREE.SphereGeometry(1800, Q.level === 'alta' ? 48 : 32, Q.level === 'alta' ? 24 : 16), mat));
       sky.renderOrder = -3;
       if (fog) scene.fog = fog[1] ? new THREE.Fog(fog[0], fog[1], fog[2]) : new THREE.FogExp2(fog[0], fog[2]);
       k.sunDir = sunDir;
@@ -402,7 +415,7 @@ export function createWorld(scene, mapId) {
       const l = new THREE.DirectionalLight(...sun);
       l.position.copy(k.sunDir).multiplyScalar(140);
       l.castShadow = true;
-      l.shadow.mapSize.set(2048, 2048);
+      l.shadow.mapSize.set(Q.shadowSize, Q.shadowSize);
       const E = H + 16;
       Object.assign(l.shadow.camera, { left: -E, right: E, top: E, bottom: -E, near: 1, far: 360 });
       l.shadow.bias = -0.0005;
@@ -416,7 +429,7 @@ export function createWorld(scene, mapId) {
     },
 
     light(x, y, z, color, intensity = 30, distance = 26) {
-      if (pointLights >= 6) return;
+      if (pointLights >= Q.lights) return;
       pointLights++;
       const l = add(new THREE.PointLight(color, intensity, distance, 2));
       l.position.set(x, y, z);
@@ -515,15 +528,17 @@ export function createWorld(scene, mapId) {
           g.fillStyle = grd; g.fillRect(0, 0, w, h);
         }
       }));
+      const show = thin(Q.clouds);
       for (let i = 0; i < count; i++) {
         const a = rng() * Math.PI * 2, d = dist[0] + rng() * (dist[1] - dist[0]);
-        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color, transparent: true, opacity: opacity * (0.6 + rng() * 0.4), depthWrite: false, fog: false }));
-        const sz = size[0] + rng() * (size[1] - size[0]);
+        const op = opacity * (0.6 + rng() * 0.4), sz = size[0] + rng() * (size[1] - size[0]);
+        const y = height[0] + rng() * (height[1] - height[0]), v = 1.5 + rng() * 2;
+        if (!show()) continue;
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color, transparent: true, opacity: op, depthWrite: false, fog: false }));
         s.scale.set(sz, sz * 0.45, 1);
-        s.position.set(Math.cos(a) * d, height[0] + rng() * (height[1] - height[0]), Math.sin(a) * d);
+        s.position.set(Math.cos(a) * d, y, Math.sin(a) * d);
         s.renderOrder = -1;
         add(s);
-        const v = 1.5 + rng() * 2;
         animators.push((dt) => { s.position.x += v * dt; if (s.position.x > 1000) s.position.x = -1000; });
       }
     },
@@ -598,6 +613,7 @@ export function createWorld(scene, mapId) {
 
     // Relieve fuera de la arena (colinas, cordilleras, acantilados).
     terrain({ start = 6, rise = 50, base = 8, amp = 50, freq = 0.006, far = 0.05, terrace = 0, colors = ['#4f6a3c', '#6d7457', '#8a8a82', '#f0f4f8'], levels = [0.15, 0.45, 0.8], steep = '#6b6660', tex = '#bdb8ae', size = 1800, seg = 150, tile = 18 }) {
+      seg = Math.min(seg, Q.seg);
       const fb = valueNoise(7 + (def.seed ?? 0));
       heightAt = (x, z) => {
         const d = Math.max(Math.abs(x), Math.abs(z)) - (H + start);
@@ -652,8 +668,9 @@ export function createWorld(scene, mapId) {
       const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.25, 0.4, 2, 6).translate(0, 1, 0), new THREE.MeshStandardMaterial({ color: trunk, roughness: 1 }), count);
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
       const base = new THREE.Color(crown), white = new THREE.Color(0xeef4fa), c = new THREE.Color();
-      let n = 0;
-      for (let tries = 0; n < count && tries < count * 20; tries++) {
+      const show = thin(Q.trees);
+      let n = 0, placed = 0;
+      for (let tries = 0; placed < count && tries < count * 20; tries++) {
         const x = (rng() * 2 - 1) * (H + rmax), z = (rng() * 2 - 1) * (H + rmax);
         const d = Math.max(Math.abs(x), Math.abs(z)) - H;
         if (d < rmin || d > rmax) continue;
@@ -662,10 +679,12 @@ export function createWorld(scene, mapId) {
         const s = 0.8 + rng() * 0.9;
         q.setFromAxisAngle(up, rng() * 6);
         sc.set(s, s * (0.9 + rng() * 0.4), s);
-        crowns.setMatrixAt(n, m.compose(p.set(x, y + 0.3, z), q, sc));
-        trunks.setMatrixAt(n, m.compose(p.set(x, y - 0.3, z), q, sc));
         c.copy(base).multiplyScalar(0.75 + rng() * 0.5);
         if (snow) c.lerp(white, 0.35 + rng() * 0.35);
+        placed++;
+        if (!show()) continue;
+        crowns.setMatrixAt(n, m.compose(p.set(x, y + 0.3, z), q, sc));
+        trunks.setMatrixAt(n, m.compose(p.set(x, y - 0.3, z), q, sc));
         crowns.setColorAt(n, c);
         n++;
       }
@@ -701,21 +720,25 @@ export function createWorld(scene, mapId) {
       const inst = new THREE.InstancedMesh(geo, mat, count);
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
       const fb = valueNoise(5);
-      let n = 0;
-      for (let tries = 0; n < count && tries < count * 6; tries++) {
+      const show = thin(Q.grass);
+      let n = 0, placed = 0;
+      for (let tries = 0; placed < count && tries < count * 6; tries++) {
         const x = (rng() * 2 - 1) * (H - 1), z = (rng() * 2 - 1) * (H - 1);
         if (fb(x * 0.08, z * 0.08, 2) < 0.42) continue; // en manchas
         if (colliders.some((bx) => bx.min.y < 0.3 && x > bx.min.x - 0.3 && x < bx.max.x + 0.3 && z > bx.min.z - 0.3 && z < bx.max.z + 0.3)) continue;
         const s = height * (0.7 + rng() * 0.8);
         q.setFromAxisAngle(up, rng() * 6);
         sc.set(s * 1.4, s, s * 1.4);
+        c.set(0xffffff).multiplyScalar(0.75 + rng() * 0.45);
+        placed++;
+        if (!show()) continue;
         inst.setMatrixAt(n, m.compose(p.set(x, 0, z), q, sc));
-        inst.setColorAt(n, c.set(0xffffff).multiplyScalar(0.75 + rng() * 0.45));
+        inst.setColorAt(n, c);
         n++;
       }
       inst.count = n;
       inst.receiveShadow = true;
-      add(inst);
+      if (n) add(inst); else { inst.dispose(); geo.dispose(); mat.dispose(); } // calidad BAJA: sin hierba
     },
 
     // Partículas ambientales: nieve, polvo, motas de energía.
@@ -723,8 +746,10 @@ export function createWorld(scene, mapId) {
       const pos = new Float32Array(count * 3), seed = new Float32Array(count);
       const E = H + 10;
       for (let i = 0; i < count; i++) { pos.set([(rng() * 2 - 1) * E, rng() * top, (rng() * 2 - 1) * E], i * 3); seed[i] = rng() * 10; }
+      count = Math.round(count * Q.particles); // se generan todas (misma secuencia aleatoria) y se usan las primeras
+      if (!count) return;
       const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, count * 3), 3));
       const mat = new THREE.PointsMaterial({
         map: track(glowTexture()), color, size, transparent: true, opacity, depthWrite: false, sizeAttenuation: true,
         blending: kind === 'motes' ? THREE.AdditiveBlending : THREE.NormalBlending,
@@ -1091,6 +1116,51 @@ export function createWorld(scene, mapId) {
   };
 
   def.build(k);
+  const batched = batchStatic();
+
+  // Fusiona las piezas estáticas que comparten material en una sola malla por grupo: menos llamadas de dibujo
+  // (el cuello de botella en móvil). Las originales salen de la escena pero siguen en `solids` para los rayos
+  // (balas, línea de visión), así que impactos y colisiones no cambian.
+  function batchStatic() {
+    root.updateMatrixWorld(true);
+    const cands = [];
+    root.traverse((o) => {
+      if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || Array.isArray(o.material) || !o.visible || o.renderOrder) return;
+      if (o.material.transparent || !o.geometry.attributes.position) return;
+      cands.push(o);
+    });
+    // Lo que se mueve (anillos, orbes, hologramas...) se detecta ejecutando las animaciones en instantes de prueba.
+    const before = cands.map((o) => o.matrixWorld.clone());
+    for (const t of [0.37, 1.9, 4.3]) for (const fn of animators) fn(0, t);
+    root.updateMatrixWorld(true);
+    const groups = new Map();
+    cands.forEach((o, i) => {
+      if (!o.matrixWorld.equals(before[i]) || o.matrixWorld.determinant() < 0) return; // móvil o espejado: se deja
+      const g = o.geometry, attrs = Object.keys(g.attributes).sort().join(',');
+      const key = `${o.material.uuid}|${attrs}|${g.index ? 1 : 0}|${o.castShadow ? 1 : 0}${o.receiveShadow ? 1 : 0}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(o);
+    });
+    const removed = [];
+    for (const list of groups.values()) {
+      if (list.length < 2) continue;
+      const geos = list.map((o) => {
+        const g = o.geometry.clone().applyMatrix4(o.matrixWorld);
+        for (const name of Object.keys(g.morphAttributes)) delete g.morphAttributes[name];
+        return g;
+      });
+      const merged = mergeGeometries(geos, false);
+      for (const g of geos) g.dispose();
+      if (!merged) continue;
+      const m = new THREE.Mesh(merged, list[0].material);
+      m.castShadow = list[0].castShadow; m.receiveShadow = list[0].receiveShadow;
+      m.matrixAutoUpdate = false;
+      root.add(m);
+      for (const o of list) { o.parent.remove(o); removed.push(o); }
+    }
+    root.updateMatrixWorld(true);
+    return removed;
+  }
 
   // --- API de colisiones ----------------------------------------------------
   function groundHeightAt(x, z, r, feetY, step = STEP) {
@@ -1176,6 +1246,8 @@ export function createWorld(scene, mapId) {
       const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
       for (const m of mats) { for (const key of ['map', 'normalMap', 'emissiveMap', 'alphaMap']) m[key]?.dispose(); m.dispose(); }
     });
+    const cached = new Set(geoCache.values());
+    for (const o of batched) if (!cached.has(o.geometry)) o.geometry.dispose();
     for (const t of disposables) t.dispose();
   }
 
