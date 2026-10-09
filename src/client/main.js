@@ -20,6 +20,7 @@ import { DEFAULT_SKIN, sanitizeSkin, MODELS, PRIMARY } from '../shared/skins.js'
 import { Home } from './home.js';
 import { Wallet, PRICES, ITEM_NAMES, KIND_NAMES } from './wallet.js';
 import { Account } from './account.js';
+import { encodeBackup, decodeBackup } from './profile.js';
 import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../shared/rules.js';
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
@@ -578,8 +579,8 @@ const slotHtml = (id, label) => {
 };
 function renderHome() {
   const skin = ctx.skin, m = mapInfo(ctx.spMap);
-  $('home-name').textContent = account.online ? account.profile.name.toUpperCase() : 'INVITADO';
-  $('home-name').title = account.online ? 'Cuenta en el servidor' : 'Sin cuenta: progreso guardado solo en este navegador';
+  $('home-name').textContent = (account.online ? account.profile.name : localName() || 'JUGADOR').toUpperCase();
+  $('home-name').title = account.online ? 'Cuenta en el servidor' : 'Perfil guardado en este dispositivo';
   renderAccount();
   $('home-model').textContent = MODELS[skin.m] ?? '';
   $('home-emblem').style.background = `linear-gradient(135deg, ${skin.p}, ${skin.s})`;
@@ -668,8 +669,15 @@ function onLoggedIn() {
 }
 function renderAccount() {
   const on = account.online;
-  $('acc-out').hidden = on;
+  $('acc-local').hidden = on;
+  $('acc-out').hidden = on || !account.available; // la cuenta con contraseña solo si hay servidor
   $('acc-in').hidden = !on;
+  if (!on) {
+    const rows = [['Créditos', `◈ ${wallet.coins.toLocaleString('es-ES')}`], ['Ganados en total', `◈ ${wallet.earned.toLocaleString('es-ES')}`],
+      ['Desbloqueos', wallet.owned.size], ['Récord', readBest().toLocaleString('es-ES')]];
+    $('prof-stats').replaceChildren(...rows.flatMap(([k, v]) => { const a = document.createElement('dt'); a.textContent = k; const b = document.createElement('dd'); b.textContent = v; return [a, b]; }));
+    if (document.activeElement !== $('prof-name')) $('prof-name').value = localName();
+  }
   if (on) {
     const p = account.profile;
     $('acc-user').textContent = p.name.toUpperCase();
@@ -715,6 +723,62 @@ $('acc-server-save').addEventListener('click', async () => {
   renderHome();
 });
 document.querySelector('.home-player').addEventListener('click', () => selectTab('account'));
+
+// --- Perfil local: nombre y código de respaldo (sin servidor ni contraseña) --------------------------------
+function localName() {
+  try { return localStorage.getItem(NAME_KEY) ?? ''; } catch { return ''; }
+}
+$('prof-name').addEventListener('input', () => {
+  const name = $('prof-name').value.trim().slice(0, 16);
+  try { if (name) localStorage.setItem(NAME_KEY, name); else localStorage.removeItem(NAME_KEY); } catch { /* sin almacenamiento */ }
+  $('home-name').textContent = (name || 'JUGADOR').toUpperCase();
+});
+$('prof-copy').addEventListener('click', async () => {
+  const code = encodeBackup({
+    name: localName(), coins: wallet.coins, owned: [...wallet.owned], earned: wallet.earned,
+    skin: ctx.skin, loadout: ctx.loadout, best: readBest(),
+  });
+  const box = $('prof-code');
+  box.value = code;
+  let ok = false;
+  try { await navigator.clipboard.writeText(code); ok = true; } catch {
+    box.select();
+    try { ok = document.execCommand('copy'); } catch { /* sin portapapeles */ }
+  }
+  $('acc-msg').textContent = ok
+    ? 'Código copiado. Guárdalo (nota, correo o mensaje a ti mismo) y pégalo en el otro dispositivo.'
+    : 'Copia el código del recuadro y guárdalo en un lugar seguro.';
+});
+$('prof-load').addEventListener('click', () => {
+  const btn = $('prof-load');
+  let d;
+  try { d = decodeBackup($('prof-code').value); } catch (e) { $('acc-msg').textContent = e.message; return; }
+  // Sustituye el progreso actual: se pide una segunda pulsación.
+  if (!btn.dataset.armed) {
+    btn.dataset.armed = '1';
+    btn.textContent = '¿SEGURO? PULSA OTRA VEZ';
+    $('acc-msg').textContent = `Código de ${d.name || 'Jugador'}: ◈ ${d.coins.toLocaleString('es-ES')} y ${d.owned.length} desbloqueos. Sustituirá el progreso de este dispositivo.`;
+    setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'CARGAR CÓDIGO'; }, 4000);
+    return;
+  }
+  delete btn.dataset.armed;
+  btn.textContent = 'CARGAR CÓDIGO';
+  wallet.restore(d);
+  try {
+    if (d.name) localStorage.setItem(NAME_KEY, d.name);
+    if (d.best > readBest()) localStorage.setItem(BEST_KEY, String(d.best));
+  } catch { /* sin almacenamiento */ }
+  if (d.loadout?.length === 2 && d.loadout.every((id) => CFG.weapons[id]) && d.loadout[0] !== d.loadout[1]) {
+    ctx.loadout = d.loadout;
+    try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(d.loadout)); } catch { /* sin almacenamiento */ }
+    home.setWeapon(d.loadout[0]);
+  }
+  if (d.skin) applySkin(fitSkin(sanitizeSkin(d.skin)));
+  $('prof-code').value = '';
+  $('best').textContent = readBest().toLocaleString('es-ES');
+  $('acc-msg').textContent = `¡Progreso recuperado! Bienvenido, ${d.name || 'Jugador'}.`;
+  renderHome();
+});
 wallet.onChange(() => renderHome());
 account.detect().then(async () => {
   if (await account.resume()) onLoggedIn();

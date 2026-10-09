@@ -575,6 +575,15 @@ body.touch #menu.home .home-panel { backdrop-filter: none; background: rgba(5, 1
 .acc-msg { min-height: 1.2em; color: #ffd27a; }
 .acc-server summary { cursor: pointer; letter-spacing: 0.2em; font-size: 13px; margin-top: 10px; }
 .acc-server button { margin-top: 8px; }
+#acc-local .field, #acc-out .field { align-items: stretch; text-align: left; }
+#prof-name, #prof-code { font: inherit; font-size: 16px; padding: 8px 10px; background: rgba(0, 10, 16, 0.6); color: #e9fbff; border: 1px solid var(--hud-dim); width: 100%; box-sizing: border-box; outline: none; }
+#prof-name:focus, #prof-code:focus { border-color: var(--hud); }
+#prof-code { font-size: 12px; letter-spacing: 0; resize: vertical; word-break: break-all; user-select: text; }
+#acc-local .row-buttons, #acc-out .row-buttons { justify-content: flex-start; margin-top: 8px; }
+#acc-local .row-buttons button { font-size: 13px; padding: 8px 12px; margin: 0; }
+#prof-load[data-armed] { border-color: var(--warn); color: var(--warn); }
+.acc-h { font-size: 13px; letter-spacing: 0.22em; color: var(--hud); margin: 14px 0 8px; }
+#acc-local .tip { font-size: 13px; margin: 10px 0 0; }
 
 /* --- Ajustes (inicio y pausa) --- */
 .settings { text-align: left; }

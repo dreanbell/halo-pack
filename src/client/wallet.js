@@ -49,6 +49,14 @@ export class Wallet {
     this.save();
   }
 
+  // Restaurar un código de respaldo: sustituye el progreso de este navegador.
+  restore({ coins, owned, earned }) {
+    this.localCoins = coins;
+    this.localOwned = new Set(owned);
+    this.localEarned = earned;
+    this.save();
+  }
+
   save() {
     try { localStorage.setItem(KEY, JSON.stringify({ coins: this.localCoins, owned: [...this.localOwned], earned: this.localEarned ?? 0 })); } catch { /* sin almacenamiento */ }
     this.emit();

@@ -35,7 +35,12 @@ terminar cada partida (o al salir a mitad, por lo conseguido):
 Colores y visor siempre gratis. En PERSONALIZAR lo bloqueado lleva candado y precio; al tocarlo te lleva a la tienda.
 Lo que ya llevabas equipado al estrenar el monedero queda desbloqueado.
 
-**Cuentas** (pestaña CUENTA, `src/client/account.js` + `server/accounts.js`): usuario y contraseña para guardar
+**Perfil** (pestaña CUENTA, sin servidor ni contraseña): tu nombre y el monedero se guardan solos en el dispositivo.
+**COPIAR MI CÓDIGO** genera un código de respaldo `RF1-…` (nombre, créditos, desbloqueos, armadura, armas y récord);
+**CARGAR CÓDIGO** lo restaura en otro móvil/PC o tras borrar el navegador (pide confirmar: sustituye el progreso
+actual). La suma de control solo detecta códigos mal copiados (`src/client/profile.js`).
+
+**Cuentas en servidor** (opcional, solo si hay un servidor de Ringfall; `src/client/account.js` + `server/accounts.js`): usuario y contraseña para guardar
 créditos, desbloqueos, armadura y armas en el servidor (no se pierden al borrar el navegador y valen en cualquier
 dispositivo). El servidor manda: valida cada compra con sus precios y calcula los créditos de cada partida
 (`src/shared/shop.js`) con topes (◈ 1 500 por partida, una cada 25 s, ◈ 6 000 por hora). Contraseñas con scrypt y
