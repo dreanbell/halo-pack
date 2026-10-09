@@ -12,6 +12,12 @@ const MODEL_NOTE = [
   'Servoarmadura pesada pintada con tus colores y patrón.',
   'Comando de baja poligonización, teñido con el color principal.',
   'Comando de baja poligonización, teñido con el color principal.',
+  'Mono de dibujos animados (con cola).',
+  'Pato de dibujos: las alas sujetan el arma.',
+  'Rana patosa.',
+  'Chica con garra de gancho. El color del visor cambia sus luces.',
+  'Dado con brazos y piernas de fideo.',
+  'Su hermano, el dado rojo.',
 ];
 
 // Armería: vista previa 3D (renderer propio) + selector de colores, casco y patrón.

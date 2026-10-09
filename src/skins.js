@@ -5,7 +5,7 @@ export const VISORS = ['#ffb340', '#45d6ff', '#ff4d6a', '#7dff6a', '#d8d8ff'];
 export const HELMETS = ['CENTINELA', 'HALCÓN', 'BASTIÓN'];
 export const PATTERNS = ['LISO', 'CAMUFLAJE', 'RAYAS', 'HEXÁGONOS'];
 // Modelo del soldado: 0 = procedural (colores y patrón); el resto son modelos 3D (src/playermodels.js).
-export const MODELS = ['CLÁSICO', 'FEDERAL', 'MILITAR', 'RENEGADO', 'EXOTROOPER', 'COMANDO', 'COMANDO F'];
+export const MODELS = ['CLÁSICO', 'FEDERAL', 'MILITAR', 'RENEGADO', 'EXOTROOPER', 'COMANDO', 'COMANDO F', 'MONO', 'PATO', 'RANA', 'CHICA GANCHO', 'DADO PAR', 'DADO IMPAR'];
 
 export const DEFAULT_SKIN = { p: PRIMARY[0], s: SECONDARY[0], v: VISORS[0], h: 0, t: 0, m: 0 };
 

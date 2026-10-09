@@ -140,7 +140,7 @@ Desde el menú (**ARMERÍA · PERSONALIZAR SOLDADO**) o desde el lobby (**ARMER�
 
 | Opción | Variantes |
 |---|---|
-| **Modelo** | Clásico (procedural) · **Federal · Militar · Renegado** (armadura de asalto con texturas PBR y visor luminoso) · ExoTrooper (servoarmadura) · Comando · Comando F |
+| **Modelo** | Clásico (procedural) · **Federal · Militar · Renegado** (armadura de asalto con texturas PBR y visor luminoso) · ExoTrooper (servoarmadura) · Comando · Comando F · **Mono · Pato · Rana · Chica gancho · Dado par · Dado impar** (skins graciosas) |
 | Color principal | 10 |
 | Color secundario | 10 |
 | Visor | 5 (reflectante, con brillo) |
