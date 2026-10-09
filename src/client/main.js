@@ -21,6 +21,7 @@ import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../sh
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
 import { buildAlien } from './aliens.js';
+import { loadGunModels } from './guns.js';
 import { loadPlayerModels, requestPlayerModel } from './playermodels.js';
 import { Q, QUALITY_LEVELS, setQuality, needsReload, applyRenderer, trackFrame, beforeRender } from './quality.js';
 
@@ -35,6 +36,9 @@ for (const el of document.querySelectorAll('.build')) el.textContent = `v${BUILD
 console.info(`Ringfall v${BUILD}`);
 
 // Calidad (quality.js): en móvil, menos píxeles, sin antialias y sombras/detalle reducidos; resolución dinámica por FPS.
+// Modelos 3D de las armas (~0,9 MB, CC0): antes de crear la vista en primera persona y las miniaturas.
+await loadGunModels();
+
 const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: 'high-performance' });
 applyRenderer(renderer);
 // Leer el registro de cada shader bloquea hasta que termina de compilar: solo en modo diagnóstico.

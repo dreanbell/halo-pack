@@ -61,6 +61,26 @@ export const CFG = {
       interval: 1.0, damage: 140, splash: 4.5, projSpeed: 36, life: 3, spread: 0.002, reload: 3,
       headMult: 1, shieldMult: 1, recoil: 0.05, tracer: 0x7dff6a, sound: 'arc', ads: 1.15,
     },
+    battle: {
+      name: 'VX-7 BATTLE RIFLE', kind: 'hitscan', auto: true, mag: 30, reserve: 150, maxReserve: 300, pickup: 30,
+      interval: 0.12, damage: 14, spread: 0.02, sprayGrow: 0.006, sprayMax: 0.06,
+      range: 140, reload: 2.4, headMult: 2, shieldMult: 1, recoil: 0.009, tracer: 0xffd9a0, sound: 'dmr', ads: 1.3, flash: 1.15,
+    },
+    revolver: {
+      name: 'KODIAK .50 MAGNUM', kind: 'hitscan', auto: false, mag: 6, reserve: 36, maxReserve: 54, pickup: 12,
+      interval: 0.42, damage: 45, spread: 0.005, range: 130, reload: 2.6, headMult: 2.5, shieldMult: 1, recoil: 0.032,
+      tracer: 0xffe8b0, sound: 'dmr', ads: 1.25, flash: 1.3,
+    },
+    sawed: {
+      name: 'HOWLER-2 SAWED-OFF', kind: 'pellets', pellets: 12, auto: false, mag: 2, reserve: 24, maxReserve: 36, pickup: 8,
+      interval: 0.32, damage: 12, spread: 0.11, range: 22, falloff: [5, 22], reload: 1.9,
+      headMult: 1.2, shieldMult: 1, recoil: 0.06, tracer: 0xffd27a, sound: 'shotgun', ads: 1.1, adsSpread: 0.85, flash: 2,
+    },
+    carbine: {
+      name: 'RAD CARBINE', alien: true, kind: 'hitscan', auto: false, mag: 18, reserve: 72, maxReserve: 108, pickup: 18,
+      interval: 0.2, damage: 22, spread: 0.004, range: 160, reload: 2.3, headMult: 2.5, shieldMult: 1.2, zoom: 2, scope: 'dmr',
+      recoil: 0.012, tracer: 0x3dffa0, sound: 'plasma', flash: 0.9,
+    },
   },
   defaultLoadout: ['rifle', 'pistol'],
 
@@ -68,8 +88,8 @@ export const CFG = {
   box: {
     cost: 500, roll: 2.6, offer: 8, range: 2.2, waveBonus: 150,
     pool: [
-      { wave: 1, ids: ['smg', 'shotgun', 'dmr', 'plasma'] },
-      { wave: 3, ids: ['sniper', 'needler'] },
+      { wave: 1, ids: ['smg', 'shotgun', 'dmr', 'plasma', 'battle', 'revolver'] },
+      { wave: 3, ids: ['sniper', 'needler', 'sawed', 'carbine'] },
       { wave: 5, ids: ['arc'] },
     ],
   },

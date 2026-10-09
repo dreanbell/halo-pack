@@ -15,7 +15,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 const VM_SCALE = 0.8;
 const HIP = new THREE.Vector3(0.28, -0.26, -0.62);
 // Casquillos: tipo y retardo de expulsión (corredera/cerrojo).
-const EJECT = { rifle: ['rifle', 0], smg: ['small', 0], dmr: ['rifle', 0], shotgun: ['shell', 0.3], sniper: ['big', 0.42] };
+const EJECT = { rifle: ['rifle', 0], smg: ['small', 0], dmr: ['rifle', 0], shotgun: ['shell', 0.3], sniper: ['big', 0.42], battle: ['rifle', 0] };
 const lerp = (a, b, k) => a + (b - a) * k;
 
 const BOLT_CYCLE = 0.95;

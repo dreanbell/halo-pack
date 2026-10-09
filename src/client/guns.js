@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { GLTFLoader } from '../../vendor/three/addons/loaders/GLTFLoader.js';
 import { plate } from './avatar.js';
 
-// Modelos procedurales de armas (apuntan a -Z) con un pack de texturas generado por código.
+// Armas (apuntan a -Z): modelos 3D descargados (CC0, vendor/assets/guns) con el pack de texturas generado por
+// código; si un modelo no carga, se usa el modelo procedural de respaldo.
 // Los usan la vista en primera persona, los avatares, la caja misteriosa y el menú de armas.
 // buildGun(id) → { group, muzzle, eject, grips: { r, l }, sight, eye, parts }
 //   sight: punto (local) que se alinea con el centro de la pantalla al apuntar; eye: distancia ojo-mira.
@@ -16,6 +18,10 @@ export const GUN_INFO = {
   plasma: { cls: 'ALIENÍGENA · PLASMA', caliber: 'PLASMA', optic: 'RETÍCULA DE ENERGÍA', weight: 3, desc: 'Lanza de plasma automática. ×1,8 contra escudos. Se sobrecalienta si no sueltas el gatillo.' },
   needler: { cls: 'ALIENÍGENA · AGUJAS', caliber: 'CRISTAL', optic: 'MUESCA DE CRISTAL', weight: 2.8, desc: 'Dispara agujas de cristal que persiguen al objetivo de la mira. Los cristales del lomo indican la carga.' },
   arc: { cls: 'ALIENÍGENA · PESADA', caliber: 'NÚCLEO DE ARCO', optic: 'ANILLO HOLO', weight: 8.5, desc: 'Cañón de energía con proyectil explosivo y daño en área de 4,5 m. Cuidado de cerca.' },
+  battle: { cls: 'FUSIL DE BATALLA', caliber: '7,62 mm', optic: 'MIRAS DE HIERRO', weight: 4.1, desc: 'Automático de calibre pesado: más daño por bala que la carabina a cambio de cadencia y retroceso.' },
+  revolver: { cls: 'REVÓLVER MAGNUM', caliber: '.50 MAG', optic: 'MIRAS DE HIERRO', weight: 1.9, desc: 'Seis balas de gran calibre. Un tiro a la cabeza tumba a casi cualquier tropa.' },
+  sawed: { cls: 'ESCOPETA RECORTADA', caliber: 'CAL. 12 · 2 CAÑONES', optic: '—', weight: 2.4, desc: '12 perdigones por cañón y dos disparos antes de recargar. Devastadora a quemarropa, inútil de lejos.' },
+  carbine: { cls: 'ALIENÍGENA · CARABINA', caliber: 'ESQUIRLA RADIACTIVA', optic: 'VISOR DE ENERGÍA', weight: 3.2, desc: 'Semiautomática de precisión con visor ×2. Rápida y certera a media distancia; ×2,5 a la cabeza.' },
 };
 
 // --- Pack de texturas procedurales ----------------------------------------------
@@ -263,6 +269,7 @@ function mats() {
     tan: std('paint', 0xb39d75, 0.3),
     white: std('paint', 0xdfe3e7, 0.25),
     walnut: std('wood', 0x8a5530, 0.05),
+    walnutDark: std('wood', 0x4e2f1a, 0.05),
     rubber: std('grip', 0x1e2023, 0.05),
     gripFde: std('grip', 0x9a8460, 0.05),
     carbon: std('carbon', 0x34373c, 0.35, { bumpScale: 0.5 }),
@@ -278,6 +285,10 @@ function mats() {
     alTeal: alien(0x247578, 0xff8af0),
     alGreen: alien(0x356d2e, 0x9dff6a),
     alBone: alien(0x2a2433, 0x7a4cff, { emissiveIntensity: 0.6 }),
+    // Acentos de las armas alienígenas (modelos): caparazón con mucho brillo de venas.
+    alPinkGlow: alien(0x7a2a66, 0xff3fd2, { emissiveIntensity: 1.6 }),
+    alGreenGlow: alien(0x3d6a24, 0x6aff3a, { emissiveIntensity: 1.6 }),
+    alEmeraldGlow: alien(0x1f6a52, 0x20ff90, { emissiveIntensity: 1.6 }),
     crystal: new THREE.MeshPhysicalMaterial({
       color: 0xff7be8, emissive: 0xff3fd2, emissiveIntensity: 0.9, roughness: 0.08, metalness: 0,
       transparent: true, opacity: 0.88, clearcoat: 1, iridescence: 0.6,
@@ -763,12 +774,121 @@ const BUILDERS = {
   },
 };
 
+// --- Modelos descargados ------------------------------------------------------------
+// GLB normalizados en Blender (largo 1, cañón hacia +X, arriba +Y, cargador como nodo «mag») y guns.json con los
+// anclajes (boca, mira, empuñaduras) en esas coordenadas. Aquí se escalan al largo real, se giran a -Z, se colocan
+// con la empuñadura donde la mano del arma procedural equivalente, y se visten con el pack de texturas por nombre
+// de material. Créditos y licencias: vendor/assets/guns/ATTRIBUTION.md.
+const GUN_URL = new URL('../../vendor/assets/guns/', import.meta.url);
+// len: largo en metros · at: posición de la mano derecha (empuñadura) · eye: distancia ojo-mira al apuntar ·
+// pal: paleta (alienígenas: claro / oscuro / acento) · oneHand: pistolas (la izquierda sujeta bajo la derecha).
+const GUN_MODELS = {
+  rifle: { len: 1.0, at: [0, -0.1, 0.13], eye: 0.24 },
+  pistol: { len: 0.27, at: [0, -0.1, 0.062], eye: 0.5, oneHand: true, tint: { Metal: 'blk' } },
+  smg: { len: 0.68, at: [0, -0.1, 0.1], eye: 0.22 },
+  shotgun: { len: 1.05, at: [0, -0.1, 0.172], eye: 0.3, sightU: 0.62 },
+  dmr: { len: 0.82, at: [0, -0.1, 0.135], eye: 0.3 },
+  sniper: { len: 1.22, at: [0, -0.1, 0.165], eye: 0.25 },
+  battle: { len: 1.0, at: [0, -0.1, 0.13], eye: 0.24 },
+  revolver: { len: 0.33, at: [0, -0.1, 0.062], eye: 0.5, oneHand: true },
+  sawed: { len: 0.72, at: [0, -0.1, 0.13], eye: 0.24, sightU: 0.62 },
+  plasma: { len: 0.62, at: [0, -0.1, 0.06], eye: 0.3, pal: ['alPurple', 'alBone', 'alPinkGlow'] },
+  needler: { len: 0.58, at: [0, -0.1, 0.08], eye: 0.3, pal: ['alTeal', 'alBone', 'alPinkGlow'] },
+  arc: { len: 0.92, at: [0, -0.12, 0.15], eye: 0.34, pal: ['alGreen', 'alBone', 'alGreenGlow'] },
+  carbine: { len: 0.95, at: [0, -0.1, 0.12], eye: 0.3, pal: ['alTeal', 'alBone', 'alEmeraldGlow'] },
+};
+// Materiales de los modelos de Quaternius → pack de texturas.
+const HUMAN_MATS = {
+  Black: 'polyBlk', Black2: 'rubber', DarkMetal: 'blk', Metal: 'park', LightMetal: 'steel', Grey: 'polyGrey',
+  Main: 'blk', MainDark: 'polyBlk', MainLight: 'polyGrey', Wood: 'walnut', DarkWood: 'walnutDark', Green: 'od', Glass: 'lensDark',
+};
+const MODELS = new Map(); // id → { scene, meta }
+let modelsReady = null;
+export function loadGunModels() {
+  if (modelsReady) return modelsReady;
+  modelsReady = (async () => {
+    try {
+      const meta = await (await fetch(new URL('guns.json', GUN_URL))).json();
+      const loader = new GLTFLoader();
+      await Promise.all(Object.keys(GUN_MODELS).filter((id) => meta[id]).map(async (id) => {
+        try {
+          const g = await loader.loadAsync(new URL(`${id}.glb`, GUN_URL).href);
+          MODELS.set(id, { scene: g.scene, meta: meta[id] });
+        } catch (e) { console.warn(`arma ${id}: sin modelo`, e); }
+      }));
+    } catch (e) { console.warn('modelos de armas no disponibles', e); }
+    TPL.clear(); // las plantillas procedurales creadas antes de cargar se rehacen con el modelo
+  })();
+  return modelsReady;
+}
+export const hasGunModel = (id) => MODELS.has(id);
+
+function buildFromModel(id) {
+  const { scene, meta } = MODELS.get(id), cfg = GUN_MODELS[id], m = mats();
+  const group = (lastGroup = new THREE.Group());
+  const k = cfg.len;
+  // Modelo (x adelante, y arriba, z lateral) → arma (-z adelante): giro de 90° en Y, escala y desplazamiento.
+  const rot = new THREE.Matrix4().makeRotationY(Math.PI / 2);
+  const off = new THREE.Vector3().fromArray(cfg.at).sub(new THREE.Vector3().fromArray(meta.r).multiplyScalar(k).applyMatrix4(rot));
+  const xf = new THREE.Matrix4().makeTranslation(off.x, off.y, off.z).multiply(rot).multiply(new THREE.Matrix4().makeScale(k, k, k));
+  const pt = (a) => new THREE.Vector3().fromArray(a).applyMatrix4(xf);
+  const matFor = (name) => {
+    if (cfg.pal) return m[cfg.pal[name === 'Accent' ? 2 : name === 'Dark' ? 1 : 0]];
+    return m[cfg.tint?.[name] ?? HUMAN_MATS[name] ?? 'blk'];
+  };
+  scene.updateMatrixWorld(true);
+  const body = new Map(), mag = new Map();
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    let inMag = false;
+    for (let p = o; p; p = p.parent) if (p.name === 'mag') inMag = true;
+    const g = o.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(xf, o.matrixWorld));
+    const mat = matFor(o.material?.name ?? '');
+    const bucket = inMag ? mag : body;
+    if (!bucket.has(mat)) bucket.set(mat, []);
+    bucket.get(mat).push(prep(g));
+  });
+  for (const [mat, list] of body) group.add(new THREE.Mesh(concat(list), mat));
+  if (mag.size) {
+    // Cargador: pieza móvil con el origen en su centro (la recarga lo desplaza y gira).
+    const part = new THREE.Group();
+    part.name = 'mag';
+    part.userData.keep = true;
+    const all = [...mag.values()].flat(), box3 = new THREE.Box3();
+    for (const g of all) { g.computeBoundingBox(); box3.union(g.boundingBox); }
+    const c = box3.getCenter(new THREE.Vector3());
+    part.position.copy(c);
+    for (const [mat, list] of mag) part.add(new THREE.Mesh(concat(list.map((g) => g.clone().translate(-c.x, -c.y, -c.z))), mat));
+    group.add(part);
+  }
+  // Línea de mira: por encima de todo lo que queda entre la mira y el ojo (culata, alza), para que al apuntar
+  // nada del arma tape el centro de la pantalla.
+  const sight = pt(meta.sight);
+  if (cfg.sightU) sight.z = pt([cfg.sightU - 0.5, 0, 0]).z; // u: fracción del largo desde la culata
+  let top = sight.y;
+  for (const list of body.values()) for (const g of list) {
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const z = p.getZ(i);
+      if (z > sight.z - 0.03 && z < sight.z + cfg.eye && Math.abs(p.getX(i)) < 0.035) top = Math.max(top, p.getY(i));
+    }
+  }
+  sight.y = top + (cfg.oneHand ? 0.006 : 0.012);
+  const r = cfg.at, l = cfg.oneHand ? [r[0] - 0.03, r[1] - 0.012, r[2] - 0.004] : pt(meta.l).add(new THREE.Vector3(0, -0.01, 0)).toArray();
+  const ej = new THREE.Object3D();
+  ej.name = 'eject';
+  ej.position.set(0.035, sight.y - 0.035, (sight.z + r[2]) / 2 - 0.03);
+  group.add(ej);
+  const muzzle = pt(meta.muzzle);
+  return { muzzle: [muzzle.x, muzzle.y, muzzle.z - 0.005], grips: { r, l }, sight: sight.toArray(), eye: cfg.eye };
+}
+
 // Piezas con material propio por instancia (el brillo cambia con el calor de cada arma).
 const OWN_MAT = ['coil', 'core', 'rings'];
 const TPL = new Map();
 function buildTemplate(id) {
   if (TPL.has(id)) return TPL.get(id);
-  const spec = BUILDERS[id]();
+  const spec = MODELS.has(id) ? buildFromModel(id) : (BUILDERS[id] ?? BUILDERS.rifle)();
   const group = lastGroup;
   const muzzle = new THREE.Object3D();
   muzzle.name = 'muzzle';
@@ -781,7 +901,7 @@ function buildTemplate(id) {
 }
 
 export function buildGun(id) {
-  if (!BUILDERS[id]) id = 'rifle';
+  if (!BUILDERS[id] && !MODELS.has(id)) id = 'rifle';
   const tpl = buildTemplate(id);
   const group = tpl.group.clone();
   group.traverse((o) => { if (o.isMesh) o.userData.shared = true; });

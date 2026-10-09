@@ -126,6 +126,15 @@ Todo es procedural (sin imágenes externas): paneles de aleación con vetas lumi
 | Plasma Lance 👽 | Alienígena, calor | 11 | ×1,8 contra escudos |
 | Needle Swarm 👽 | Alienígena | 12 | Agujas que persiguen al objetivo |
 | Arc Cannon 👽 | Alienígena | 140 | Proyectil explosivo con daño en área |
+| VX-7 Battle Rifle 🆕 | Fusil de batalla automático | 14 | Más daño por bala que la carabina, menos cadencia; cabeza ×2 |
+| Kodiak .50 Magnum 🆕 | Revólver | 45 | 6 balas, cabeza ×2,5 |
+| Howler-2 Sawed-off 🆕 | Escopeta recortada | 12 × 12 | 2 cañones, devastadora a quemarropa |
+| Rad Carbine 👽🆕 | Alienígena, semiautomática | 22 | Visor ×2, cabeza ×2,5, ×1,2 contra escudos |
+
+**Modelos 3D:** todas las armas usan modelos CC0 descargados (Quaternius «50+ LowPoly Guns» y Kenney «Blaster Kit»,
+ver `vendor/assets/guns/ATTRIBUTION.md`), vestidos con el pack de texturas del juego y animados por el juego
+(retroceso, cargador que cae al recargar, inercia). Si un modelo no carga se usa el procedural de respaldo.
+Las nuevas salen en la caja misteriosa (fusil de batalla y revólver desde la oleada 1; recortada y carabina desde la 3).
 
 - **Armas iniciales «a elegir»** (un jugador y DM por defecto): eliges tus dos armas en **ARMAS** (menú, pantalla de un jugador o lobby). El menú tiene vista previa 3D giratoria de cada arma (arrastra para girar, rueda para acercar), miniaturas, ficha técnica (daño, cadencia, modo, munición, recarga, alcance, mira, calibre, multiplicadores, peso) y barras comparativas.
 - **Apuntar:** mantén **clic derecho** para llevar el arma a la cara y alinear su mira (punto rojo, holográfica, miras de tritio, anillo fantasma o retícula alienígena). Al apuntar: menos dispersión, algo de aumento, movimiento más lento. El tiempo para apuntar depende del peso del arma. DMR y francotirador pasan a **visor** con retícula propia (BDC, mil-dots) y **telémetro**.
