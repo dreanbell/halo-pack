@@ -75,6 +75,47 @@ function armorTexture(skin) {
         g.stroke();
       }
     }
+  } else if (skin.t === 4) { // digital: píxeles en tres tonos
+    const cols = [shade(skin.p, -0.12), shade(skin.s, 0.05), shade(skin.p, 0.08)];
+    for (let i = 0; i < 900; i++) {
+      g.fillStyle = cols[i % 3];
+      const x = Math.floor(Math.random() * 32) * 16, y = Math.floor(Math.random() * 32) * 16;
+      g.fillRect(x, y, 16 * (1 + (Math.random() * 3 | 0)), 16 * (1 + (Math.random() * 2 | 0)));
+    }
+  } else if (skin.t === 5) { // tigre: franjas onduladas
+    g.fillStyle = skin.s;
+    for (let y = -20; y < S + 40; y += 44) {
+      g.beginPath();
+      const th = 10 + Math.random() * 10;
+      for (let x = 0; x <= S; x += 16) g.lineTo(x, y + Math.sin(x / 40 + y) * 12 + Math.sin(x / 13) * 4);
+      for (let x = S; x >= 0; x -= 16) g.lineTo(x, y + th + Math.sin(x / 40 + y) * 12 - Math.abs(Math.sin(x / 23)) * th * 0.8);
+      g.fill();
+    }
+  } else if (skin.t === 6) { // fibra de carbono: tejido en diagonal
+    const a = shade(skin.p, -0.18), b = shade(skin.p, 0.06);
+    for (let y = 0; y < S; y += 16) {
+      for (let x = 0; x < S; x += 16) {
+        const grd = (x / 16 + y / 16) % 2 ? g.createLinearGradient(x, y, x + 16, y) : g.createLinearGradient(x, y, x, y + 16);
+        grd.addColorStop(0, a); grd.addColorStop(0.5, b); grd.addColorStop(1, a);
+        g.fillStyle = grd;
+        g.fillRect(x, y, 16, 16);
+      }
+    }
+  } else if (skin.t === 7) { // circuito: pistas y nodos en el color secundario
+    g.strokeStyle = shade(skin.s, 0.2);
+    g.fillStyle = shade(skin.s, 0.3);
+    g.lineWidth = 4;
+    for (let i = 0; i < 60; i++) {
+      let x = Math.floor(Math.random() * 16) * 32, y = Math.floor(Math.random() * 16) * 32;
+      g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 4; k++) {
+        if (Math.random() < 0.5) x += (Math.random() < 0.5 ? -1 : 1) * 32 * (1 + (Math.random() * 3 | 0));
+        else y += (Math.random() < 0.5 ? -1 : 1) * 32 * (1 + (Math.random() * 3 | 0));
+        g.lineTo(x, y);
+      }
+      g.stroke();
+      g.beginPath(); g.arc(x, y, 7, 0, TAU); g.fill();
+    }
   }
   // Ruido de fabricación.
   const img = g.getImageData(0, 0, S, S);
@@ -393,6 +434,24 @@ export class Avatar {
       add(g.crest, 'trim', 0, 0.3, 0.02);
       for (const s of [-1, 1]) add(g.cheek, 'armor', s * 0.13, 0.07, -0.06, 0.25, s * 0.35, 0);
       add(g.chin, 'trim', 0, 0.04, -0.115, 0.6, 0, 0).scale.set(0.85, 0.85, 1);
+    } else if (type === 3) { // ESPECTRO: casco alargado, visor rasgado brillante, doble cresta y aletas traseras
+      dome.scale.set(0.94, 1.1, 1.14);
+      add(g.visorSlit, 'visor', 0, 0.14, -0.014).scale.set(1.02, 1.15, 1.02);
+      for (const s of [-1, 1]) {
+        add(g.crest, 'trim', s * 0.045, 0.29, 0.03);
+        add(g.cheek, 'trim', s * 0.12, 0.18, 0.11, -0.5, s * 0.25, 0);
+        add(g.vent, 'glow', s * 0.155, 0.16, -0.04, 0, 0, Math.PI / 2);
+      }
+      add(g.chin, 'armor', 0, 0.035, -0.11, 0.7, 0, 0).scale.set(0.7, 1, 1.1);
+    } else if (type === 4) { // CORSARIO: visor amplio, mandíbula blindada, orejeras y doble antena
+      dome.scale.set(1.05, 1, 1.05);
+      add(g.visorWide, 'visor', 0, 0.13, -0.01).scale.set(1.03, 0.9, 1.03);
+      add(g.jaw, 'armor', 0, 0.035, -0.095, 0.25, 0, 0).scale.set(0.95, 0.9, 1);
+      for (const s of [-1, 1]) {
+        add(g.ear, 'trim', s * 0.17, 0.12, 0.01).scale.set(1.2, 1.2, 1.2);
+        add(g.antenna, 'trim', s * 0.12, 0.33, 0.09, 0, 0, s * 0.2);
+      }
+      add(g.vent, 'glow', 0, 0.255, -0.09);
     } else { // BASTIÓN: casco ancho, mandíbula pesada, antena y respiraderos
       dome.scale.set(1.12, 0.96, 1.08);
       add(g.visorBox, 'visor', 0, 0.135, -0.01).scale.set(1.1, 0.92, 1);

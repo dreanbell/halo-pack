@@ -516,7 +516,20 @@ body.touch #weapon-icon, body.touch #scope .glow, body.touch #scope.enemy .glow 
 .home-mode small { display: block; font-size: 13px; letter-spacing: 0.02em; opacity: 0.85; margin-top: 4px; text-transform: none; }
 .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
 .shop-card { padding: 10px 8px; margin: 0; text-align: center; background: rgba(127, 231, 255, 0.05); }
-.shop-card .ico { display: block; width: 44px; height: 44px; margin: 0 auto 6px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+.shop-card { position: relative; }
+.shop-card .thumb {
+  display: block; width: 100%; aspect-ratio: 1; margin: 0 auto 6px; background: center / contain no-repeat,
+    radial-gradient(ellipse at 50% 40%, rgba(95, 225, 255, 0.22), rgba(0, 0, 0, 0.25) 72%);
+  border: 1px solid rgba(127, 231, 255, 0.12);
+}
+.shop-card .thumb.loading { background-image: radial-gradient(ellipse at 50% 40%, rgba(95, 225, 255, 0.22), rgba(0, 0, 0, 0.25) 72%); position: relative; }
+.shop-card .thumb.loading::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px; border: 2px solid var(--hud-dim);
+  border-top-color: var(--hud); border-radius: 50%; animation: shop-spin 0.8s linear infinite;
+}
+@keyframes shop-spin { to { transform: rotate(360deg); } }
+.shop-card.locked .thumb { filter: saturate(0.75) brightness(0.85); }
+.shop-card.locked::before { content: '🔒'; position: absolute; right: 8px; top: 8px; font-size: 13px; opacity: 0.85; z-index: 1; }
 .shop-card b { display: block; font-size: 13px; letter-spacing: 0.08em; color: #e9fbff; }
 .shop-card small { display: block; font-size: 11px; letter-spacing: 0.15em; color: #9dff6a; margin-top: 2px; }
 .shop-card.equipped { border-color: var(--hud); box-shadow: 0 0 0 1px var(--hud) inset; }
@@ -558,7 +571,6 @@ body.touch #menu.home .home-panel { backdrop-filter: none; background: rgba(5, 1
 .shop-balance b { color: #ffd27a; font-size: 20px; }
 .shop-kind { font-size: 13px; letter-spacing: 0.25em; margin: 14px 0 6px; opacity: 0.85; }
 .shop-card .price { color: #ffd27a; }
-.shop-card.locked .ico { filter: grayscale(0.7) brightness(0.7); }
 .shop-card.poor small { color: #ff7a7a; }
 .shop-card.owned small { color: #9dff6a; }
 .earn { grid-column: 1 / -1; margin-top: 12px; font-size: 22px; letter-spacing: 0.2em; color: #ffd27a; text-align: center; }

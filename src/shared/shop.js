@@ -6,8 +6,8 @@ export const START_COINS = 300;
 // Precios por tipo de artículo (índice = el de la lista de skins.js). 0 = gratis desde el principio.
 export const PRICES = {
   m: [0, 400, 400, 600, 900, 500, 500, 750, 750, 750, 1200, 1000, 1000],
-  h: [0, 300, 300],
-  t: [0, 150, 200, 250],
+  h: [0, 300, 300, 450, 550],
+  t: [0, 150, 200, 250, 300, 350, 400, 500],
 };
 export const ITEM_NAMES = { m: MODELS, h: HELMETS, t: PATTERNS };
 export const KIND_NAMES = { m: 'MODELOS', h: 'CASCOS', t: 'PATRONES' };

@@ -213,7 +213,7 @@ export class PlayerModel {
 
   applySkin(skin) {
     const def = this.def;
-    if (def.heads) for (const o of this.meshes) if (def.heads.includes(o.name)) o.visible = o.name === def.heads[skin.h];
+    if (def.heads) for (const o of this.meshes) if (def.heads.includes(o.name)) o.visible = o.name === def.heads[skin.h % def.heads.length];
     let mat;
     if (def.paint) {
       if (this.mats) for (const m of this.mats) m.dispose();

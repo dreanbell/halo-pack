@@ -2,8 +2,8 @@
 export const PRIMARY = ['#3d6b4f', '#2f5d8a', '#8a2f2f', '#c08a2f', '#5b5f66', '#d8dce2', '#6b3f8a', '#25292e', '#d06a1e', '#2f8a85'];
 export const SECONDARY = ['#1e2226', '#3a3f46', '#c9ced6', '#a0262b', '#1f4f7a', '#c7a046', '#2f5a3a', '#e07a2a', '#5a3f7a', '#101214'];
 export const VISORS = ['#ffb340', '#45d6ff', '#ff4d6a', '#7dff6a', '#d8d8ff'];
-export const HELMETS = ['CENTINELA', 'HALCÓN', 'BASTIÓN'];
-export const PATTERNS = ['LISO', 'CAMUFLAJE', 'RAYAS', 'HEXÁGONOS'];
+export const HELMETS = ['CENTINELA', 'HALCÓN', 'BASTIÓN', 'ESPECTRO', 'CORSARIO'];
+export const PATTERNS = ['LISO', 'CAMUFLAJE', 'RAYAS', 'HEXÁGONOS', 'DIGITAL', 'TIGRE', 'CARBONO', 'CIRCUITO'];
 // Modelo del soldado: 0 = procedural (colores y patrón); el resto son modelos 3D (src/playermodels.js).
 export const MODELS = ['CLÁSICO', 'FEDERAL', 'MILITAR', 'RENEGADO', 'EXOTROOPER', 'COMANDO', 'COMANDO F', 'MONO', 'PATO', 'RANA', 'CHICA GANCHO', 'DADO PAR', 'DADO IMPAR'];
 

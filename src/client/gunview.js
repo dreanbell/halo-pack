@@ -5,7 +5,7 @@ import { Q } from './quality.js';
 import { CFG } from './config.js';
 
 // Iluminación de estudio común a la vista previa y a las miniaturas.
-function studio(scene, renderer) {
+export function studio(scene, renderer) {
   scene.environment = skyEnvironment(renderer);
   scene.add(new THREE.HemisphereLight(0xdcecff, 0x2a2f36, 0.6));
   const key = new THREE.DirectionalLight(0xfff1dc, 2.6);

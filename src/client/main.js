@@ -16,11 +16,12 @@ import { LoadoutMenu } from './loadout.js';
 import { gunThumbnails } from './gunview.js';
 import { Spectator } from './spectator.js';
 import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
-import { DEFAULT_SKIN, sanitizeSkin, MODELS, PRIMARY } from '../shared/skins.js';
+import { DEFAULT_SKIN, sanitizeSkin, MODELS } from '../shared/skins.js';
 import { Home } from './home.js';
 import { Wallet, PRICES, ITEM_NAMES, KIND_NAMES } from './wallet.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
+import { shopThumb } from './shopview.js';
 import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../shared/rules.js';
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
@@ -605,10 +606,14 @@ function renderHome() {
       const owned = wallet.owns(kind, i), price = wallet.price(kind, i), equipped = skin[kind] === i;
       const c = document.createElement('button');
       c.className = 'shop-card' + (equipped ? ' equipped' : owned ? ' owned' : ' locked') + (!owned && wallet.coins < price ? ' poor' : '');
+      // Miniatura 3D del artículo con tus colores (se genera en segundo plano; mientras, un marcador).
       const ico = document.createElement('span');
-      ico.className = 'ico';
-      ico.style.background = kind === 'm' ? `linear-gradient(135deg, ${PRIMARY[(i * 3) % PRIMARY.length]}, ${PRIMARY[(i * 7 + 2) % PRIMARY.length]})`
-        : `linear-gradient(135deg, ${skin.p}, ${skin.s})`;
+      ico.className = 'thumb loading';
+      shopThumb(kind, i, skin, (url) => {
+        if (!url) return;
+        ico.style.backgroundImage = `url(${url})`;
+        ico.classList.remove('loading');
+      });
       const t = document.createElement('b'); t.textContent = label;
       const p = document.createElement('small');
       p.textContent = equipped ? 'EQUIPADO' : owned ? 'EQUIPAR' : `◈ ${price.toLocaleString('es-ES')}`;

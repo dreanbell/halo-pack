@@ -29,9 +29,11 @@ terminar cada partida (o al salir a mitad, por lo conseguido):
 | Artículo | Precio |
 |---|---|
 | Modelos | Clásico gratis · Federal y Militar 400 · Comando y Comando F 500 · Renegado 600 · Mono, Pato y Rana 750 · Exotrooper 900 · Dados 1 000 · Chica gancho 1 200 |
-| Cascos | Centinela gratis · Halcón y Bastión 300 |
-| Patrones | Liso gratis · Camuflaje 150 · Rayas 200 · Hexágonos 250 |
+| Cascos | Centinela gratis · Halcón y Bastión 300 · Espectro 450 · Corsario 550 |
+| Patrones | Liso gratis · Camuflaje 150 · Rayas 200 · Hexágonos 250 · Digital 300 · Tigre 350 · Carbono 400 · Circuito 500 |
 
+Cada artículo de la tienda muestra una miniatura 3D con tus colores (modelos de cuerpo entero, cascos en primer
+plano de la cabeza, patrones en el pecho), generada en segundo plano (`src/client/shopview.js`).
 Colores y visor siempre gratis. En PERSONALIZAR lo bloqueado lleva candado y precio; al tocarlo te lleva a la tienda.
 Lo que ya llevabas equipado al estrenar el monedero queda desbloqueado.
 
