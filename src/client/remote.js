@@ -1,14 +1,16 @@
 import * as THREE from 'three';
 import { CFG } from './config.js';
 import { Avatar } from './avatar.js';
+import { TITLES } from '../shared/skins.js';
 
 const DELAY = 100; // ms de retardo de interpolación
 const TELEPORT = 6; // m: salto mayor = reaparición, sin interpolar
 const _q = new THREE.Vector3();
 
-function nameTag(name, color) {
+// Nombre (y título, debajo) sobre la cabeza.
+function nameTag(name, color, title = '') {
   const c = document.createElement('canvas');
-  c.width = 256; c.height = 64;
+  c.width = 256; c.height = 96;
   const g = c.getContext('2d');
   g.font = '700 34px Rajdhani, system-ui, sans-serif';
   g.textAlign = 'center';
@@ -18,10 +20,17 @@ function nameTag(name, color) {
   g.strokeText(name, 128, 32);
   g.fillStyle = color;
   g.fillText(name, 128, 32);
+  if (title) {
+    g.font = '700 20px Rajdhani, system-ui, sans-serif';
+    g.lineWidth = 4;
+    g.strokeText(title, 128, 66);
+    g.fillStyle = '#ffd27a';
+    g.fillText(title, 128, 66);
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true }));
-  s.scale.set(1.6, 0.4, 1);
+  s.scale.set(1.6, 0.6, 1);
   s.renderOrder = 10;
   return s;
 }
@@ -55,8 +64,8 @@ class RemotePlayer {
     this.avatar.setOwner(this);
     this.group = this.avatar.root;
     this.hitMeshes = this.avatar.hitboxes;
-    this.tag = nameTag(this.name, this.colorHex);
-    this.tag.position.y = 2.15;
+    this.tag = nameTag(this.name, this.colorHex, this.skin?.ti ? TITLES[this.skin.ti] ?? '' : '');
+    this.tag.position.y = 2.25;
     this.group.add(this.tag);
     this.ctx.scene.add(this.group);
   }

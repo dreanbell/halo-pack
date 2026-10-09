@@ -14,6 +14,18 @@ export function levelReward(lv) {
   return r;
 }
 
+// Requisitos de los títulos (mismo orden que TITLES en src/shared/skins.js).
+export const TITLE_REQ = [
+  { lv: 1 }, { lv: 5 }, { lv: 10 }, { lv: 15 }, { lv: 20 }, { lv: 30 }, { lv: 40 }, { lv: 50 }, { lv: 75 }, { lv: 100 },
+  { stat: 'heads', n: 250, text: '250 bajas a la cabeza' },
+  { stat: 'boss', n: 25, text: '25 jefes derrotados' },
+  { stat: 'grenade', n: 100, text: '100 bajas con granada' },
+  { stat: 'wave', n: 20, text: 'llegar a la oleada 20' },
+  { stat: 'dmWins', n: 10, text: '10 victorias en todos contra todos' },
+  { stat: 'cases', n: 30, text: 'abrir 30 cajas' },
+  { stat: 'matches', n: 100, text: 'jugar 100 partidas' },
+];
+
 // Recompensa diaria por días seguidos (al 8.º vuelve a empezar).
 export const LOGIN = [{ coins: 50 }, { coins: 75 }, { coins: 100 }, { box: 0 }, { coins: 150 }, { coins: 200 }, { box: 2 }];
 
@@ -135,6 +147,15 @@ export class Progress {
     });
   }
   canReroll(kind) { return !this.s[kind].rerolled; }
+  titleUnlocked(i) {
+    const r = TITLE_REQ[i];
+    if (!r) return false;
+    return r.lv ? this.s.level >= r.lv : (this.s.life[r.stat] ?? 0) >= r.n;
+  }
+  titleReq(i) {
+    const r = TITLE_REQ[i];
+    return r?.lv ? `nivel ${r.lv}` : `${r?.text ?? ''} (${(this.s.life[r?.stat] ?? 0).toLocaleString('es-ES')}/${(r?.n ?? 0).toLocaleString('es-ES')})`;
+  }
   loginState() {
     const today = dayKey(), L = this.s.login;
     const claimed = L.last === today;

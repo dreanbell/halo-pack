@@ -16,7 +16,7 @@ import { LoadoutMenu } from './loadout.js';
 import { gunThumbnails } from './gunview.js';
 import { Spectator } from './spectator.js';
 import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
-import { DEFAULT_SKIN, sanitizeSkin, MODELS } from '../shared/skins.js';
+import { DEFAULT_SKIN, sanitizeSkin, MODELS, TITLES } from '../shared/skins.js';
 import { Home } from './home.js';
 import { Wallet, PRICES, ITEM_NAMES, KIND_NAMES } from './wallet.js';
 import { FINISHES, finishItem, finishOf, CASES, RARITIES, rarityOf, itemName, GUN_NAMES } from '../shared/shop.js';
@@ -272,7 +272,10 @@ function setFinish(id, f) {
 }
 // Lo que ven los demás jugadores: armadura + acabados de arma equipados (y que tienes).
 const equippedFinishes = () => Object.fromEntries(Object.keys(ctx.finishes).map((id) => [id, finishFor(id)]).filter(([, f]) => f));
-const netSkin = () => ({ ...ctx.skin, f: equippedFinishes() });
+// Título elegido (si sigue desbloqueado; si no, ninguno).
+const TITLE_KEY = 'ringfall.title';
+const myTitle = () => { let t = 0; try { t = Number(localStorage.getItem(TITLE_KEY)) || 0; } catch { /* sin almacenamiento */ } return progress.titleUnlocked(t) ? t : 0; };
+const netSkin = () => ({ ...ctx.skin, f: equippedFinishes(), ti: myTitle() });
 function syncFinishes() {
   arsenal.setFinishes(equippedFinishes());
   net.setSkin(netSkin());
@@ -564,6 +567,23 @@ function gameOver(timeUp = false) {
     recordLabel: ctx.rules.variant === 'classic' ? 'Récord' : `Récord ${variant.toLowerCase()}`,
   });
   payMatch({ mode: 'sp', kills: game.kills, wave: game.wave, score: game.score, time: game.time }).then(showEarned);
+  saveRun();
+}
+
+// Nombre con su título (marcador y resultados).
+const withTitle = (p) => (p.skin?.ti ? `${p.name} · ${TITLES[p.skin.ti] ?? ''}` : p.name);
+
+// Mejores partidas de un jugador en este dispositivo (top 10 por puntos).
+const RUNS_KEY = 'ringfall.runs';
+function readRuns() {
+  try { const r = JSON.parse(localStorage.getItem(RUNS_KEY) ?? '[]'); return Array.isArray(r) ? r.slice(0, 10) : []; } catch { return []; }
+}
+function saveRun() {
+  if (game.score <= 0) return;
+  const runs = readRuns();
+  runs.push({ s: game.score, w: game.wave, k: game.kills, m: ctx.world.id, v: ctx.rules.variant, d: dayKey(), c: isCustom('sp', ctx.rules) ? 1 : 0 });
+  runs.sort((a, b) => b.s - a.s);
+  try { localStorage.setItem(RUNS_KEY, JSON.stringify(runs.slice(0, 10))); } catch { /* sin almacenamiento */ }
 }
 
 function toMenu() {
@@ -870,7 +890,38 @@ function missionList(el, kind) {
     return d;
   }));
 }
+function renderTitles() {
+  const cur = myTitle();
+  $('pg-titles').replaceChildren(...TITLES.map((name, i) => {
+    const b = document.createElement('button');
+    const ok = progress.titleUnlocked(i);
+    b.className = 'chip' + (cur === i ? ' selected' : '') + (ok ? '' : ' locked');
+    b.textContent = i ? name : 'SIN TÍTULO';
+    b.title = ok ? '' : `Se desbloquea con ${progress.titleReq(i)}`;
+    if (!ok) b.dataset.price = '🔒';
+    b.addEventListener('click', () => {
+      if (!ok) { notice(`${name}: ${progress.titleReq(i)}`); return; }
+      try { localStorage.setItem(TITLE_KEY, String(i)); } catch { /* sin almacenamiento */ }
+      net.setSkin(netSkin());
+      renderHome();
+    });
+    return b;
+  }));
+  $('home-title').textContent = cur ? TITLES[cur] : '';
+}
+function renderRuns() {
+  const runs = readRuns();
+  if (!runs.length) { $('pg-runs').innerHTML = '<p class="tip">Aún no hay partidas. ¡Juega una de un jugador!</p>'; return; }
+  $('pg-runs').replaceChildren(...runs.map((r, i) => {
+    const d = document.createElement('div');
+    d.className = 'run' + (i === 0 ? ' top' : '');
+    d.innerHTML = `<b>${i + 1}</b><span>${r.s.toLocaleString('es-ES')} PTS</span><small>OLEADA ${r.w} · ${r.k} BAJAS · ${mapInfo(r.m).name} · ${VARIANTS[r.v]?.name ?? ''}${r.c ? ' (PERSONALIZADA)' : ''} · ${r.d.split('-').reverse().join('/')}</small>`;
+    return d;
+  }));
+}
 function renderProgress() {
+  renderTitles();
+  renderRuns();
   const lv = progress.level, need = progress.need, k = need ? progress.xp / need : 1;
   $('home-level').textContent = lv;
   $('home-xp-fill').style.width = `${Math.round(k * 100)}%`;
@@ -1383,7 +1434,7 @@ net.on('matchEnd', (m) => {
   if (m.mode === 'dm') {
     const hl = ctx.rules.objective === 'hill', val = (p) => (hl ? p.pts ?? 0 : p.kills);
     const rows = [...m.players].sort((a, b) => val(b) - val(a))
-      .map((p) => ({ name: p.name, color: p.color, cols: hl ? [p.pts ?? 0, p.kills, p.deaths] : [p.kills, p.deaths], me: p.id === net.id }));
+      .map((p) => ({ name: withTitle(p), color: p.color, cols: hl ? [p.pts ?? 0, p.kills, p.deaths] : [p.kills, p.deaths], me: p.id === net.id }));
     const w = m.players.find((p) => p.id === m.winner);
     const title = w ? (w.id === net.id ? '¡VICTORIA!' : `GANA ${w.name.toUpperCase()}`) : m.timeUp ? '¡TIEMPO! · EMPATE' : 'FIN DE LA PARTIDA';
     hud.showResults(title, hl ? ['JUGADOR', 'COLINA', 'BAJAS', 'MUERTES'] : ['JUGADOR', 'BAJAS', 'MUERTES'], rows, 'VOLVER AL LOBBY');
@@ -1456,7 +1507,7 @@ function renderBoard() {
   if (game.mode === 'dm') {
     const hl = ctx.rules.objective === 'hill', val = (p) => (hl ? p.pts ?? 0 : p.kills);
     const rows = players.sort((a, b) => val(b) - val(a))
-      .map((p) => ({ name: p.name, color: p.color, cols: hl ? [p.pts ?? 0, p.kills, p.deaths] : [p.kills, p.deaths], me: p.id === net.id }));
+      .map((p) => ({ name: withTitle(p), color: p.color, cols: hl ? [p.pts ?? 0, p.kills, p.deaths] : [p.kills, p.deaths], me: p.id === net.id }));
     const goal = hl ? `${hillTarget(ctx.rules)} S EN LA COLINA` : `${ctx.rules.scoreLimit} BAJAS`;
     hud.scoreboard(true, `${VARIANTS[ctx.rules.variant].name} · TODOS CONTRA TODOS · ${goal}`, hl ? ['JUGADOR', 'COLINA', 'BAJAS', 'MUERTES'] : ['JUGADOR', 'BAJAS', 'MUERTES'], rows);
   } else {

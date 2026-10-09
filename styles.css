@@ -839,3 +839,16 @@ body.touch #medals { bottom: 34%; }
 #tutor b { color: var(--hud); }
 body.touch #tutor { top: 64px; }
 #settings-help > button { font-size: 13px; padding: 7px 14px; margin: 4px 6px 8px 0; }
+/* --- Títulos y mejores partidas --- */
+.home-player small.home-title { display: inline; margin-left: 8px; font-size: 10px; letter-spacing: 0.18em; color: #ffd27a; opacity: 0.95; }
+
+.title-chips .chip { font-size: 11px; padding: 5px 9px; margin: 0; }
+.title-chips .chip.locked { opacity: 0.45; border-style: dashed; }
+.title-chips .chip.locked::after { content: ' 🔒'; font-size: 9px; }
+.runs { display: flex; flex-direction: column; gap: 4px; }
+.run { display: grid; grid-template-columns: 26px 1fr; gap: 0 8px; align-items: center; padding: 6px 8px; border: 1px solid rgba(127, 231, 255, 0.15); background: rgba(0, 0, 0, 0.22); }
+.run b { grid-row: span 2; font-size: 18px; color: var(--hud); text-align: center; }
+.run span { font-size: 15px; font-weight: 700; color: #e9fbff; letter-spacing: 0.08em; }
+.run small { font-size: 10px; letter-spacing: 0.06em; opacity: 0.8; }
+.run.top { border-color: #ffd27a; }
+.run.top b { color: #ffd27a; }

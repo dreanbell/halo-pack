@@ -161,7 +161,7 @@
       <div class="home-brand"><h1>RINGFALL</h1><small>SHOOTER SCI-FI · OLEADAS Y MULTIJUGADOR</small></div>
       <div class="home-player">
         <span class="home-emblem" id="home-emblem"><b id="home-level" title="Nivel">1</b></span>
-        <div><b id="home-name">SOLDADO</b><i class="home-xp" title="Experiencia"><i id="home-xp-fill"></i></i><span class="home-coins" title="Créditos">◈ <b id="home-coins">0</b></span><small>RÉCORD <b id="best">0</b> · <span id="home-model"></span></small><small id="home-earn" class="home-earn"></small></div>
+        <div><b id="home-name">SOLDADO</b><small id="home-title" class="home-title"></small><i class="home-xp" title="Experiencia"><i id="home-xp-fill"></i></i><span class="home-coins" title="Créditos">◈ <b id="home-coins">0</b></span><small>RÉCORD <b id="best">0</b> · <span id="home-model"></span></small><small id="home-earn" class="home-earn"></small></div>
       </div>
     </header>
 
@@ -214,6 +214,8 @@
           <div><small>NIVEL</small><div class="lvl-bar"><i id="pg-fill"></i></div><small id="pg-xp"></small></div>
         </div>
         <p class="tip pg-next" id="pg-next"></p>
+        <h4 class="shop-kind">TÍTULO <small>(lo ven los demás en multijugador)</small></h4>
+        <div class="chips title-chips" id="pg-titles"></div>
         <h4 class="shop-kind">RECOMPENSA DIARIA</h4>
         <div class="login-track" id="pg-login"></div>
         <button id="pg-login-claim" class="secondary">RECLAMAR</button>
@@ -221,6 +223,8 @@
         <div id="pg-daily" class="missions"></div>
         <h4 class="shop-kind">MISIONES SEMANALES <small id="pg-weekly-reset"></small></h4>
         <div id="pg-weekly" class="missions"></div>
+        <h4 class="shop-kind">TUS MEJORES PARTIDAS <small>(un jugador)</small></h4>
+        <div id="pg-runs" class="runs"></div>
         <p class="tip">Gana XP con cada baja (más a la cabeza y a los jefes), cada oleada superada y cada partida. Cada nivel da créditos; cada 5 niveles, una caja gratis. Puedes cambiar una misión al día (⟳).</p>
       </section>
       <section data-panel="shop" hidden>
@@ -458,6 +462,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/client/main.js?v=1.36.0"></script>
+  <script type="module" src="src/client/main.js?v=1.37.0"></script>
 </body>
 </html>

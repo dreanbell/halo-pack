@@ -73,6 +73,11 @@ visitado). Botón «INSTALAR COMO APP» en Ajustes → Ayuda (en iPhone: Compart
 se frena cerca de un enemigo visible y, con la mira, se desliza un poco hacia él; cono de 7° o el tamaño aparente del
 enemigo) y giroscopio (no / al apuntar / siempre, sensibilidad e inversión; en iPhone pide permiso al activarlo).
 
+**Títulos y mejores partidas** (PROGRESO): 17 títulos que se desbloquean por nivel (Soldado 5 … Semidiós 100) y por
+logros (250 a la cabeza, 25 jefes, 100 bajas con granada, oleada 20, 10 victorias, 30 cajas, 100 partidas); el elegido
+sale junto a tu nombre, sobre tu cabeza y en el marcador de los demás. Tabla con tus 10 mejores partidas de un jugador
+(puntos, oleada, bajas, mapa, variante y fecha).
+
 **Multijugador**: la armadura y los acabados de arma equipados viajan con el jugador (`skin.f`), así los demás ven tu
 arma de oro o tu armadura de neón.
 

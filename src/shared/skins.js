@@ -11,6 +11,9 @@ export const DEFAULT_SKIN = { p: PRIMARY[0], s: SECONDARY[0], v: VISORS[0], h: 0
 // Armas con acabado de caja (src/shared/shop.js): f = { arma: acabado } viaja con la armadura en multijugador.
 export const GUN_IDS = ['rifle', 'pistol', 'smg', 'shotgun', 'dmr', 'sniper', 'plasma', 'needler', 'arc', 'battle', 'revolver', 'sawed', 'carbine'];
 export const FINISH_COUNT = 18;
+// Títulos de jugador (se desbloquean por nivel y logros; requisitos en src/client/progress.js). ti = índice.
+export const TITLES = ['RECLUTA', 'SOLDADO', 'VETERANO', 'CAZADOR', 'ESPECTRO', 'COMANDANTE', 'ÉLITE', 'LEYENDA', 'INMORTAL', 'SEMIDIÓS',
+  'OJO DE HALCÓN', 'CAZAJEFES', 'GRANADERO', 'SUPERVIVIENTE', 'GLADIADOR', 'COLECCIONISTA', 'INCANSABLE'];
 function sanitizeFinishes(f) {
   const out = {};
   if (!f || typeof f !== 'object') return out;
@@ -32,6 +35,7 @@ export function sanitizeSkin(x) {
     t: idx(s.t, PATTERNS.length),
     m: idx(s.m, MODELS.length),
     f: sanitizeFinishes(s.f),
+    ti: idx(s.ti, TITLES.length),
   };
 }
 
