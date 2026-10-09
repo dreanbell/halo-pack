@@ -16,7 +16,8 @@ import { LoadoutMenu } from './loadout.js';
 import { gunThumbnails } from './gunview.js';
 import { Spectator } from './spectator.js';
 import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
-import { DEFAULT_SKIN, sanitizeSkin } from '../shared/skins.js';
+import { DEFAULT_SKIN, sanitizeSkin, MODELS, PRIMARY } from '../shared/skins.js';
+import { Home } from './home.js';
 import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../shared/rules.js';
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
@@ -142,6 +143,8 @@ ctx.arsenal = new Arsenal(ctx);
 ctx.spectator = new Spectator(ctx);
 ctx.touch = new TouchControls(ctx);
 const { sfx, hud, fx, player, director, arsenal, net, remotes, spectator, touch } = ctx;
+// Pantalla de inicio: el avatar en 3D (ver home.js y «Inicio» más abajo).
+const home = (ctx.home = new Home(ctx));
 const vec = (a) => new THREE.Vector3().fromArray(a);
 
 // --- Armadura del jugador ----------------------------------------------------
@@ -159,6 +162,8 @@ const armory = new Armory({
     try { localStorage.setItem(SKIN_KEY, JSON.stringify(skin)); } catch { /* sin almacenamiento */ }
     arsenal.setSkin(skin);
     net.setSkin(skin);
+    home.setSkin(skin);
+    renderHome();
   },
 });
 let armoryReturn = 'menu';
@@ -181,6 +186,8 @@ const loadoutMenu = new LoadoutMenu({
   set: (l) => {
     ctx.loadout = l;
     try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(l)); } catch { /* sin almacenamiento */ }
+    home.setWeapon(l[0]);
+    renderHome();
   },
 });
 // Miniaturas de armas (menú y HUD): se generan en segundo plano mientras se está en el menú.
@@ -207,6 +214,7 @@ addEventListener('keydown', (e) => {
 });
 function openArmory(from) {
   armoryReturn = from;
+  $('armory').querySelector('.armory-grid').appendChild(armoryOpts); // las opciones vuelven a la armería
   hud.showOverlay('armory');
   armory.show();
 }
@@ -392,6 +400,7 @@ function toMenu() {
   if (document.pointerLockElement) document.exitPointerLock();
   $('best').textContent = readBest().toLocaleString('es-ES');
   hud.showOverlay('menu');
+  selectTab([...$('home-nav').children].find((b) => b.classList.contains('selected'))?.dataset.tab ?? 'play');
 }
 
 function toLobby(status = '') {
@@ -454,11 +463,102 @@ function renderMenuMaps() {
     try { localStorage.setItem(MAP_KEY, id); } catch { /* sin almacenamiento */ }
     loadMap(id);
     renderMenuMaps();
+    renderHome();
   };
   renderMaps($('menu-maps'), ctx.spMap, true, pick);
   renderMaps($('setup-maps'), ctx.spMap, true, pick);
 }
 renderMenuMaps();
+
+// --- Inicio: avatar en 3D con pestañas (jugar, modos, mapas, armas, personalizar, tienda, ajustes) ---------
+const armoryOpts = document.querySelector('#armory .armory-opts');
+home.setSkin(ctx.skin);
+home.setWeapon(ctx.loadout[0]);
+function selectTab(tab) {
+  for (const b of $('home-nav').children) b.classList.toggle('selected', b.dataset.tab === tab);
+  for (const sec of $('home-panel').children) sec.hidden = sec.dataset.panel !== tab;
+  if (tab === 'custom') { $('home-custom').appendChild(armoryOpts); armory.syncControls(); }
+  renderHome();
+}
+for (const b of $('home-nav').children) b.addEventListener('click', () => selectTab(b.dataset.tab));
+for (const b of document.querySelectorAll('.home-mode')) b.addEventListener('click', () => (b.dataset.go === 'sp' ? openSetup() : $('btn-mp').click()));
+$('btn-loadout-2').addEventListener('click', () => openLoadout('menu'));
+const slotHtml = (id, label) => {
+  const d = document.createElement('div');
+  d.className = 'slot';
+  const img = document.createElement('img');
+  img.alt = '';
+  const th = gunThumbnails()[id];
+  if (th) img.src = th;
+  const s = document.createElement('small'); s.textContent = label;
+  const b = document.createElement('b'); b.textContent = CFG.weapons[id]?.name ?? id;
+  d.append(img, s, b);
+  return d;
+};
+function renderHome() {
+  const skin = ctx.skin, m = mapInfo(ctx.spMap);
+  let name = 'SOLDADO';
+  try { name = (localStorage.getItem(NAME_KEY) || name).toUpperCase(); } catch { /* sin almacenamiento */ }
+  $('home-name').textContent = name;
+  $('home-model').textContent = MODELS[skin.m] ?? '';
+  $('home-emblem').style.background = `linear-gradient(135deg, ${skin.p}, ${skin.s})`;
+  const card = $('home-map-card');
+  card.style.background = `linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7)), linear-gradient(180deg, ${m.sky[0]}, ${m.sky[1]})`;
+  card.innerHTML = '';
+  const b = document.createElement('b'); b.textContent = m.name;
+  const sm = document.createElement('small'); sm.textContent = m.desc;
+  card.append(b, sm);
+  for (const id of ['home-loadout-mini', 'home-loadout']) $(id).replaceChildren(slotHtml(ctx.loadout[0], 'PRINCIPAL'), slotHtml(ctx.loadout[1], 'SECUNDARIA'));
+  // Tienda: todos los modelos, gratis.
+  $('shop-grid').replaceChildren(...MODELS.map((label, i) => {
+    const c = document.createElement('button');
+    c.className = 'shop-card' + (skin.m === i ? ' equipped' : '');
+    const ico = document.createElement('span');
+    ico.className = 'ico';
+    ico.style.background = `linear-gradient(135deg, ${PRIMARY[(i * 3) % PRIMARY.length]}, ${PRIMARY[(i * 7 + 2) % PRIMARY.length]})`;
+    const t = document.createElement('b'); t.textContent = label;
+    const p = document.createElement('small'); p.textContent = skin.m === i ? 'EQUIPADO' : 'GRATIS · EQUIPAR';
+    c.append(ico, t, p);
+    c.addEventListener('click', () => armory.set({ m: i }));
+    return c;
+  }));
+}
+renderHome();
+setTimeout(renderHome, 1500); // miniaturas de armas listas
+
+// Girar (arrastrar) y acercar (rueda / pellizco) al avatar; los paneles y botones no cuentan.
+let homeDrag = null;
+const pointers = new Map();
+const onUi = (t) => t.closest('.home-panel, .home-nav, .home-cta, .home-player, button, input, select, a, details');
+$('menu').addEventListener('pointerdown', (e) => {
+  if (onUi(e.target)) return;
+  pointers.set(e.pointerId, e.clientX + ',' + e.clientY);
+  $('menu').setPointerCapture(e.pointerId);
+  homeDrag = { x: e.clientX, pinch: null };
+  $('menu').classList.add('dragging');
+});
+$('menu').addEventListener('pointermove', (e) => {
+  if (!homeDrag || !pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, e.clientX + ',' + e.clientY);
+  if (pointers.size >= 2) {
+    const [a, b] = [...pointers.values()].map((v) => v.split(',').map(Number));
+    const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (homeDrag.pinch) home.pinch((d - homeDrag.pinch) * 0.004);
+    homeDrag.pinch = d;
+    return;
+  }
+  home.drag(e.clientX - homeDrag.x);
+  homeDrag.x = e.clientX;
+});
+const endDrag = (e) => {
+  pointers.delete(e.pointerId);
+  if (pointers.size) return;
+  homeDrag = null;
+  $('menu').classList.remove('dragging');
+};
+$('menu').addEventListener('pointerup', endDrag);
+$('menu').addEventListener('pointercancel', endDrag);
+$('menu').addEventListener('wheel', (e) => { if (!onUi(e.target)) { e.preventDefault(); home.wheel(e.deltaY); } }, { passive: false });
 
 // --- Un jugador: variante y ajustes -------------------------------------------
 function renderSetup() {
@@ -834,11 +934,14 @@ function tick(dt) {
       boardT -= dt;
       if (boardT <= 0) { boardT = 0.25; renderBoard(); }
     }
-  } else if (game.state === 'menu' || game.state === 'lobby') {
+  } else if (game.state === 'menu') {
+    home.update(dt, homeDrag !== null);
+  } else if (game.state === 'lobby') {
     player.yaw.rotation.y += dt * 0.05;
     player.yaw.position.fromArray(ctx.world.menuCam);
     player.pitch.rotation.set(-0.12, 0, 0);
   }
+  if (game.state !== 'menu') home.hide();
   touch.update();
   ctx.world.update(game.state === 'paused' && game.mode === 'sp' ? 0 : dt);
   fx.update(game.state === 'paused' && game.mode === 'sp' ? 0 : dt);

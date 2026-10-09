@@ -119,25 +119,64 @@
 
   <div id="rotate"><div><b>⟳</b><p>Gira el móvil para jugar</p></div></div>
 
-  <div id="menu" class="overlay">
-    <div class="panel">
-      <h1>RINGFALL</h1>
-      <p class="subtitle">DEMO · SHOOTER SCI-FI EN PRIMERA PERSONA</p>
-      <p class="lead">Aguanta en las ruinas del anillo contra oleadas cada vez más duras.</p>
-      <h4 class="maps-title">MAPA</h4>
-      <div class="maps" id="menu-maps"></div>
-      <p class="tip map-desc"></p>
-      <div class="menu-buttons">
-        <button id="btn-start">UN JUGADOR</button>
-        <button id="btn-mp">MULTIJUGADOR LAN</button>
+  <div id="menu" class="overlay home">
+    <header class="home-top">
+      <div class="home-brand"><h1>RINGFALL</h1><small>SHOOTER SCI-FI · OLEADAS Y MULTIJUGADOR</small></div>
+      <div class="home-player">
+        <span class="home-emblem" id="home-emblem"></span>
+        <div><b id="home-name">SOLDADO</b><small>RÉCORD <b id="best">0</b> · <span id="home-model"></span></small></div>
       </div>
-      <div class="row-buttons">
-        <button id="btn-loadout" class="secondary">ARMAS</button>
-        <button id="btn-armory" class="secondary">ARMERÍA · PERSONALIZAR SOLDADO</button>
-      </div>
-      <div class="quality"><span>GRÁFICOS</span><div id="menu-quality"></div></div>
-      <p class="tip quality-note" id="quality-note"></p>
-      <p class="best">Récord: <b id="best">0</b></p>
+    </header>
+
+    <nav class="home-nav" id="home-nav">
+      <button data-tab="play" class="selected"><i>▶</i>JUGAR</button>
+      <button data-tab="modes"><i>◈</i>MODOS</button>
+      <button data-tab="maps"><i>⬡</i>MAPAS</button>
+      <button data-tab="arms"><i>⌖</i>ARMAS</button>
+      <button data-tab="custom"><i>⛨</i>PERSONALIZAR</button>
+      <button data-tab="shop"><i>◆</i>TIENDA</button>
+      <button data-tab="settings"><i>⚙</i>AJUSTES</button>
+    </nav>
+
+    <aside class="home-panel" id="home-panel">
+      <section data-panel="play">
+        <h3>JUGAR</h3>
+        <div class="home-card home-map" id="home-map-card"></div>
+        <p class="lead">Aguanta en las ruinas del anillo contra oleadas cada vez más duras, o enfréntate a tus amigos.</p>
+        <div class="home-loadout" id="home-loadout-mini"></div>
+        <button id="btn-loadout" class="secondary">EDITAR ARMAS</button>
+      </section>
+      <section data-panel="modes" hidden>
+        <h3>MODOS</h3>
+        <button class="home-mode" data-go="sp"><b>UN JUGADOR</b><small>Oleadas de criaturas, jefes cada 5 rondas, suministros del cielo. Variantes: clásico, francotiradores, tiroteo…</small></button>
+        <button class="home-mode" data-go="mp"><b>COOPERATIVO</b><small>Hasta 8 jugadores contra las oleadas, por LAN o por código de sala.</small></button>
+        <button class="home-mode" data-go="mp"><b>TODOS CONTRA TODOS</b><small>Duelo libre entre jugadores en cualquier mapa.</small></button>
+      </section>
+      <section data-panel="maps" hidden>
+        <h3>MAPAS</h3>
+        <div class="maps" id="menu-maps"></div>
+        <p class="tip map-desc"></p>
+      </section>
+      <section data-panel="arms" hidden>
+        <h3>ARMAS</h3>
+        <p class="tip">Tus dos armas para las partidas con armas a elegir. La principal es la que lleva tu soldado.</p>
+        <div class="home-loadout big" id="home-loadout"></div>
+        <button id="btn-loadout-2">CAMBIAR ARMAS</button>
+      </section>
+      <section data-panel="custom" hidden>
+        <h3>PERSONALIZAR</h3>
+        <div id="home-custom"></div>
+        <button id="btn-armory" class="secondary hidden">ARMERÍA</button>
+      </section>
+      <section data-panel="shop" hidden>
+        <h3>TIENDA</h3>
+        <p class="tip">Todo está desbloqueado: elige y equipa.</p>
+        <div class="shop-grid" id="shop-grid"></div>
+      </section>
+      <section data-panel="settings" hidden>
+        <h3>AJUSTES</h3>
+        <div class="quality"><span>GRÁFICOS</span><div id="menu-quality"></div></div>
+        <p class="tip quality-note" id="quality-note"></p>
       <div class="touch-help">
         <p><b>Izquierda</b>: arrastra para moverte (al tope hacia delante, esprintas)</p>
         <p><b>Derecha</b>: arrastra para apuntar · <b>✹</b> disparar (también apunta al arrastrar)</p>
@@ -163,8 +202,15 @@
       </div>
       <p class="tip">La pistola de iones destroza escudos; la carabina remata. Los escudos se recargan si te cubres.</p>
       </details>
-      <p class="note">Proyecto fan original. No usa assets, nombres ni código de ninguna franquicia comercial. <span class="build"></span></p>
+        <p class="note">Proyecto fan original. No usa assets, nombres ni código de ninguna franquicia comercial. <span class="build"></span></p>
+      </section>
+    </aside>
+
+    <div class="home-cta">
+      <button id="btn-mp" class="secondary">MULTIJUGADOR</button>
+      <button id="btn-start" class="cta">▶ JUGAR</button>
     </div>
+    <div class="home-hint"><span class="desktop-only">Arrastra para girar · rueda para acercar</span><span class="touch-only">Arrastra para girar · pellizca para acercar</span></div>
   </div>
 
   <div id="pause" class="overlay hidden">
@@ -286,6 +332,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/client/main.js?v=1.21.0"></script>
+  <script type="module" src="src/client/main.js?v=1.22.0"></script>
 </body>
 </html>

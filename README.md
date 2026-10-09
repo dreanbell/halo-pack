@@ -2,6 +2,24 @@
 
 Shooter sci-fi en primera persona, en el navegador, inspirado en los shooters de arena clásicos. Es un proyecto fan **original**: todos los modelos, texturas y sonidos se generan por código. No usa assets, nombres ni código de ninguna franquicia comercial.
 
+## Pantalla de inicio
+
+Lo primero que se ve es **tu soldado en 3D** (con su skin y su arma principal) sobre un pedestal holográfico en el
+mapa elegido, que hace de fondo. **Arrastra** para girarlo y usa la **rueda** (o **pellizca** en móvil) para acercarte.
+A la izquierda, las pestañas; a la derecha, su panel; abajo, **▶ JUGAR** y **MULTIJUGADOR**:
+
+| Pestaña | Contenido |
+|---|---|
+| JUGAR | Mapa actual y tus dos armas |
+| MODOS | Un jugador (oleadas y variantes), cooperativo, todos contra todos |
+| MAPAS | Los 4 mapas; al elegir uno, el fondo cambia al momento |
+| ARMAS | Tu equipo (miniaturas) y acceso al menú de armas con vista 3D |
+| PERSONALIZAR | Modelo, colores, visor, casco y patrón: el soldado grande cambia en vivo |
+| TIENDA | Todos los modelos, gratis: equipar con un toque |
+| AJUSTES | Calidad gráfica, controles y ayuda táctil |
+
+El avatar usa la escena y la cámara del juego (sin renderer extra) y se retira al empezar la partida (`src/client/home.js`).
+
 ## Jugar
 
 **https://dreanbell.github.io/halo-pack/** — no hay que instalar ni descargar nada.
