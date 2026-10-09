@@ -26,6 +26,7 @@ import { Medals } from './medals.js';
 import { Post } from './post.js';
 import { Music } from './music.js';
 import { Hill } from './hill.js';
+import { Tutorial } from './tutorial.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
 import { shopThumb } from './shopview.js';
@@ -206,6 +207,9 @@ function musicMood() {
 // Medallas, locutor y rachas de bajas (medals.js) · números de daño de lo que haces tú.
 const medals = (ctx.medals = new Medals(ctx));
 const hill = new Hill(ctx); // Rey de la colina (hill.js)
+const tutorial = new Tutorial(ctx); // primera partida de un jugador (tutorial.js)
+$('btn-skip-tutorial').addEventListener('click', (e) => { e.stopPropagation(); tutorial.finish(); $('btn-skip-tutorial').classList.add('hidden'); });
+$('btn-tutorial-again').addEventListener('click', () => { tutorial.seen = false; $('btn-tutorial-again').textContent = 'SALDRÁ EN TU PRÓXIMA PARTIDA'; });
 const _dn = new THREE.Vector3();
 ctx.onEnemyDamage = (e, amount, head, shield, killed, by) => {
   if (by !== null && by !== director.myId()) return;
@@ -395,6 +399,7 @@ function startSession(mode, rules = net.rules, map = mode === 'sp' ? ctx.spMap :
   }
   player.reset(...pickSpawn());
   if (mode === 'dm' && ctx.rules.objective === 'hill') hill.start(); else hill.stop();
+  if (mode === 'sp') tutorial.maybeStart(); else tutorial.stop();
   hud.showOverlay(null);
   $('pause-mp').classList.toggle('hidden', !online);
   lock();
@@ -559,6 +564,7 @@ function gameOver(timeUp = false) {
 
 function toMenu() {
   hill.stop();
+  tutorial.stop();
   // Salir a mitad de partida también paga lo conseguido.
   if (['playing', 'paused'].includes(game.state) && game.mode === 'sp') payMatch({ mode: 'sp', kills: game.kills, wave: game.wave, score: game.score, time: game.time });
   spectator.stop();
@@ -677,7 +683,7 @@ function renderMenuMaps() {
   const pick = (id) => {
     ctx.spMap = id;
     try { localStorage.setItem(MAP_KEY, id); } catch { /* sin almacenamiento */ }
-    loadMap(id);
+    if (ctx.world?.id === id) loadMap(id); else withLoading(`CARGANDO ${mapInfo(id).name}`, () => { loadMap(id); renderHome(); });
     renderMenuMaps();
     renderHome();
   };
@@ -1300,7 +1306,10 @@ net.on('leave', (m) => {
     hud.toast('AHORA ERES EL ANFITRIÓN');
   }
 });
-net.on('start', (m) => startSession(m.mode));
+net.on('start', (m) => {
+  if (ctx.world?.id !== m.map) withLoading(`CARGANDO ${mapInfo(m.map).name}`, () => startSession(m.mode));
+  else startSession(m.mode);
+});
 net.on('disconnect', (m) => {
   if (game.state !== 'menu') toLobby(`${m.reason ?? 'Se perdió la conexión'}.`);
 });
@@ -1469,6 +1478,7 @@ function pause() {
   pausedAt = performance.now();
   game.state = 'paused';
   settingsHome();
+  $('btn-skip-tutorial').classList.toggle('hidden', !tutorial.active);
   arsenal.trigger = arsenal.aimHeld = false;
   player.keys.clear();
   touch.release();
@@ -1528,6 +1538,7 @@ function tick(dt) {
     arsenal.update(dt);
     medals.update(dt);
     hill.update(dt);
+    tutorial.update(dt);
     if (game.mode !== 'sp') spectator.update(dt);
     hud.update(ctx, dt);
     if (!player.alive && game.respawnIn > 0) {
@@ -1583,6 +1594,40 @@ function frame(now) {
   post.render(scene, camera);
 }
 requestAnimationFrame(frame);
+
+// --- Pantalla de carga (index.html): al arrancar y al cambiar de mapa (construirlo bloquea un momento) ---
+function loadingDone() {
+  $('loading').classList.add('done');
+  setTimeout(() => { if ($('loading').classList.contains('done')) $('loading').classList.add('hidden'); }, 500);
+}
+function withLoading(what, fn) {
+  const tips = window.RF_TIPS ?? [];
+  $('loading').classList.remove('hidden', 'done');
+  $('ld-what').textContent = what;
+  if (tips.length) $('ld-tip').textContent = `CONSEJO · ${tips[(Math.random() * tips.length) | 0]}`;
+  // Dos fotogramas: que se pinte la pantalla antes del trabajo pesado.
+  requestAnimationFrame(() => requestAnimationFrame(() => { try { fn(); } finally { loadingDone(); } }));
+}
+loadingDone();
+
+// --- App instalable (manifest.webmanifest + sw.js) ---------------------------------------------------------
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
+let installEvt = null;
+addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; $('btn-install').classList.remove('hidden'); });
+$('btn-install').addEventListener('click', async () => {
+  if (!installEvt) return;
+  installEvt.prompt();
+  await installEvt.userChoice.catch(() => null);
+  installEvt = null;
+  $('btn-install').classList.add('hidden');
+});
+{
+  const standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  $('install-tip').textContent = standalone ? 'Estás jugando como app instalada.'
+    : ios ? 'Instálalo como app: en Safari, Compartir → «Añadir a pantalla de inicio».'
+      : 'Puedes instalar Ringfall como app (icono propio y pantalla completa) con el botón de abajo o desde el menú del navegador.';
+}
 
 // Acceso para depuración y pruebas automatizadas.
 window.__ringfall = { Q, setQuality, ctx, newGame, tick, armory, loadMap, startSession, monstersReady, playersReady, loadAllPlayerModels };

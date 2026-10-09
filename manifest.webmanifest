@@ -1,0 +1,17 @@
+{
+  "name": "Ringfall",
+  "short_name": "Ringfall",
+  "description": "Shooter sci-fi en el navegador: oleadas, cooperativo y todos contra todos.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#02070b",
+  "theme_color": "#05121c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

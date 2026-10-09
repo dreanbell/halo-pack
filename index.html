@@ -7,6 +7,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#05121c" />
   <title>Ringfall — Demo</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet" />
@@ -14,6 +17,35 @@
   <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js" } }</script>
 </head>
 <body>
+  <div id="loading">
+    <div class="ld-box">
+      <h1>RINGFALL</h1>
+      <small id="ld-what">CARGANDO</small>
+      <div class="ld-bar"><i></i></div>
+      <p id="ld-tip"></p>
+    </div>
+  </div>
+  <script>
+    // Consejos mientras carga (antes de que arranque el juego; main.js lo reutiliza al cambiar de mapa).
+    window.RF_TIPS = [
+      'Agáchate o deslízate corriendo (C) para esquivar y reducir la dispersión.',
+      'Los escudos se recargan solos si dejas de recibir daño unos segundos.',
+      'La pistola de iones destroza escudos; remata con la carabina o el fusil.',
+      'Cinco bajas sin morir: reabastecimiento. Diez: ataque orbital. Quince: dron de apoyo.',
+      'Las oleadas de élite dan el doble de puntos y lluvia de suministros al superarlas.',
+      'Un golpe cuerpo a cuerpo por la espalda (F) elimina al instante.',
+      'Con el francotirador, un tiro a la cabeza elimina a cualquier enemigo que no sea jefe.',
+      'Misiones diarias y semanales en PROGRESO: créditos, XP y cajas gratis.',
+      'Entra cada día: el 7.º día de racha regala una caja épica.',
+      'Los acabados de arma de las cajas también los ven los demás en multijugador.',
+      'En Rey de la colina, quédate solo dentro de la zona para sumar puntos.',
+      'Ajustes → Gráficos: baja la calidad o la escala de resolución si va lento.',
+    ];
+    (function () {
+      var t = document.getElementById('ld-tip'), i = Math.floor(Math.random() * RF_TIPS.length);
+      t.textContent = 'CONSEJO · ' + RF_TIPS[i];
+    })();
+  </script>
   <div id="app"></div>
 
   <div id="hud" class="hidden">
@@ -75,6 +107,7 @@
     <div id="dmgnums"></div>
     <div id="medals"></div>
     <div id="hill-mark" class="hidden"></div>
+    <div id="tutor"></div>
     <div id="deathcard"><small>ELIMINADO POR</small><b id="dc-name"></b><p id="dc-info"></p></div>
     <div id="dmg-dir"></div>
     <div id="hint"></div>
@@ -236,6 +269,9 @@
         <h3>AJUSTES</h3>
         <div id="settings-box" class="settings"></div>
       <div id="settings-help">
+      <button id="btn-tutorial-again" class="secondary">REPETIR TUTORIAL</button>
+      <p class="tip" id="install-tip"></p>
+      <button id="btn-install" class="secondary hidden">INSTALAR COMO APP</button>
       <div class="touch-help">
         <p><b>Izquierda</b>: arrastra para moverte (al tope hacia delante, esprintas)</p>
         <p><b>Derecha</b>: arrastra para apuntar · <b>✹</b> disparar (también apunta al arrastrar)</p>
@@ -305,6 +341,7 @@
       <p id="pause-mp" class="status hidden">En multijugador la partida sigue en marcha.</p>
       <div id="pause-settings" hidden></div>
       <div class="pause-actions">
+        <button id="btn-skip-tutorial" class="secondary hidden">SALTAR TUTORIAL</button>
         <button id="btn-pause-settings" class="secondary">AJUSTES</button>
         <button id="btn-quit" class="secondary">SALIR AL MENÚ</button>
       </div>
@@ -421,6 +458,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/client/main.js?v=1.34.0"></script>
+  <script type="module" src="src/client/main.js?v=1.35.0"></script>
 </body>
 </html>

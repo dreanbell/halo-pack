@@ -63,6 +63,12 @@ agujas, revólver); gana quien elimina con la última. **Rey de la colina** (`sr
 cambia de sitio cada 45 s; estando solo dentro sumas 1 punto por segundo (disputada si hay dos); gana quien llega a
 límite × 4 (60 por defecto). La sala lleva la cuenta (`hill`/`hillpts`), con marcador en pantalla y columna COLINA.
 
+**Primera partida y app**: pantalla de carga con consejos (al abrir y al cambiar de mapa); tutorial de la primera
+partida de un jugador (moverse, mirar, saltar, correr/deslizarse, apuntar, eliminar, recargar, granada, golpe) que
+avanza al hacer cada acción, se salta desde la pausa y se repite en Ajustes → Ayuda (`src/client/tutorial.js`).
+**App instalable** (PWA): `manifest.webmanifest`, iconos en `icons/` y `sw.js` (red primero; sin conexión abre lo ya
+visitado). Botón «INSTALAR COMO APP» en Ajustes → Ayuda (en iPhone: Compartir → Añadir a pantalla de inicio).
+
 **Multijugador**: la armadura y los acabados de arma equipados viajan con el jugador (`skin.f`), así los demás ven tu
 arma de oro o tu armadura de neón.
 
@@ -396,6 +402,7 @@ src/client/              El juego (navegador)
   post.js                Postprocesado HDR ligero: bloom, color y viñeta
   music.js               Música dinámica procedural (menú, calma, combate, jefe)
   hill.js                Rey de la colina: zona móvil y puntos
+  tutorial.js            Tutorial de la primera partida
   hud.js · effects.js · audio.js · spectator.js · touch.js · drop.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)
