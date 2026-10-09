@@ -4,11 +4,66 @@ import { glowTexture } from './world.js';
 import { v3 } from './net.js';
 import { skinMaterials } from './avatar.js';
 import { DEFAULT_SKIN } from './skins.js';
-import { buildGun } from './guns.js';
+import { buildGun, GUN_INFO } from './guns.js';
 
 const W = CFG.weapons, G = CFG.grenade, M = CFG.melee;
 const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _m = new THREE.Vector3(), _n = new THREE.Vector3(), _c = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+const VM_SCALE = 0.8;
+const HIP = new THREE.Vector3(0.28, -0.26, -0.62);
+// Casquillos: tipo y retardo de expulsión (corredera/cerrojo).
+const EJECT = { rifle: ['rifle', 0], smg: ['small', 0], dmr: ['rifle', 0], shotgun: ['shell', 0.3], sniper: ['big', 0.42] };
+const lerp = (a, b, k) => a + (b - a) * k;
+
+const BOLT_CYCLE = 0.95;
+
+// Texturas del fogonazo: estrella de puntas irregulares y llama lateral alargada.
+function flashTexture(kind) {
+  const c = document.createElement('canvas');
+  const W = (c.width = 128), H = (c.height = kind === 'star' ? 128 : 64);
+  const g = c.getContext('2d');
+  g.globalCompositeOperation = 'lighter';
+  if (kind === 'star') {
+    g.translate(64, 64);
+    const n = 9;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.3, len = 30 + Math.random() * 32, w = 0.12 + Math.random() * 0.1;
+      const grd = g.createLinearGradient(0, 0, Math.cos(a) * len, Math.sin(a) * len);
+      grd.addColorStop(0, 'rgba(255,250,235,0.95)');
+      grd.addColorStop(1, 'rgba(255,170,60,0)');
+      g.fillStyle = grd;
+      g.beginPath();
+      g.moveTo(Math.cos(a - w) * 8, Math.sin(a - w) * 8);
+      g.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+      g.lineTo(Math.cos(a + w) * 8, Math.sin(a + w) * 8);
+      g.fill();
+    }
+    const core = g.createRadialGradient(0, 0, 0, 0, 0, 30);
+    core.addColorStop(0, 'rgba(255,255,245,1)');
+    core.addColorStop(0.4, 'rgba(255,220,150,0.7)');
+    core.addColorStop(1, 'rgba(255,160,60,0)');
+    g.fillStyle = core;
+    g.fillRect(-64, -64, 128, 128);
+  } else {
+    // Llama: brillante junto a la boca (izquierda) y deshilachada hacia delante.
+    for (let k = 0; k < 7; k++) {
+      const y = H / 2 + (Math.random() - 0.5) * 10, len = W * (0.55 + Math.random() * 0.45), th = 8 + Math.random() * 10;
+      const grd = g.createLinearGradient(0, 0, len, 0);
+      grd.addColorStop(0, 'rgba(255,245,220,0.5)');
+      grd.addColorStop(0.5, 'rgba(255,190,90,0.25)');
+      grd.addColorStop(1, 'rgba(255,120,40,0)');
+      g.fillStyle = grd;
+      g.beginPath();
+      g.moveTo(0, y - th);
+      g.quadraticCurveTo(len * 0.5, y - th * 0.6, len, y);
+      g.quadraticCurveTo(len * 0.5, y + th * 0.6, 0, y + th);
+      g.fill();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
 // Estado de un arma en mano: munición en cargador/reserva o calor.
 class Slot {
@@ -38,9 +93,12 @@ export class Arsenal {
     document.addEventListener('mousedown', (e) => {
       if (!playing()) return;
       if (e.button === 0) { this.trigger = true; this.pressed = true; }
-      if (e.button === 2) { if (this.w.def.zoom) this.toggleZoom(); else this.throwGrenade(); }
+      if (e.button === 2) this.aimHeld = true;
     });
-    document.addEventListener('mouseup', (e) => { if (e.button === 0) this.trigger = false; });
+    document.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.trigger = false;
+      if (e.button === 2) this.aimHeld = false;
+    });
     document.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('wheel', (e) => { if (playing() && Math.abs(e.deltaY) > 2) this.swap(); }, { passive: true });
     addEventListener('keydown', (e) => {
@@ -59,21 +117,35 @@ export class Arsenal {
     return this.slots[this.current];
   }
 
+  // Se puede dañar a otros jugadores: DM, o cooperativo con fuego amigo.
   get pvp() {
-    return this.ctx.game.mode === 'dm';
+    const { game, rules } = this.ctx;
+    return game.mode === 'dm' || (game.mode === 'coop' && rules.friendlyFire);
+  }
+
+  get pvpMult() {
+    return this.ctx.rules.pvpDamage;
+  }
+
+  get infinite() {
+    return this.ctx.rules.infiniteAmmo;
   }
 
   reset(loadout = CFG.defaultLoadout) {
     this.slots = [...new Set(loadout)].filter((id) => W[id]).slice(0, 2).map((id) => new Slot(id));
     if (!this.slots.length) this.slots = CFG.defaultLoadout.map((id) => new Slot(id));
     this.current = 0;
-    this.grenades = G.start;
+    this.grenades = Math.min(G.max, this.ctx.rules?.grenades ?? G.start);
     this.cooldown = this.reloadT = this.swapT = this.meleeT = this.throwT = 0;
     this.spray = this.recoil = this.flashT = this.bobT = this.pumpT = 0;
     this.burstLeft = 0;
     this.burstT = 0;
     this.zoom = 1;
-    this.trigger = this.pressed = false;
+    this.aimK = this.sprintK = this.boltK = this.cycleT = 0;
+    this.swayX = this.swayY = this.swayR = 0;
+    this.ejectQueue = [];
+    this.aimDist = null;
+    this.trigger = this.pressed = this.aimHeld = false;
     this.aimEnemy = false;
     for (const g of this.grenadeList) this.ctx.scene.remove(g.mesh);
     for (const s of this.shots) this.ctx.scene.remove(s.mesh);
@@ -85,9 +157,12 @@ export class Arsenal {
   // --- Modelos en primera persona ---
   buildViewmodelBase() {
     this.vm = new THREE.Group();
-    this.vm.scale.setScalar(0.8);
+    this.vm.scale.setScalar(VM_SCALE);
     this.ctx.camera.add(this.vm);
     this.flashTex = glowTexture('rgba(255,240,200,1)', 'rgba(255,170,60,0)');
+    this.flashStar = flashTexture('star');
+    this.flashSide = flashTexture('side');
+    this.flashPlane = new THREE.PlaneGeometry(1, 1);
     this.muzzleLight = new THREE.PointLight(0xffd08a, 0, 9, 2);
     this.muzzleLight.position.set(0, 0.05, -0.6);
     this.vm.add(this.muzzleLight);
@@ -130,18 +205,44 @@ export class Arsenal {
     const pistolLike = id === 'pistol';
     this.arm(gun.group, gun.grips.r, [0.32, 0.42, 0]);
     this.arm(gun.group, gun.grips.l, pistolLike ? [0.45, -0.45, 0.15] : [0.62, -0.42, 0]);
-    const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), new THREE.MeshBasicMaterial({
-      map: this.flashTex, color: W[id].tracer, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
-    }));
-    flash.visible = false;
-    gun.muzzle.add(flash);
+    gun.flash = this.makeFlash(W[id]);
+    gun.muzzle.add(gun.flash);
     if (pistolLike) gun.group.position.set(-0.02, 0.02, 0.06);
     gun.group.traverse((o) => { o.frustumCulled = false; o.castShadow = false; });
-    gun.flash = flash;
-    gun.pumpZ = gun.parts.pump?.position.z ?? 0;
+    gun.base = Object.fromEntries(Object.entries(gun.parts).map(([k, o]) => [k, o.position.clone()]));
+    // Posición del arma que pone la mira en el centro de la pantalla, a 'eye' de distancia.
+    gun.ads = gun.sight.clone().add(gun.group.position).multiplyScalar(-VM_SCALE).add(new THREE.Vector3(0, 0, -gun.eye));
+    gun.adsRate = 16 - (GUN_INFO[id]?.weight ?? 4);
     this.models.set(id, gun);
     this.vm.add(gun.group);
     return gun;
+  }
+
+  // Fogonazo: estrella frontal + dos llamas laterales cruzadas (las armas de energía, solo un resplandor).
+  makeFlash(d) {
+    const g = new THREE.Group();
+    const mat = (map) => new THREE.MeshBasicMaterial({
+      map, color: d.tracer, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
+    });
+    const s = d.flash ?? 0.8, energy = d.alien || d.heat;
+    const front = new THREE.Mesh(this.flashPlane, mat(energy ? this.flashTex : this.flashStar));
+    front.scale.setScalar((energy ? 0.2 : 0.16) * s);
+    g.add(front);
+    g.userData.sides = [];
+    if (!energy) {
+      for (const r of [0, Math.PI / 2]) {
+        const p = new THREE.Group();
+        p.rotation.z = r;
+        const m = new THREE.Mesh(this.flashPlane, mat(this.flashSide));
+        m.rotation.y = Math.PI / 2;
+        p.add(m);
+        g.add(p);
+        g.userData.sides.push(m);
+      }
+    }
+    g.userData.size = s;
+    g.visible = false;
+    return g;
   }
 
   equip() {
@@ -149,6 +250,10 @@ export class Arsenal {
     this.gun = this.model(this.w.id);
     this.gun.group.visible = true;
     this.muzzleLight.color.setHex(this.w.def.tracer);
+    this.gun.muzzle.getWorldPosition(this.muzzleLight.position);
+    this.vm.worldToLocal(this.muzzleLight.position);
+    this.boltK = this.cycleT = 0;
+    this.ejectQueue.length = 0;
   }
 
   setSkin(skin) {
@@ -169,7 +274,7 @@ export class Arsenal {
   // Impacto a otro jugador (DM): la víctima aplica el daño sobre su propio escudo.
   hitRemote(r, dmg, opts, part, from) {
     const { net, hud, sfx } = this.ctx;
-    net.to(r.id, 'hit', { dmg: dmg * CFG.pvp.damageMult, sm: opts.shieldMult ?? 1, hm: opts.headMult ?? 1, part, from: v3(from) });
+    net.to(r.id, 'hit', { dmg: dmg * this.pvpMult, sm: opts.shieldMult ?? 1, hm: opts.headMult ?? 1, part, from: v3(from) });
     hud.hitMarker(false);
     sfx.hit();
   }
@@ -179,14 +284,14 @@ export class Arsenal {
     const moving = Math.hypot(p.vel.x, p.vel.z) > 1 ? 0.008 : 0;
     const air = p.onGround ? 0 : 0.02;
     const crouch = p.crouching ? 0.6 : 1;
-    if (this.zoom > 1 && d.zoomSpread !== undefined) return d.zoomSpread + air;
+    if (this.zoom > 1.5 && d.zoomSpread !== undefined) return d.zoomSpread + air;
     const base = d.spread + (d.sprayGrow ? this.spray : 0) + moving + air;
-    return base * crouch * (this.zoom > 1 ? 0.5 : 1);
+    return base * crouch * (this.zoom > 1 ? d.adsSpread ?? 0.5 : 1);
   }
 
   // --- Munición y cambios de arma ---
   wantsAmmo() {
-    return this.slots.some((s) => s.def.mag && s.reserve < s.def.maxReserve);
+    return !this.infinite && this.slots.some((s) => s.def.mag && s.reserve < s.def.maxReserve);
   }
 
   addAmmo(mult = 1) {
@@ -246,10 +351,19 @@ export class Arsenal {
     this.equip();
   }
 
-  toggleZoom() {
-    if (!this.w.def.zoom || this.reloadT > 0 || this.swapT > 0) return;
-    this.zoom = this.zoom > 1 ? 1 : this.w.def.zoom;
-    this.ctx.sfx.zoom();
+  // Casquillo desde la ventana de expulsión, hacia la derecha y arriba de la vista.
+  ejectCasing(kind) {
+    const { camera, fx, player, sfx } = this.ctx;
+    if (!this.gun.eject || !this.vm.visible || !player.alive) return;
+    const pos = this.gun.eject.getWorldPosition(new THREE.Vector3());
+    camera.updateMatrixWorld();
+    const vel = new THREE.Vector3()
+      .addScaledVector(_d.set(1, 0, 0).transformDirection(camera.matrixWorld), rand(1.6, 2.6))
+      .addScaledVector(_n.set(0, 1, 0).transformDirection(camera.matrixWorld), rand(1.2, 2.2))
+      .addScaledVector(_c.set(0, 0, 1).transformDirection(camera.matrixWorld), rand(0.2, 0.6))
+      .addScaledVector(player.vel, 0.9);
+    fx.casing(pos, vel, kind, player.pos.y);
+    sfx.casing(0.35 + Math.random() * 0.15, kind === 'shell' || kind === 'big');
   }
 
   startReload() {
@@ -264,14 +378,14 @@ export class Arsenal {
     const s = this.w, d = s.def;
     if (d.shellReload) {
       s.mag++;
-      s.reserve--;
+      if (!this.infinite) s.reserve--;
       // Cartucho a cartucho: continúa salvo que el jugador quiera disparar.
       if (s.mag < d.mag && s.reserve > 0 && !this.trigger) { this.reloadT = d.reload; this.ctx.sfx.shell(); }
       return;
     }
     const take = Math.min(d.mag - s.mag, s.reserve);
     s.mag += take;
-    s.reserve -= take;
+    if (!this.infinite) s.reserve -= take;
   }
 
   // --- Disparo ---
@@ -356,6 +470,10 @@ export class Arsenal {
       if (s.heat >= 1) { s.heat = 1; s.overT = d.heat.overheat; sfx.overheat(); hud.toast('SOBRECALENTADA'); }
     }
     this.recoil = Math.min(1, this.recoil + Math.min(1, d.recoil * 60));
+    this.boltK = 1;
+    if (d.boltAction) this.cycleT = BOLT_CYCLE;
+    const ej = EJECT[s.id];
+    if (ej && !d.boltAction) this.ejectQueue.push(ej[1]);
     player.addRecoil((d.recoil * (0.8 + Math.random() * 0.4)) / Math.sqrt(this.zoom), rand(-0.3, 0.3) * d.recoil);
     this.flash();
     sfx.shot(d.sound);
@@ -363,7 +481,16 @@ export class Arsenal {
 
   flash() {
     this.flashT = 0.05;
-    this.gun.flash.rotation.z = Math.random() * Math.PI;
+    const f = this.gun.flash, s = f.userData.size;
+    f.rotation.z = Math.random() * Math.PI;
+    f.children[0].scale.setScalar(f.children[0].scale.x / (f.userData.k ?? 1));
+    f.userData.k = rand(0.8, 1.2);
+    f.children[0].scale.multiplyScalar(f.userData.k);
+    for (const m of f.userData.sides) {
+      const len = 0.22 * s * rand(0.7, 1.3);
+      m.scale.set(len, 0.07 * s * rand(0.8, 1.2), 1);
+      m.position.z = -len / 2;
+    }
   }
 
   // --- Proyectiles (agujas y cañón de arco) ---
@@ -505,7 +632,6 @@ export class Arsenal {
     this.grenades--;
     this.throwT = 0.6;
     this.reloadT = 0;
-    this.zoom = 1;
     camera.getWorldPosition(_o);
     camera.getWorldDirection(_d);
     const mesh = new THREE.Mesh(this.grenadeGeo, new THREE.MeshStandardMaterial({ color: 0x3f5a2c, emissive: 0x000000, roughness: 0.5 }));
@@ -544,7 +670,7 @@ export class Arsenal {
       player.shake = 1;
       if (hurtsMe && player.alive && world.lineOfSight(_m.copy(p).setY(p.y + 0.3), pc)) {
         const f = 1 - d / G.radius;
-        player.damage(G.damage * 0.6 * f * (g.owner !== null ? CFG.pvp.damageMult : 1), p, g.owner);
+        player.damage(G.damage * 0.6 * f * (g.owner !== null ? this.pvpMult : 1), p, g.owner);
         _d.subVectors(pc, p).setY(0).normalize();
         player.vel.addScaledVector(_d, 10 * f);
         player.vel.y += 4 * f;
@@ -609,7 +735,7 @@ export class Arsenal {
       if (r) {
         // Por la espalda: el rival mira en la misma dirección que el atacante.
         const back = Math.cos(r.yaw - player.yaw.rotation.y) > 0.3;
-        this.hitRemote(r, back ? 9999 : M.damage / CFG.pvp.damageMult, {}, back ? 'back' : 'body', player.pos);
+        this.hitRemote(r, back ? 9999 : M.damage / this.pvpMult, {}, back ? 'back' : 'body', player.pos);
         fx.sparks(_o.set(r.pos.x, r.pos.y + 1.1, r.pos.z), 0x7fe7ff);
         return;
       }
@@ -651,9 +777,14 @@ export class Arsenal {
       this.reloadT -= dt;
       if (this.reloadT <= 0) { this.reloadT = 0; this.finishReload(); }
     }
-    if (!player.alive || player.sprinting) this.zoom = 1;
-
     const busy = this.swapT > 0 || this.meleeT > M.cooldown - 0.35 || this.throwT > 0.3;
+    // Apuntar (mantener clic derecho): los visores solo amplían cuando la mira llega al ojo.
+    const canAim = this.aimHeld && player.alive && !player.sprinting && this.reloadT <= 0 && !busy;
+    this.aimK += ((canAim ? 1 : 0) - this.aimK) * Math.min(1, dt * this.gun.adsRate);
+    const full = d.zoom ?? d.ads ?? 1.25;
+    const zoom = !canAim ? 1 : d.scope && this.aimK < 0.8 ? 1.15 : full;
+    if (zoom === full && full > 1.5 && this.zoom !== full) this.ctx.sfx.zoom();
+    this.zoom = zoom;
     // Ráfagas (DMR): las balas restantes salen solas.
     if (this.burstLeft > 0 && !busy) {
       this.burstT -= dt;
@@ -672,38 +803,98 @@ export class Arsenal {
     this.updateGrenades(dt);
     this.updateShots(dt);
 
-    // Animación del arma: balanceo, retroceso, cambio, recarga, golpe y sprint.
+    // Casquillos pendientes (escopeta: al bombear; francotirador: al abrir el cerrojo).
+    for (let i = this.ejectQueue.length - 1; i >= 0; i--) {
+      this.ejectQueue[i] -= dt;
+      if (this.ejectQueue[i] <= 0) { this.ejectQueue.splice(i, 1); this.ejectCasing(EJECT[s.id]?.[0]); }
+    }
+
+    // Animación del arma: balanceo, inercia, retroceso, cambio, recarga, golpe, sprint y apuntado.
     const sp = Math.hypot(player.vel.x, player.vel.z);
     this.bobT += dt * sp * 1.4;
-    const bob = Math.min(sp / 9, 1) * (player.onGround ? 1 : 0.3) * (this.zoom > 1 ? 0.2 : 1);
+    const aim = this.aimK, free = 1 - aim * 0.85;
+    const bob = Math.min(sp / 9, 1) * (player.onGround ? 1 : 0.3) * free;
     this.recoil = Math.max(0, this.recoil - dt * 8);
     const swap = this.swapT / CFG.swapTime;
     const rl = this.reloadT > 0 && d.reload ? Math.sin((1 - this.reloadT / d.reload) * Math.PI) * (d.shellReload ? 0.4 : 1) : 0;
     const mel = this.meleeT > 0 ? Math.sin((1 - this.meleeT / M.cooldown) * Math.PI) ** 2 : 0;
-    const sprint = player.sprinting ? 1 : 0;
-    this.sprintK = (this.sprintK ?? 0) + (sprint - (this.sprintK ?? 0)) * Math.min(1, dt * 8);
-    this.aimK = (this.aimK ?? 0) + ((this.zoom > 1 ? 1 : 0) - (this.aimK ?? 0)) * Math.min(1, dt * 12);
+    this.sprintK += ((player.sprinting ? 1 : 0) - this.sprintK) * Math.min(1, dt * 8);
+    // Inercia: el arma se retrasa respecto al movimiento del ratón.
+    const idt = 1 / Math.max(dt, 1 / 240);
+    const mx = (player.lookDX ?? 0) * idt, my = (player.lookDY ?? 0) * idt;
+    player.lookDX = player.lookDY = 0;
+    const kS = Math.min(1, dt * 10), sw = 1 - aim * 0.75;
+    this.swayX += (THREE.MathUtils.clamp(-mx * 1.6e-5, -0.03, 0.03) * sw - this.swayX) * kS;
+    this.swayY += (THREE.MathUtils.clamp(my * 1.6e-5, -0.025, 0.025) * sw - this.swayY) * kS;
+    this.swayR += (THREE.MathUtils.clamp(-mx * 3e-5, -0.06, 0.06) * sw - this.swayR) * kS;
+    // Cerrojo del francotirador: levantar, atrás, adelante, bajar.
+    let boltRot = 0, boltBack = 0;
+    if (this.cycleT > 0) {
+      const prev = this.cycleT;
+      this.cycleT = Math.max(0, this.cycleT - dt);
+      const u = 1 - this.cycleT / BOLT_CYCLE, pu = 1 - prev / BOLT_CYCLE;
+      boltRot = u < 0.15 ? 0 : u < 0.3 ? (u - 0.15) / 0.15 : u < 0.7 ? 1 : u < 0.85 ? 1 - (u - 0.7) / 0.15 : 0;
+      boltBack = u < 0.3 ? 0 : u < 0.5 ? (u - 0.3) / 0.2 : u < 0.7 ? 1 - (u - 0.5) / 0.2 : 0;
+      if (pu < 0.3 && u >= 0.3) this.ctx.sfx.bolt(false);
+      if (pu < 0.45 && u >= 0.45) this.ejectCasing('big');
+      if (pu < 0.55 && u >= 0.55) this.ctx.sfx.bolt(true);
+    }
+    const cyc = Math.sin(Math.min(1, boltRot + boltBack) * Math.PI * 0.5) * (1 - aim * 0.7);
+    const ads = this.gun.ads;
     this.vm.position.set(
-      0.28 * (1 - this.aimK) + Math.sin(this.bobT) * 0.012 * bob - mel * 0.18,
-      -0.26 + this.aimK * 0.1 + Math.abs(Math.cos(this.bobT)) * 0.012 * bob - swap * 0.35 - rl * 0.08 - this.sprintK * 0.04,
-      -0.62 + this.recoil * 0.06 - mel * 0.25,
+      lerp(HIP.x, ads.x, aim) + Math.sin(this.bobT) * 0.012 * bob - mel * 0.18 + this.swayX,
+      lerp(HIP.y, ads.y, aim) + Math.abs(Math.cos(this.bobT)) * 0.012 * bob - swap * 0.35 - rl * 0.08 - this.sprintK * 0.04 + this.swayY - cyc * 0.02,
+      lerp(HIP.z, ads.z, aim) + this.recoil * (0.06 - aim * 0.035) - mel * 0.25,
     );
-    this.vm.rotation.set(this.recoil * 0.08 - rl * 0.6 - this.sprintK * 0.25, mel * 0.6 + this.sprintK * 0.5, rl * 0.3);
-    // Con mira telescópica no se ve el arma.
-    this.vm.visible = !(d.scope && this.zoom > 1);
-    if (this.gun.parts.pump) this.gun.parts.pump.position.z = this.gun.pumpZ + Math.sin(this.pumpT * Math.PI) * 0.09;
-    if (this.gun.parts.coil) this.gun.parts.coil.material.color.setRGB(0.37 + s.heat * 0.63, 0.91 - s.heat * 0.6, 1 - s.heat * 0.8);
+    this.vm.rotation.set(
+      this.recoil * 0.08 * (1 - aim * 0.6) - rl * 0.6 - this.sprintK * 0.25 + this.swayY * 1.5,
+      mel * 0.6 + this.sprintK * 0.5 + this.swayR,
+      rl * 0.3 + this.swayR * 0.5 + cyc * 0.12,
+    );
+    // Con visor (DMR, francotirador) no se ve el arma.
+    this.vm.visible = !(d.scope && this.zoom > 1.5);
+
+    // Piezas móviles.
+    const P = this.gun.parts, B = this.gun.base;
+    this.boltK = Math.max(0, this.boltK - dt * 18);
+    if (P.pump) P.pump.position.z = B.pump.z + Math.sin(this.pumpT * Math.PI) * 0.09;
+    if (P.bolt) {
+      if (d.boltAction) {
+        P.bolt.rotation.z = boltRot * 1.1;
+        P.bolt.position.z = B.bolt.z + boltBack * 0.09;
+      } else P.bolt.position.z = B.bolt.z + this.boltK * 0.035;
+    }
+    if (P.mag) {
+      // Recarga: el cargador cae, desaparece y entra el nuevo.
+      const t = this.reloadT > 0 && d.reload && !d.shellReload ? 1 - this.reloadT / d.reload : 1;
+      const out = t < 0.22 ? t / 0.22 : t < 0.55 ? 1 : t < 0.82 ? 1 - (t - 0.55) / 0.27 : 0;
+      P.mag.position.set(B.mag.x, B.mag.y - out * 0.2, B.mag.z + out * 0.04);
+      P.mag.rotation.x = out * 0.4;
+      P.mag.visible = !(t > 0.3 && t < 0.5);
+    }
+    if (P.spikes) {
+      // Agujas: los cristales del lomo muestran la carga.
+      const n = P.spikes.children.length;
+      const fill = this.reloadT > 0 && d.reload ? 1 - this.reloadT / d.reload : s.mag / d.mag;
+      P.spikes.children.forEach((c, i) => { c.visible = i < Math.ceil(fill * n); });
+    }
+    const pulse = 0.75 + Math.sin(performance.now() / 160) * 0.25;
+    if (P.coil) P.coil.children[0].material.color.setRGB(0.37 + s.heat * 0.63, 0.91 - s.heat * 0.6, 1 - s.heat * 0.8);
+    if (P.core) P.core.children[0].material.color.setRGB(1, 0.35 + 0.3 * (1 - s.heat), 0.82 * (1 - s.heat * 0.6)).multiplyScalar(s.overT > 0 ? 0.4 : pulse);
+    if (P.rings) for (const r of P.rings.children) r.material.color.setRGB(0.6 * pulse, pulse, 0.4 * pulse).multiplyScalar(this.cooldown > 0 ? 0.5 : 1);
 
     this.flashT = Math.max(0, this.flashT - dt);
     this.gun.flash.visible = this.flashT > 0;
-    this.muzzleLight.intensity = this.flashT > 0 ? 6 : 0;
+    this.muzzleLight.intensity = this.flashT > 0 ? 6 * (d.flash ?? 0.8) : 0;
 
     // ¿Apunta a un enemigo? (retícula roja)
     camera.getWorldPosition(_o);
     camera.getWorldDirection(_d);
     this.ray.set(_o, _d);
-    this.ray.far = Math.min(150, d.range ?? 80) * 0.7;
+    const scoped = d.scope && this.zoom > 1.5;
+    this.ray.far = scoped ? d.range : Math.min(150, d.range ?? 80) * 0.7;
     const hit = this.ray.intersectObjects(this.targets(), false)[0];
     this.aimEnemy = !!(hit?.object.userData.enemy || hit?.object.userData.remote);
+    this.aimDist = hit ? hit.distance : null;
   }
 }

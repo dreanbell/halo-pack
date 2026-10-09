@@ -73,9 +73,10 @@ export class TouchControls {
       // Arrastrar desde el botón de disparo también apunta.
       if (down) this.look = { id: e.pointerId, x: e.clientX, y: e.clientY };
       else if (this.look?.id === e.pointerId) this.look = null;
-    } else if (act === 'alt' && down) {
-      mouse('mousedown', 2);
-      mouse('mouseup', 2);
+    } else if (act === 'alt' && down) { // apuntar con la mira: toque para activar/desactivar
+      const on = !this.ctx.arsenal.aimHeld;
+      mouse(on ? 'mousedown' : 'mouseup', 2);
+      b.classList.toggle('on', this.ctx.arsenal.aimHeld);
     } else if (act === 'pause' && down) {
       this.ctx.pause?.();
     } else if ((act === 'prev' || act === 'next') && down) {
@@ -136,7 +137,7 @@ export class TouchControls {
     this.move = this.look = null;
     Object.assign(this.ctx.player.stick, { x: 0, y: 0, m: 0, sprint: false });
     this.stickEl.classList.remove('show');
-    this.ctx.arsenal.trigger = false;
+    this.ctx.arsenal.trigger = this.ctx.arsenal.aimHeld = false;
     if (this.crouch) { this.crouch = false; key('keyup', 'KeyC'); }
     for (const b of this.root.querySelectorAll('.down, .on')) b.classList.remove('down', 'on');
     this.ctx.player.keys.clear();
@@ -149,9 +150,8 @@ export class TouchControls {
     const ingame = game.state === 'playing' || game.state === 'paused';
     document.body.classList.toggle('ingame', ingame);
     if (!ingame) return;
-    const def = arsenal.w.def;
-    this.toggle('t-alt', 'zoom', !!def.zoom);
-    this.toggle('t-use', 'hidden', !(game.mode === 'coop' && player.alive && director.boxPrompt()));
+    this.toggle('t-alt', 'on', arsenal.aimHeld);
+    this.toggle('t-use', 'hidden', !(director.boxes.length && player.alive && director.boxPrompt()));
     this.toggle('t-board', 'hidden', game.mode === 'sp');
     this.toggle('t-swap-label', 'text', arsenal.slots[1 - arsenal.current]?.def.name ?? '');
   }

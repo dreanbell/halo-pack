@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CFG } from './config.js';
-import { createWorld } from './world.js';
+import { createWorld, skyEnvironment } from './world.js';
+import { MAPS, DEFAULT_MAP, isMap, mapInfo } from './mapinfo.js';
 import { Player } from './player.js';
 import { Arsenal } from './weapons.js';
 import { Director } from './enemies.js';
@@ -11,15 +12,20 @@ import { NavGrid } from './nav.js';
 import { Net, v3, normalizeCode, BUILD, DEBUG } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { Armory } from './armory.js';
+import { LoadoutMenu } from './loadout.js';
+import { gunThumbnails } from './gunview.js';
 import { Spectator } from './spectator.js';
 import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
 import { DEFAULT_SKIN, sanitizeSkin } from './skins.js';
-import { skyEnvironment } from './world.js';
+import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from './rules.js';
+import { renderRules } from './setup.js';
 
 const BEST_KEY = 'ringfall.best';
 const NAME_KEY = 'ringfall.name';
 const SKIN_KEY = 'ringfall.skin';
 const LOADOUT_KEY = 'ringfall.loadout';
+const MAP_KEY = 'ringfall.map';
+const SP_RULES_KEY = 'ringfall.sprules';
 const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.build')) el.textContent = `v${BUILD}${DEBUG ? ' · diagnóstico' : ''}`;
 console.info(`Ringfall v${BUILD}`);
@@ -36,14 +42,33 @@ $('app').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(78, innerWidth / innerHeight, 0.03, 3000);
 
-// mode: 'sp' (un jugador) | 'coop' | 'dm' (todos contra todos)
-const game = { state: 'menu', mode: 'sp', wave: 0, kills: 0, score: 0, time: 0, deathT: -1, respawnIn: 0 };
-const ctx = { scene, camera, renderer, game };
+// mode: 'sp' (un jugador) | 'coop' | 'dm' (todos contra todos). Las reglas de la partida en curso, en ctx.rules.
+// timeLeft: segundos de partida restantes (Infinity sin límite).
+const game = { state: 'menu', mode: 'sp', wave: 0, kills: 0, score: 0, time: 0, deathT: -1, respawnIn: 0, timeLeft: Infinity, lifePending: false };
+
+function readSpRules() {
+  try { return sanitizeRules('sp', JSON.parse(localStorage.getItem(SP_RULES_KEY) ?? 'null')); } catch { return defaultRules('sp'); }
+}
+let spRules = readSpRules();
+const ctx = { scene, camera, renderer, game, rules: spRules };
 ctx.sfx = new Sfx();
 ctx.hud = new Hud();
-ctx.world = createWorld(scene);
-scene.environment = skyEnvironment(renderer);
-ctx.nav = new NavGrid(ctx.world);
+// Mapa: se reconstruye entero (geometría, luz, navegación) al cambiar.
+function loadMap(id) {
+  if (!isMap(id)) id = DEFAULT_MAP;
+  if (ctx.world?.id === id) return;
+  ctx.world?.dispose();
+  scene.environment?.userData.target?.dispose();
+  ctx.world = createWorld(scene, id);
+  scene.environment = skyEnvironment(renderer, ctx.world.env);
+  renderer.toneMappingExposure = ctx.world.exposure;
+  ctx.nav = new NavGrid(ctx.world);
+}
+function readMap() {
+  try { const id = localStorage.getItem(MAP_KEY); return isMap(id) ? id : DEFAULT_MAP; } catch { return DEFAULT_MAP; }
+}
+ctx.spMap = readMap();
+loadMap(ctx.spMap);
 ctx.fx = new Effects(scene);
 ctx.net = new Net();
 ctx.remotes = new RemotePlayers(ctx);
@@ -52,7 +77,7 @@ ctx.director = new Director(ctx);
 ctx.arsenal = new Arsenal(ctx);
 ctx.spectator = new Spectator(ctx);
 ctx.touch = new TouchControls(ctx);
-const { sfx, hud, fx, player, director, arsenal, net, remotes, world, spectator, touch } = ctx;
+const { sfx, hud, fx, player, director, arsenal, net, remotes, spectator, touch } = ctx;
 const vec = (a) => new THREE.Vector3().fromArray(a);
 
 // --- Armadura del jugador ----------------------------------------------------
@@ -74,7 +99,7 @@ const armory = new Armory({
 });
 let armoryReturn = 'menu';
 
-// --- Armas elegidas (un jugador y DM; en coop se empieza básico y el resto sale de la caja) ---
+// --- Armas elegidas (cuando las reglas dejan elegir; si no, las fija la regla de armamento) ---
 function readLoadout() {
   try {
     const l = JSON.parse(localStorage.getItem(LOADOUT_KEY) ?? 'null');
@@ -83,67 +108,37 @@ function readLoadout() {
   return [...CFG.defaultLoadout];
 }
 ctx.loadout = readLoadout();
-function loadoutFor(mode) {
-  return mode === 'coop' ? CFG.defaultLoadout : ctx.loadout;
+function loadoutFor() {
+  return LOADOUTS[ctx.rules.loadout] ?? ctx.loadout;
 }
 
-const STAT_MAX = { dps: 230, range: 400, mob: 1 };
-function weaponStats(w) {
-  const shots = w.kind === 'pellets' ? w.pellets : w.burst ?? 1;
-  const dps = (w.damage * shots) / (w.interval + (w.burst ? w.burstGap * (w.burst - 1) : 0));
-  const range = w.kind === 'projectile' ? w.projSpeed * w.life : w.range;
-  return [['DAÑO', Math.min(1, dps / STAT_MAX.dps)], ['ALCANCE', Math.min(1, range / STAT_MAX.range)], ['CADENCIA', Math.min(1, 0.05 / w.interval * 1.4)]];
-}
-
-function renderLoadout() {
-  for (const slot of [0, 1]) {
-    $(`lo-${slot}`).replaceChildren(...Object.entries(CFG.weapons).map(([id, w]) => {
-      const b = document.createElement('button');
-      b.className = `wcard${w.alien ? ' alien' : ''}${ctx.loadout[slot] === id ? ' selected' : ''}`;
-      b.disabled = ctx.loadout[1 - slot] === id;
-      const name = document.createElement('b');
-      name.textContent = w.name;
-      const kind = document.createElement('small');
-      kind.textContent = `${w.alien ? 'ALIENÍGENA · ' : ''}${w.heat ? 'CALOR' : `CARGADOR ${w.mag}`}${w.zoom ? ` · MIRA x${w.zoom}` : ''}`;
-      const bars = document.createElement('div');
-      bars.className = 'bars';
-      for (const [label, v] of weaponStats(w)) {
-        const l = document.createElement('span');
-        l.textContent = label;
-        const bar = document.createElement('div');
-        bar.className = 'bar';
-        const fill = document.createElement('i');
-        fill.style.width = `${Math.round(v * 100)}%`;
-        bar.append(fill);
-        bars.append(l, bar);
-      }
-      b.append(name, kind, bars);
-      b.addEventListener('click', () => {
-        ctx.loadout[slot] = id;
-        try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(ctx.loadout)); } catch { /* sin almacenamiento */ }
-        renderLoadout();
-      });
-      return b;
-    }));
-  }
-}
-
+const loadoutMenu = new LoadoutMenu({
+  get: () => ctx.loadout,
+  set: (l) => {
+    ctx.loadout = l;
+    try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(l)); } catch { /* sin almacenamiento */ }
+  },
+});
+// Miniaturas de armas (menú y HUD): se generan en segundo plano mientras se está en el menú.
+setTimeout(() => { if (game.state !== 'playing') gunThumbnails(); }, 1200);
 let loadoutReturn = 'menu';
 function openLoadout(from) {
   loadoutReturn = from;
-  renderLoadout();
   hud.showOverlay('loadout');
+  loadoutMenu.open();
 }
 $('btn-loadout').addEventListener('click', () => openLoadout('menu'));
 $('btn-lobby-loadout').addEventListener('click', () => openLoadout('lobby'));
 $('btn-loadout-done').addEventListener('click', () => {
+  loadoutMenu.close();
   hud.showOverlay(loadoutReturn);
   if (loadoutReturn === 'lobby') renderLobby();
+  if (loadoutReturn === 'setup') renderSetup();
 });
 
-// Tecla E: caja misteriosa (cooperativo).
+// Tecla E: caja misteriosa (si la partida tiene cajas).
 addEventListener('keydown', (e) => {
-  if (e.code !== 'KeyE' || e.repeat || game.state !== 'playing' || game.mode !== 'coop') return;
+  if (e.code !== 'KeyE' || e.repeat || game.state !== 'playing' || !director.boxes.length) return;
   director.interact();
 });
 function openArmory(from) {
@@ -159,11 +154,16 @@ $('btn-armory-done').addEventListener('click', () => {
   if (armoryReturn === 'lobby') renderLobby();
 });
 
-function readBest() {
-  try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch { return 0; }
+// Récord por variante; con ajustes personalizados no cuenta.
+function bestKey(rules) {
+  if (isCustom('sp', rules)) return null;
+  return rules.variant === 'classic' ? BEST_KEY : `${BEST_KEY}.${rules.variant}`;
 }
-function writeBest(v) {
-  try { localStorage.setItem(BEST_KEY, String(v)); } catch { /* almacenamiento no disponible */ }
+function readBest(key = BEST_KEY) {
+  try { return Number(localStorage.getItem(key)) || 0; } catch { return 0; }
+}
+function writeBest(key, v) {
+  try { localStorage.setItem(key, String(v)); } catch { /* almacenamiento no disponible */ }
 }
 
 function lock() {
@@ -179,10 +179,14 @@ function lock() {
 
 // --- Partida -----------------------------------------------------------------
 function pickSpawn() {
+  const { world } = ctx;
+  const { x, z } = world.spawn, yaw = Math.atan2(x, z);
   if (game.mode === 'coop') {
+    // En fila, mirando al centro del mapa.
     const ids = [...net.players.keys()].sort((a, b) => a - b);
     const i = Math.max(0, ids.indexOf(net.id));
-    return [new THREE.Vector3(-5.25 + (i % 8) * 1.5, 0, 30 + Math.floor(i / 8) * 1.5), 0];
+    const side = -5.25 + (i % 8) * 1.5, back = Math.floor(i / 8) * 1.5;
+    return [new THREE.Vector3(x + Math.cos(yaw) * side + Math.sin(yaw) * back, 0, z - Math.sin(yaw) * side + Math.cos(yaw) * back), yaw];
   }
   if (game.mode === 'dm') {
     // El punto de aparición más alejado de los rivales vivos (con algo de azar).
@@ -193,15 +197,19 @@ function pickSpawn() {
     const { p } = ranked[(Math.random() * Math.min(4, ranked.length)) | 0];
     return [p.clone(), Math.atan2(p.x, p.z)];
   }
-  return [new THREE.Vector3(0, 0, 30), 0];
+  return [new THREE.Vector3(x, 0, z), yaw];
 }
 
-function startSession(mode) {
+function startSession(mode, rules = net.rules, map = mode === 'sp' ? ctx.spMap : net.map) {
   sfx.unlock();
-  Object.assign(game, { mode, wave: 0, kills: 0, score: 0, time: 0, deathT: -1, respawnIn: 0, state: 'playing' });
+  loadMap(map);
+  ctx.rules = sanitizeRules(mode, rules);
   const online = mode !== 'sp';
+  const timeLeft = online ? net.timeLeft() : ctx.rules.timeLimit ? ctx.rules.timeLimit * 60 : Infinity;
+  Object.assign(game, { mode, wave: ctx.rules.startWave - 1, kills: 0, score: 0, time: 0, deathT: -1, respawnIn: 0, timeLeft, state: 'playing' });
+  game.lifePending = false;
   director.configure(mode, !online || net.isHost);
-  arsenal.reset(loadoutFor(mode));
+  arsenal.reset(loadoutFor());
   fx.clear();
   hud.reset();
   spectator.stop();
@@ -218,14 +226,35 @@ function startSession(mode) {
 
 function newGame() {
   enterFullscreen();
-  startSession('sp');
+  startSession('sp', spRules);
 }
 
 function respawn() {
   spectator.stop();
   player.reset(...pickSpawn());
-  arsenal.reset(loadoutFor(game.mode));
+  arsenal.reset(loadoutFor());
   game.respawnIn = 0;
+}
+
+// --- Vidas compartidas (regla «vidas»): la autoridad de la IA las reparte ---
+function requestLife() {
+  if (director.authority) { grantLife(director.takeLife(), director.lives); return; }
+  game.lifePending = true;
+  net.to(net.hostId, 'lifeReq');
+}
+
+function grantLife(ok, left) {
+  game.lifePending = false;
+  if (player.alive || game.state === 'over') return;
+  if (ok) {
+    game.deathT = -1;
+    game.respawnIn = ctx.rules.respawn;
+    hud.banner('HAS CAÍDO', left > 0 ? `QUEDAN ${left} VIDAS` : 'ERA LA ÚLTIMA VIDA', 1.8);
+  } else if (game.mode === 'sp') {
+    game.deathT = 0; // sin vidas: fin de la partida
+  } else {
+    hud.banner('SIN VIDAS', 'VUELVES CUANDO EL EQUIPO GANE UNA', 2.2);
+  }
 }
 
 function resume() {
@@ -236,42 +265,61 @@ function resume() {
 
 game.onPlayerDeath = (lastHit) => {
   game.deathT = 0;
-  arsenal.trigger = false;
+  arsenal.trigger = arsenal.aimHeld = false;
   sfx.death();
   if (game.mode === 'dm') {
     net.send('kill', { killer: lastHit?.by ?? null, head: !!lastHit?.head });
-    game.respawnIn = CFG.pvp.respawn;
+    game.respawnIn = ctx.rules.respawn;
     spectator.start(lastHit?.by ?? null, 1.2); // sigue a quien te eliminó hasta reaparecer
-  } else {
-    if (game.mode === 'coop') spectator.start(null, 1.8);
-    hud.banner('HAS CAÍDO', '', 1.8);
+    return;
   }
+  // Cooperativo con fuego amigo: baja por un compañero.
+  if (game.mode === 'coop' && lastHit?.by != null) {
+    net.bcast('tk', { killer: lastHit.by });
+    teamKillFeed(lastHit.by, net.id);
+  }
+  if (game.mode === 'coop') spectator.start(null, 1.8);
+  if (ctx.rules.lives) requestLife();
+  else hud.banner('HAS CAÍDO', '', 1.8);
 };
 
-// Coop: al empezar cada oleada reaparecen los caídos.
+function teamKillFeed(killer, victim) {
+  hud.feed([{ text: playerName(killer), color: playerColor(killer) }, { text: '✕ FUEGO AMIGO ✕' }, { text: playerName(victim), color: playerColor(victim) }]);
+}
+
+// Coop: al empezar cada oleada reaparecen los caídos (con vidas, los que se quedaron sin ninguna piden otra).
 game.onWaveStart = () => {
-  if (game.mode === 'coop' && !player.alive) respawn();
+  if (game.mode !== 'coop' || player.alive) return;
+  if (!ctx.rules.lives) respawn();
+  else if (game.respawnIn <= 0 && !game.lifePending) requestLife();
 };
 
-// Coop (anfitrión): todo el equipo ha caído.
-game.onCoopOver = () => {
+// Coop (anfitrión): todo el equipo ha caído o se acabó el tiempo.
+game.onCoopOver = (extra = {}) => {
   const players = [...net.players.values()].map((p) => ({ id: p.id, ...(director.scores.get(p.id) ?? { kills: 0, score: 0 }) }));
-  net.send('end', { summary: { wave: game.wave, score: game.score, players } });
+  net.send('end', { summary: { wave: game.wave, score: game.score, players, ...extra } });
 };
 
-function gameOver() {
+function gameOver(timeUp = false) {
   game.state = 'over';
-  const best = Math.max(readBest(), game.score);
-  writeBest(best);
+  const key = bestKey(ctx.rules);
+  const best = key ? Math.max(readBest(key), game.score) : null;
+  if (key) writeBest(key, best);
   if (document.pointerLockElement) document.exitPointerLock();
-  hud.showGameOver({ ...game, best });
+  const variant = VARIANTS[ctx.rules.variant].name;
+  hud.showGameOver({
+    ...game, best,
+    title: timeUp ? '¡TIEMPO!' : 'FIN DE LA PARTIDA',
+    recordLabel: ctx.rules.variant === 'classic' ? 'Récord' : `Récord ${variant.toLowerCase()}`,
+  });
 }
 
 function toMenu() {
   spectator.stop();
   net.disconnect();
+  loadMap(ctx.spMap);
   remotes.clear();
-  director.configure('sp', true);
+  director.configure('menu', true);
   fx.clear();
   game.state = 'menu';
   game.mode = 'sp';
@@ -283,7 +331,7 @@ function toMenu() {
 function toLobby(status = '') {
   spectator.stop();
   remotes.clear();
-  director.configure('sp', true);
+  director.configure('menu', true);
   fx.clear();
   game.state = 'lobby';
   if (document.pointerLockElement) document.exitPointerLock();
@@ -291,18 +339,71 @@ function toLobby(status = '') {
   renderLobby(status);
 }
 
-// --- Lobby -------------------------------------------------------------------
-const MODE_DESC = {
-  coop: 'Todos juntos contra oleadas. Si caes, reapareces en la siguiente oleada; si cae todo el equipo, se acaba.',
-  dm: () => `Cada uno por su cuenta. Gana el primero en llegar a ${net.scoreLimit} bajas. Reapareces a los ${CFG.pvp.respawn} s.`,
-};
+// --- Selector de mapa (menú: libre; sala: solo el anfitrión) ------------------
+function renderMaps(el, current, editable, pick) {
+  el.replaceChildren(...MAPS.map((m) => {
+    const b = document.createElement('button');
+    b.className = `mapcard${m.id === current ? ' selected' : ''}`;
+    b.disabled = !editable && m.id !== current;
+    b.style.setProperty('--a', m.sky[0]);
+    b.style.setProperty('--b', m.sky[1]);
+    b.style.setProperty('--c', m.sky[2]);
+    const name = document.createElement('b');
+    name.textContent = m.name;
+    const tag = document.createElement('small');
+    tag.textContent = m.tag;
+    b.append(name, tag);
+    if (editable) b.addEventListener('click', () => pick(m.id));
+    return b;
+  }));
+  const desc = el.nextElementSibling;
+  if (desc?.classList.contains('map-desc')) desc.textContent = mapInfo(current).desc;
+}
+function renderMenuMaps() {
+  const pick = (id) => {
+    ctx.spMap = id;
+    try { localStorage.setItem(MAP_KEY, id); } catch { /* sin almacenamiento */ }
+    loadMap(id);
+    renderMenuMaps();
+  };
+  renderMaps($('menu-maps'), ctx.spMap, true, pick);
+  renderMaps($('setup-maps'), ctx.spMap, true, pick);
+}
+renderMenuMaps();
 
+// --- Un jugador: variante y ajustes -------------------------------------------
+function renderSetup() {
+  renderRules($('sp-rules'), {
+    mode: 'sp', rules: spRules, editable: true,
+    onChange: (r) => {
+      spRules = sanitizeRules('sp', r);
+      try { localStorage.setItem(SP_RULES_KEY, JSON.stringify(spRules)); } catch { /* sin almacenamiento */ }
+      renderSetup();
+    },
+  });
+}
+function openSetup() {
+  renderSetup();
+  hud.showOverlay('setup');
+}
+$('btn-start').addEventListener('click', openSetup);
+$('btn-sp-play').addEventListener('click', newGame);
+$('btn-setup-loadout').addEventListener('click', () => openLoadout('setup'));
+$('btn-setup-reset').addEventListener('click', () => {
+  spRules = defaultRules('sp', spRules.variant);
+  try { localStorage.setItem(SP_RULES_KEY, JSON.stringify(spRules)); } catch { /* sin almacenamiento */ }
+  renderSetup();
+});
+$('btn-setup-back').addEventListener('click', () => hud.showOverlay('menu'));
+
+// --- Lobby -------------------------------------------------------------------
 function renderLobby(status) {
   const connected = net.active;
   $('lobby-connect').classList.toggle('hidden', connected);
   $('lobby-room').classList.toggle('hidden', !connected);
   if (status !== undefined) $('mp-status').textContent = status;
   if (!connected) return;
+  loadMap(net.map);
   const p2p = net.kind !== 'lan';
   $('room-code-box').classList.toggle('hidden', !p2p || !net.code);
   $('room-address').classList.toggle('hidden', p2p);
@@ -322,8 +423,16 @@ function renderLobby(status) {
     b.classList.toggle('selected', b.dataset.mode === net.mode);
     b.disabled = !net.isHost;
   }
-  const desc = MODE_DESC[net.mode];
-  $('mp-mode-desc').textContent = typeof desc === 'function' ? desc() : desc;
+  renderMaps($('lobby-maps'), net.map, net.isHost, (id) => net.send('map', { map: id }));
+  renderRules($('mp-rules'), {
+    mode: net.mode, rules: net.rules, editable: net.isHost,
+    // Optimista: los siguientes cambios parten de este aunque la sala aún no lo haya confirmado.
+    onChange: (rules) => {
+      net.rules = sanitizeRules(net.mode, rules);
+      net.send('rules', { rules: net.rules });
+      renderLobby();
+    },
+  });
   $('btn-mp-start').classList.toggle('hidden', !net.isHost);
   $('mp-wait').textContent = net.isHost ? '' : net.state === 'playing' ? 'Partida en curso…' : 'Esperando a que el anfitrión inicie la partida…';
 }
@@ -448,7 +557,7 @@ net.on('boxDeny', (m) => { hud.toast(m.reason); sfx.deny(); });
 net.on('boxTake', (m) => { director.boxes[m.id]?.close(); });
 net.on('gren', (m) => { if (inMatch()) arsenal.remoteGrenade(m.p, m.v, m.from); });
 net.on('hit', (m) => {
-  if (!inMatch() || game.mode !== 'dm') return;
+  if (!inMatch() || !arsenal.pvp) return;
   player.takeHit(m.dmg, { shieldMult: m.sm, headMult: m.hm, part: m.part }, vec(m.from), m.from);
 });
 net.on('feed', (m) => {
@@ -472,17 +581,28 @@ net.on('matchEnd', (m) => {
     const rows = [...m.players].sort((a, b) => b.kills - a.kills)
       .map((p) => ({ name: p.name, color: p.color, cols: [p.kills, p.deaths], me: p.id === net.id }));
     const w = m.players.find((p) => p.id === m.winner);
-    hud.showResults(w ? (w.id === net.id ? '¡VICTORIA!' : `GANA ${w.name.toUpperCase()}`) : 'FIN DE LA PARTIDA', ['JUGADOR', 'BAJAS', 'MUERTES'], rows, 'VOLVER AL LOBBY');
+    const title = w ? (w.id === net.id ? '¡VICTORIA!' : `GANA ${w.name.toUpperCase()}`) : m.timeUp ? '¡TIEMPO! · EMPATE' : 'FIN DE LA PARTIDA';
+    hud.showResults(title, ['JUGADOR', 'BAJAS', 'MUERTES'], rows, 'VOLVER AL LOBBY');
   } else {
-    const s = m.summary ?? { wave: game.wave, score: game.score, players: [] };
+    // Sin resumen del anfitrión (no respondió a tiempo): lo que sabe este equipo.
+    const s = m.summary ?? {
+      wave: game.wave, score: game.score,
+      players: [...net.players.values()].map((p) => ({ id: p.id, ...(director.scores.get(p.id) ?? { kills: 0, score: 0 }) })),
+    };
     const rows = s.players.map((p) => ({
       name: playerName(p.id), color: playerColor(p.id), cols: [p.kills, p.score.toLocaleString('es-ES')], me: p.id === net.id,
     })).sort((a, b) => b.cols[0] - a.cols[0]);
-    hud.showResults(`EQUIPO CAÍDO · OLEADA ${s.wave}`, ['JUGADOR', 'BAJAS', 'PUNTOS'], rows, 'VOLVER AL LOBBY');
+    hud.showResults(`${m.timeUp ? '¡TIEMPO!' : 'EQUIPO CAÍDO'} · OLEADA ${s.wave}`, ['JUGADOR', 'BAJAS', 'PUNTOS'], rows, 'VOLVER AL LOBBY');
   }
 });
 
+// Límite de tiempo en cooperativo: la sala pide el resumen al anfitrión.
+net.on('timeUp', () => { if (inMatch() && game.mode === 'coop') game.onCoopOver({ timeUp: true }); });
+
 // Coop
+net.on('lifeReq', (m) => { if (inMatch() && director.authority) net.to(m.from, 'life', { ok: director.takeLife(), left: director.lives }); });
+net.on('life', (m) => { if (inMatch()) grantLife(m.ok, m.left); });
+net.on('tk', (m) => { if (inMatch()) teamKillFeed(m.killer, m.from); });
 net.on('snap', (m) => {
   if (inMatch() && game.mode === 'coop' && !director.authority && m.from === net.hostId) director.applySnapshot(m);
 });
@@ -524,18 +644,18 @@ function renderBoard() {
   if (game.mode === 'dm') {
     const rows = players.sort((a, b) => b.kills - a.kills)
       .map((p) => ({ name: p.name, color: p.color, cols: [p.kills, p.deaths], me: p.id === net.id }));
-    hud.scoreboard(true, `TODOS CONTRA TODOS · ${net.scoreLimit} BAJAS`, ['JUGADOR', 'BAJAS', 'MUERTES'], rows);
+    hud.scoreboard(true, `${VARIANTS[ctx.rules.variant].name} · TODOS CONTRA TODOS · ${ctx.rules.scoreLimit} BAJAS`, ['JUGADOR', 'BAJAS', 'MUERTES'], rows);
   } else {
     const rows = players.map((p) => {
       const s = director.scores.get(p.id) ?? { kills: 0, score: 0 };
       return { name: p.name, color: p.color, cols: [s.kills, s.score.toLocaleString('es-ES')], me: p.id === net.id };
     }).sort((a, b) => b.cols[0] - a.cols[0]);
-    hud.scoreboard(true, `COOPERATIVO · OLEADA ${Math.max(1, game.wave)}`, ['JUGADOR', 'BAJAS', 'PUNTOS'], rows);
+    const lives = ctx.rules.lives ? ` · VIDAS ${director.lives}` : '';
+    hud.scoreboard(true, `${VARIANTS[ctx.rules.variant].name} · COOPERATIVO · OLEADA ${Math.max(1, game.wave)}${lives}`, ['JUGADOR', 'BAJAS', 'PUNTOS'], rows);
   }
 }
 
 // --- UI general --------------------------------------------------------------
-$('btn-start').addEventListener('click', newGame);
 $('btn-retry').addEventListener('click', () => (game.mode === 'sp' ? newGame() : toLobby()));
 $('pause').addEventListener('click', () => { if (performance.now() - pausedAt > 400) resume(); });
 $('btn-quit').addEventListener('click', (e) => { e.stopPropagation(); toMenu(); });
@@ -547,7 +667,7 @@ function pause() {
   if (game.state !== 'playing') return;
   pausedAt = performance.now();
   game.state = 'paused';
-  arsenal.trigger = false;
+  arsenal.trigger = arsenal.aimHeld = false;
   player.keys.clear();
   touch.release();
   hud.showOverlay('pause');
@@ -560,7 +680,7 @@ document.addEventListener('pointerlockchange', () => {
   if (locked && game.state === 'paused') {
     game.state = 'playing';
     hud.showOverlay(null);
-  } else if (!locked && game.state === 'playing' && (player.alive || game.mode !== 'sp')) {
+  } else if (!locked && game.state === 'playing' && (player.alive || game.mode !== 'sp' || game.respawnIn > 0)) {
     pause();
   }
 });
@@ -596,26 +716,32 @@ function tick(dt) {
     arsenal.update(dt);
     if (game.mode !== 'sp') spectator.update(dt);
     hud.update(ctx, dt);
+    if (!player.alive && game.respawnIn > 0) {
+      game.respawnIn -= dt;
+      if (game.respawnIn <= 0) respawn();
+    }
     if (game.mode === 'sp') {
-      if (game.deathT >= 0) {
+      if (Number.isFinite(game.timeLeft)) {
+        game.timeLeft = Math.max(0, game.timeLeft - dt);
+        if (game.timeLeft <= 0 && game.state === 'playing') gameOver(true);
+      }
+      if (game.deathT >= 0 && game.state === 'playing') {
         game.deathT += dt;
         if (game.deathT > 2.2) gameOver();
       }
     } else {
+      game.timeLeft = net.timeLeft();
       if (net.active) netTick(dt);
-      if (game.mode === 'dm' && !player.alive && game.respawnIn > 0) {
-        game.respawnIn -= dt;
-        if (game.respawnIn <= 0) respawn();
-      }
       boardT -= dt;
       if (boardT <= 0) { boardT = 0.25; renderBoard(); }
     }
   } else if (game.state === 'menu' || game.state === 'lobby') {
     player.yaw.rotation.y += dt * 0.05;
-    player.yaw.position.set(0, 9, 34);
+    player.yaw.position.fromArray(ctx.world.menuCam);
     player.pitch.rotation.set(-0.12, 0, 0);
   }
   touch.update();
+  ctx.world.update(game.state === 'paused' && game.mode === 'sp' ? 0 : dt);
   fx.update(game.state === 'paused' && game.mode === 'sp' ? 0 : dt);
 }
 
@@ -629,4 +755,4 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // Acceso para depuración y pruebas automatizadas.
-window.__ringfall = { ctx, newGame, tick, armory };
+window.__ringfall = { ctx, newGame, tick, armory, loadMap, startSession };
