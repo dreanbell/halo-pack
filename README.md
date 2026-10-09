@@ -147,7 +147,7 @@ Desde el menú (**ARMERÍA · PERSONALIZAR SOLDADO**) o desde el lobby (**ARMER�
 | Casco | Centinela · Halcón · Bastión |
 | Patrón | Liso · Camuflaje · Rayas · Hexágonos (con juntas, remaches y desgaste) |
 
-La armadura se guarda en el navegador y se envía a los demás jugadores; la verán en la siguiente partida. En primera persona se ven tus brazos con la misma armadura.
+La armadura se guarda en el navegador y se envía a los demás jugadores; la verán en la siguiente partida. En primera persona se ven tus brazos con la misma armadura; con una skin 3D, los brazos y manos de ese modelo (alas en el pato).
 
 Los modelos 3D son **CC0** de OpenGameArt (`vendor/assets/players/`, procedencia en `ATTRIBUTION.md`). No copian la pose de ninguna animación propia: siguen al esqueleto procedural (`src/playermodels.js`) con IK en brazos y piernas, así que corren, se agachan, se deslizan, apuntan con el arma y caen igual que el soldado clásico, con las mismas hitboxes. El casco y el color del visor también cambian en los modelos Federal/Militar/Renegado; colores y patrón pintan al ExoTrooper. No se incluye el Jefe Maestro ni ningún personaje con derechos: los modelos «fan» no tienen licencia libre.
 

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { CFG, rand } from './config.js';
 import { glowTexture } from './world.js';
 import { v3 } from './net.js';
-import { skinMaterials } from './avatar.js';
+import { skinMaterials, Avatar } from './avatar.js';
+import { hasPlayerModel } from './playermodels.js';
 import { DEFAULT_SKIN } from './skins.js';
 import { buildGun, GUN_INFO } from './guns.js';
 
@@ -168,6 +169,7 @@ export class Arsenal {
     this.vm.add(this.muzzleLight);
     this.skin = DEFAULT_SKIN;
     this.skinMeshes = [];
+    this.armGroups = []; // { a, side } de cada arma, para ponerles los brazos de la skin 3D
     this.armGeo = {
       glove: new THREE.BoxGeometry(0.075, 0.075, 0.1),
       knuckle: new THREE.BoxGeometry(0.078, 0.025, 0.04),
@@ -178,7 +180,7 @@ export class Arsenal {
   }
 
   // Brazo con la armadura del jugador: mano en el origen, antebrazo hacia la cámara.
-  arm(parent, pos, rot) {
+  arm(parent, pos, rot, side) {
     const sm = skinMaterials(this.skin);
     const a = new THREE.Group();
     a.position.fromArray(pos);
@@ -197,14 +199,47 @@ export class Arsenal {
     part(this.armGeo.cuff, 'trim', 0.06);
     part(this.armGeo.sleeve, 'suit', 0.36);
     parent.add(a);
+    this.armGroups.push({ a, side });
+    this.addSkinArm(a, side);
+  }
+
+  // Skin 3D: los brazos del modelo sustituyen a los de la armadura procedural en primera persona.
+  addSkinArm(a, side) {
+    const parts = this.fpParts?.[side];
+    if (!parts?.length) return;
+    const g = new THREE.Group();
+    g.userData.skinArm = true;
+    for (const p of parts) {
+      const m = new THREE.Mesh(p.geo, p.mat);
+      m.frustumCulled = false;
+      g.add(m);
+    }
+    a.add(g);
+  }
+
+  buildSkinArms() {
+    for (const { a } of this.armGroups) for (const ch of [...a.children]) if (ch.userData.skinArm) a.remove(ch);
+    if (this.fpParts) for (const list of Object.values(this.fpParts)) for (const p of list) p.geo.dispose();
+    this.fpAvatar?.dispose();
+    this.fpAvatar = this.fpParts = null;
+    const use = !!this.skin.m && hasPlayerModel(this.skin.m);
+    this.fpWanted = !!this.skin.m && !use; // modelo aún cargando: se reintenta en update()
+    if (use) {
+      this.fpAvatar = new Avatar(this.skin); // fuera de la escena, en pose de reposo
+      this.fpParts = { 1: this.fpAvatar.model.armParts(1), [-1]: this.fpAvatar.model.armParts(-1) };
+      for (const { a, side } of this.armGroups) this.addSkinArm(a, side);
+    }
+    const skinned = !!this.fpParts && (this.fpParts[1].length || this.fpParts[-1].length);
+    for (const m of this.skinMeshes) m.visible = !skinned;
   }
 
   model(id) {
     if (this.models.has(id)) return this.models.get(id);
     const gun = buildGun(id);
     const pistolLike = id === 'pistol';
-    this.arm(gun.group, gun.grips.r, [0.32, 0.42, 0]);
-    this.arm(gun.group, gun.grips.l, pistolLike ? [0.45, -0.45, 0.15] : [0.62, -0.42, 0]);
+    this.arm(gun.group, gun.grips.r, [0.32, 0.42, 0], 1);
+    this.arm(gun.group, gun.grips.l, pistolLike ? [0.45, -0.45, 0.15] : [0.62, -0.42, 0], -1);
+    if (this.fpParts) for (const m of this.skinMeshes) m.visible = false;
     gun.flash = this.makeFlash(W[id]);
     gun.muzzle.add(gun.flash);
     if (pistolLike) gun.group.position.set(-0.02, 0.02, 0.06);
@@ -260,6 +295,7 @@ export class Arsenal {
     this.skin = skin;
     const sm = skinMaterials(skin);
     for (const m of this.skinMeshes) m.material = sm[m.userData.role];
+    this.buildSkinArms();
   }
 
   muzzle() {
@@ -754,6 +790,7 @@ export class Arsenal {
   }
 
   update(dt) {
+    if (this.fpWanted && hasPlayerModel(this.skin.m)) this.buildSkinArms(); // la skin 3D terminó de cargar
     const { player, camera } = this.ctx;
     const s = this.w, d = s.def;
     this.cooldown = Math.max(0, this.cooldown - dt);

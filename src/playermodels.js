@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from '../vendor/three/addons/utils/SkeletonUtils.js';
+import { mergeVertices } from '../vendor/three/addons/utils/BufferGeometryUtils.js';
 
 // Skins 3D del soldado: modelos CC0 (vendor/assets/players, ver ATTRIBUTION.md) que copian la pose del
 // esqueleto procedural de avatar.js. El esqueleto procedural sigue animando (andar, agacharse, deslizarse,
@@ -48,7 +49,7 @@ const DEFS = [
     legs: [['b_Left_Leg01', 'b_Left_Leg02', 'b_Left_Foot01'], ['b_Right_Leg01', 'b_Right_Leg02', 'b_Right_Foot01']],
   },
   {
-    file: 'duck', rotY: 0, paint: 'duck', height: 1.6,
+    file: 'duck', rotY: 0, paint: 'duck', height: 1.6, fpScale: 0.5,
     hips: 'hips', spine: ['spine'], head: ['head'],
     arms: [['wing_upL', 'wing_lowL', 'wing_tipL'], ['wing_upR', 'wing_lowR', 'wing_tipR']],
     legs: [['thighL', 'shinL', 'footL'], ['thighR', 'shinR', 'footR']],
@@ -314,6 +315,55 @@ export class PlayerModel {
       pole.copy(_b);
       this.limb(Lg, ankle, pole);
     }
+  }
+
+  // Brazo (brazo, antebrazo y mano) del modelo como malla estática para la primera persona.
+  // Marco local como el de los brazos del arma: mano en el origen, antebrazo hacia +Z, dorso de la mano hacia +Y.
+  armParts(side) {
+    const L = this.arms[side];
+    if (!L) return [];
+    this.avatar.root.updateMatrixWorld(true);
+    const set = new Set();
+    L.u.traverse((b) => { if (b.isBone) set.add(b); });
+    const E = L.l.getWorldPosition(new THREE.Vector3());
+    const W = L.e ? L.e.getWorldPosition(new THREE.Vector3())
+      : E.clone().add(E.clone().sub(L.u.getWorldPosition(new THREE.Vector3())).normalize().multiplyScalar(L.b));
+    const fore = E.distanceTo(W);
+    const Z = E.clone().sub(W).normalize();
+    const Y = new THREE.Vector3(side, 0, 0).addScaledVector(Z, -side * Z.x).normalize();
+    const X = new THREE.Vector3().crossVectors(Y, Z);
+    const k = (0.3 / fore) * (this.def.fpScale ?? 1), origin = W.clone().addScaledVector(Z, -fore * 0.16); // origen dentro de la palma
+    const v = new THREE.Vector3(), out = [];
+    for (const mesh of this.meshes) {
+      if (!mesh.visible || !mesh.isSkinnedMesh) continue;
+      const g = mesh.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, pos = g.attributes.position, uv = g.attributes.uv, idx = g.index;
+      const bones = mesh.skeleton.bones, inArm = new Uint8Array(pos.count);
+      for (let i = 0; i < pos.count; i++) {
+        let best = -1, bw = 0;
+        for (let j = 0; j < 4; j++) { const w = sw.getComponent(i, j); if (w > bw) { bw = w; best = si.getComponent(i, j); } }
+        inArm[i] = set.has(bones[best]) ? 1 : 0;
+      }
+      const P = [], U = [];
+      const vert = (i) => {
+        mesh.getVertexPosition(i, v);
+        mesh.localToWorld(v).sub(origin);
+        P.push(v.dot(X) * k, v.dot(Y) * k, v.dot(Z) * k);
+        if (uv) U.push(uv.getX(i), uv.getY(i));
+      };
+      const tris = idx ? idx.count / 3 : pos.count / 3;
+      for (let t = 0; t < tris; t++) {
+        const a = idx ? idx.getX(3 * t) : 3 * t, b = idx ? idx.getX(3 * t + 1) : 3 * t + 1, c = idx ? idx.getX(3 * t + 2) : 3 * t + 2;
+        if (inArm[a] && inArm[b] && inArm[c]) { vert(a); vert(b); vert(c); }
+      }
+      if (!P.length) continue;
+      let geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+      if (U.length) geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+      geo = mergeVertices(geo);
+      geo.computeVertexNormals();
+      out.push({ geo, mat: mesh.material });
+    }
+    return out;
   }
 
   dispose() {
