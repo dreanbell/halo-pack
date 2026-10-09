@@ -23,10 +23,13 @@ const MODEL_NOTE = [
 
 // Armería: vista previa 3D (renderer propio) + selector de colores, casco y patrón.
 export class Armory {
-  constructor({ canvas, skin, onChange }) {
+  // locked(key, valor) → precio si está bloqueado (0 = disponible) · onLocked(key, valor): al tocar algo bloqueado.
+  constructor({ canvas, skin, onChange, locked = () => 0, onLocked = () => {} }) {
     this.canvas = canvas;
     this.skin = sanitizeSkin(skin);
     this.onChange = onChange;
+    this.locked = locked;
+    this.onLocked = onLocked;
     this.visible = false;
     this.rotY = Math.PI;
     this.drag = null;
@@ -104,6 +107,13 @@ export class Armory {
   }
 
   set(patch) {
+    // Lo bloqueado no se aplica: un solo cambio avisa (ir a la tienda); en «aleatorio» simplemente se omite.
+    const keys = Object.keys(patch);
+    for (const k of keys) {
+      if (!this.locked(k, patch[k])) continue;
+      if (keys.length === 1) { this.onLocked(k, patch[k]); return; }
+      delete patch[k];
+    }
     this.skin = sanitizeSkin({ ...this.skin, ...patch });
     this.avatar?.setSkin(this.skin);
     this.syncControls();
@@ -144,15 +154,21 @@ export class Armory {
   }
 
   syncControls() {
-    const mark = (id, value) => {
-      for (const b of document.getElementById(id).children) b.classList.toggle('selected', b.dataset.value === String(value));
+    const mark = (id, value, key) => {
+      for (const b of document.getElementById(id).children) {
+        b.classList.toggle('selected', b.dataset.value === String(value));
+        if (!key) continue;
+        const price = this.locked(key, Number(b.dataset.value));
+        b.classList.toggle('locked', price > 0);
+        if (price > 0) b.dataset.price = `🔒 ${price}`; else delete b.dataset.price;
+      }
     };
     mark('sw-p', this.skin.p);
     mark('sw-s', this.skin.s);
     mark('sw-v', this.skin.v);
-    mark('ch-h', this.skin.h);
-    mark('ch-t', this.skin.t);
-    mark('ch-m', this.skin.m);
+    mark('ch-h', this.skin.h, 'h');
+    mark('ch-t', this.skin.t, 't');
+    mark('ch-m', this.skin.m, 'm');
     document.getElementById('model-note').textContent = MODEL_NOTE[this.skin.m] ?? '';
   }
 }

@@ -18,6 +18,7 @@ import { Spectator } from './spectator.js';
 import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
 import { DEFAULT_SKIN, sanitizeSkin, MODELS, PRIMARY } from '../shared/skins.js';
 import { Home } from './home.js';
+import { Wallet, matchReward, PRICES, ITEM_NAMES, KIND_NAMES } from './wallet.js';
 import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../shared/rules.js';
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
@@ -154,9 +155,18 @@ function readSkin() {
 ctx.skin = readSkin();
 net.skin = ctx.skin;
 arsenal.setSkin(ctx.skin);
+// Créditos y desbloqueos (lo que ya llevas equipado al estrenar el monedero queda desbloqueado).
+const wallet = (ctx.wallet = new Wallet(ctx.skin));
 const armory = new Armory({
   canvas: $('armory-view'),
   skin: ctx.skin,
+  locked: (k, v) => (PRICES[k] ? wallet.locked(k, v) : 0),
+  onLocked: (k, v) => {
+    if (game.state === 'menu') {
+      selectTab('shop');
+      $('shop-msg').textContent = `${ITEM_NAMES[k][v]} está bloqueado: cómpralo por ◈ ${wallet.price(k, v)}.`;
+    } else hud.toast?.(`BLOQUEADO · ◈ ${wallet.price(k, v)} EN LA TIENDA`);
+  },
   onChange: (skin) => {
     ctx.skin = skin;
     try { localStorage.setItem(SKIN_KEY, JSON.stringify(skin)); } catch { /* sin almacenamiento */ }
@@ -281,6 +291,7 @@ function startSession(mode, rules = net.rules, map = mode === 'sp' ? ctx.spMap :
   const timeLeft = online ? net.timeLeft() : ctx.rules.timeLimit ? ctx.rules.timeLimit * 60 : Infinity;
   Object.assign(game, { mode, wave: ctx.rules.startWave - 1, kills: 0, score: 0, time: 0, deathT: -1, respawnIn: 0, timeLeft, state: 'playing' });
   game.lifePending = false;
+  game.paid = false;
   director.configure(mode, !online || net.isHost);
   arsenal.reset(loadoutFor());
   fx.clear();
@@ -374,6 +385,23 @@ game.onCoopOver = (extra = {}) => {
   net.send('end', { summary: { wave: game.wave, score: game.score, players, ...extra } });
 };
 
+// Créditos de la partida (una vez por partida: al terminar o al salir a mitad).
+function payMatch(stats) {
+  if (game.paid) return 0;
+  game.paid = true;
+  const n = wallet.add(matchReward(stats));
+  if (n) $('home-earn').textContent = `+${n} ◈ ÚLTIMA PARTIDA`;
+  renderHome();
+  return n;
+}
+function showEarned(n) {
+  if (!n) return;
+  const p = document.createElement('p');
+  p.className = 'earn';
+  p.innerHTML = `+${n} ◈ CRÉDITOS<small>Total: ◈ ${wallet.coins.toLocaleString('es-ES')} · gástalos en la TIENDA</small>`;
+  $('go-stats').appendChild(p);
+}
+
 function gameOver(timeUp = false) {
   game.state = 'over';
   const key = bestKey(ctx.rules);
@@ -386,9 +414,12 @@ function gameOver(timeUp = false) {
     title: timeUp ? '¡TIEMPO!' : 'FIN DE LA PARTIDA',
     recordLabel: ctx.rules.variant === 'classic' ? 'Récord' : `Récord ${variant.toLowerCase()}`,
   });
+  showEarned(payMatch({ mode: 'sp', kills: game.kills, wave: game.wave, score: game.score, time: game.time }));
 }
 
 function toMenu() {
+  // Salir a mitad de partida también paga lo conseguido.
+  if (['playing', 'paused'].includes(game.state) && game.mode === 'sp') payMatch({ mode: 'sp', kills: game.kills, wave: game.wave, score: game.score, time: game.time });
   spectator.stop();
   net.disconnect();
   loadMap(ctx.spMap);
@@ -509,19 +540,43 @@ function renderHome() {
   const sm = document.createElement('small'); sm.textContent = m.desc;
   card.append(b, sm);
   for (const id of ['home-loadout-mini', 'home-loadout']) $(id).replaceChildren(slotHtml(ctx.loadout[0], 'PRINCIPAL'), slotHtml(ctx.loadout[1], 'SECUNDARIA'));
-  // Tienda: todos los modelos, gratis.
-  $('shop-grid').replaceChildren(...MODELS.map((label, i) => {
-    const c = document.createElement('button');
-    c.className = 'shop-card' + (skin.m === i ? ' equipped' : '');
-    const ico = document.createElement('span');
-    ico.className = 'ico';
-    ico.style.background = `linear-gradient(135deg, ${PRIMARY[(i * 3) % PRIMARY.length]}, ${PRIMARY[(i * 7 + 2) % PRIMARY.length]})`;
-    const t = document.createElement('b'); t.textContent = label;
-    const p = document.createElement('small'); p.textContent = skin.m === i ? 'EQUIPADO' : 'GRATIS · EQUIPAR';
-    c.append(ico, t, p);
-    c.addEventListener('click', () => armory.set({ m: i }));
-    return c;
-  }));
+  $('home-coins').textContent = wallet.coins.toLocaleString('es-ES');
+  $('shop-coins').textContent = wallet.coins.toLocaleString('es-ES');
+  // Tienda: modelos, cascos y patrones; comprar con créditos, equipar lo que ya tienes.
+  const sections = [];
+  for (const kind of ['m', 'h', 't']) {
+    const h = document.createElement('h4');
+    h.className = 'shop-kind';
+    h.textContent = KIND_NAMES[kind];
+    const grid = document.createElement('div');
+    grid.className = 'shop-grid';
+    grid.append(...ITEM_NAMES[kind].map((label, i) => {
+      const owned = wallet.owns(kind, i), price = wallet.price(kind, i), equipped = skin[kind] === i;
+      const c = document.createElement('button');
+      c.className = 'shop-card' + (equipped ? ' equipped' : owned ? ' owned' : ' locked') + (!owned && wallet.coins < price ? ' poor' : '');
+      const ico = document.createElement('span');
+      ico.className = 'ico';
+      ico.style.background = kind === 'm' ? `linear-gradient(135deg, ${PRIMARY[(i * 3) % PRIMARY.length]}, ${PRIMARY[(i * 7 + 2) % PRIMARY.length]})`
+        : `linear-gradient(135deg, ${skin.p}, ${skin.s})`;
+      const t = document.createElement('b'); t.textContent = label;
+      const p = document.createElement('small');
+      p.textContent = equipped ? 'EQUIPADO' : owned ? 'EQUIPAR' : `◈ ${price.toLocaleString('es-ES')}`;
+      if (!owned) p.classList.add('price');
+      c.append(ico, t, p);
+      c.addEventListener('click', () => {
+        if (!owned) {
+          if (!wallet.buy(kind, i)) { $('shop-msg').textContent = `Te faltan ◈ ${(price - wallet.coins).toLocaleString('es-ES')} para ${label}. ¡Juega para ganar más!`; return; }
+          $('shop-msg').textContent = `¡Desbloqueado: ${label}!`;
+          sfx.boxReveal?.();
+        }
+        armory.set({ [kind]: i });
+        renderHome();
+      });
+      return c;
+    }));
+    sections.push(h, grid);
+  }
+  $('shop-grid').replaceChildren(...sections);
 }
 renderHome();
 setTimeout(renderHome, 1500); // miniaturas de armas listas
@@ -775,6 +830,8 @@ net.on('matchEnd', (m) => {
     const w = m.players.find((p) => p.id === m.winner);
     const title = w ? (w.id === net.id ? '¡VICTORIA!' : `GANA ${w.name.toUpperCase()}`) : m.timeUp ? '¡TIEMPO! · EMPATE' : 'FIN DE LA PARTIDA';
     hud.showResults(title, ['JUGADOR', 'BAJAS', 'MUERTES'], rows, 'VOLVER AL LOBBY');
+    const me = m.players.find((p) => p.id === net.id);
+    showEarned(payMatch({ mode: 'dm', kills: me?.kills ?? 0, won: m.winner === net.id, time: 999 }));
   } else {
     // Sin resumen del anfitrión (no respondió a tiempo): lo que sabe este equipo.
     const s = m.summary ?? {
@@ -785,6 +842,8 @@ net.on('matchEnd', (m) => {
       name: playerName(p.id), color: playerColor(p.id), cols: [p.kills, p.score.toLocaleString('es-ES')], me: p.id === net.id,
     })).sort((a, b) => b.cols[0] - a.cols[0]);
     hud.showResults(`${m.timeUp ? '¡TIEMPO!' : 'EQUIPO CAÍDO'} · OLEADA ${s.wave}`, ['JUGADOR', 'BAJAS', 'PUNTOS'], rows, 'VOLVER AL LOBBY');
+    const me = s.players.find((p) => p.id === net.id);
+    showEarned(payMatch({ mode: 'coop', kills: me?.kills ?? 0, wave: s.wave, score: me?.score ?? 0, time: 999 }));
   }
 });
 

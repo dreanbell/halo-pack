@@ -15,8 +15,25 @@ A la izquierda, las pestañas; a la derecha, su panel; abajo, **▶ JUGAR** y **
 | MAPAS | Los 4 mapas; al elegir uno, el fondo cambia al momento |
 | ARMAS | Tu equipo (miniaturas) y acceso al menú de armas con vista 3D |
 | PERSONALIZAR | Modelo, colores, visor, casco y patrón: el soldado grande cambia en vivo |
-| TIENDA | Todos los modelos, gratis: equipar con un toque |
+| TIENDA | Modelos, cascos y patrones que se desbloquean con créditos ◈ |
 | AJUSTES | Calidad gráfica, controles y ayuda táctil |
+
+**Créditos ◈ y desbloqueos** (`src/client/wallet.js`, guardados en el navegador): empiezas con ◈ 300 y ganas al
+terminar cada partida (o al salir a mitad, por lo conseguido):
+
+| Modo | Créditos |
+|---|---|
+| Un jugador / cooperativo | 10 (más de 20 s jugados) + 4 por baja + 20 por oleada superada + puntuación ÷ 40 |
+| Todos contra todos | 10 + 12 por baja + 100 por ganar |
+
+| Artículo | Precio |
+|---|---|
+| Modelos | Clásico gratis · Federal y Militar 400 · Comando y Comando F 500 · Renegado 600 · Mono, Pato y Rana 750 · Exotrooper 900 · Dados 1 000 · Chica gancho 1 200 |
+| Cascos | Centinela gratis · Halcón y Bastión 300 |
+| Patrones | Liso gratis · Camuflaje 150 · Rayas 200 · Hexágonos 250 |
+
+Colores y visor siempre gratis. En PERSONALIZAR lo bloqueado lleva candado y precio; al tocarlo te lleva a la tienda.
+Lo que ya llevabas equipado al estrenar el monedero queda desbloqueado.
 
 El avatar usa la escena y la cámara del juego (sin renderer extra) y se retira al empezar la partida (`src/client/home.js`).
 

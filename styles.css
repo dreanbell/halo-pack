@@ -548,3 +548,17 @@ body.touch #weapon-icon, body.touch #scope .glow, body.touch #scope.enemy .glow 
   .home-hint { display: none; }
 }
 body.touch #menu.home .home-panel { backdrop-filter: none; background: rgba(5, 18, 28, 0.86); }
+
+/* ---------- Tienda y créditos ---------- */
+.chip.locked { opacity: 0.55; border-style: dashed; }
+.chip.locked::after { content: attr(data-price); margin-left: 6px; font-size: 10px; color: #ffd27a; letter-spacing: 0.05em; }
+.home-coins { display: inline-block; margin-left: 6px; color: #ffd27a; font-weight: 700; letter-spacing: 0.08em; }
+.shop-balance { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 14px; letter-spacing: 0.15em; }
+.shop-balance b { color: #ffd27a; font-size: 20px; }
+.shop-kind { font-size: 13px; letter-spacing: 0.25em; margin: 14px 0 6px; opacity: 0.85; }
+.shop-card .price { color: #ffd27a; }
+.shop-card.locked .ico { filter: grayscale(0.7) brightness(0.7); }
+.shop-card.poor small { color: #ff7a7a; }
+.shop-card.owned small { color: #9dff6a; }
+.earn { grid-column: 1 / -1; margin-top: 12px; font-size: 22px; letter-spacing: 0.2em; color: #ffd27a; text-align: center; }
+.earn small { display: block; font-size: 12px; letter-spacing: 0.12em; color: #cfeff8; opacity: 0.85; }

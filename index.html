@@ -124,7 +124,7 @@
       <div class="home-brand"><h1>RINGFALL</h1><small>SHOOTER SCI-FI · OLEADAS Y MULTIJUGADOR</small></div>
       <div class="home-player">
         <span class="home-emblem" id="home-emblem"></span>
-        <div><b id="home-name">SOLDADO</b><small>RÉCORD <b id="best">0</b> · <span id="home-model"></span></small></div>
+        <div><b id="home-name">SOLDADO</b><span class="home-coins" title="Créditos">◈ <b id="home-coins">0</b></span><small>RÉCORD <b id="best">0</b> · <span id="home-model"></span></small><small id="home-earn" class="home-earn"></small></div>
       </div>
     </header>
 
@@ -170,8 +170,10 @@
       </section>
       <section data-panel="shop" hidden>
         <h3>TIENDA</h3>
-        <p class="tip">Todo está desbloqueado: elige y equipa.</p>
-        <div class="shop-grid" id="shop-grid"></div>
+        <div class="shop-balance"><span>CRÉDITOS</span><b>◈ <span id="shop-coins">0</span></b></div>
+        <p class="tip">Gana créditos jugando: bajas, oleadas superadas y puntuación (en todos contra todos, bajas y victorias). Los colores y el visor son gratis.</p>
+        <p class="tip shop-msg" id="shop-msg"></p>
+        <div id="shop-grid"></div>
       </section>
       <section data-panel="settings" hidden>
         <h3>AJUSTES</h3>
@@ -332,6 +334,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/client/main.js?v=1.22.0"></script>
+  <script type="module" src="src/client/main.js?v=1.23.0"></script>
 </body>
 </html>
