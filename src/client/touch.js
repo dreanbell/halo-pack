@@ -119,7 +119,8 @@ export class TouchControls {
       this.look.x = e.clientX;
       this.look.y = e.clientY;
       if (!this.inGame()) return;
-      if (player.alive) player.look(dx * LOOK_K * S.touchSens, dy * LOOK_K * S.touchSens);
+      const as = this.ctx.assist?.lookScale() ?? 1; // fricción de la asistencia de apuntado
+      if (player.alive) player.look(dx * LOOK_K * S.touchSens * as, dy * LOOK_K * S.touchSens * as);
       else spectator.orbit(dx * LOOK_K * S.touchSens, dy * LOOK_K * S.touchSens);
     }
   }

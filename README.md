@@ -69,6 +69,10 @@ avanza al hacer cada acción, se salta desde la pausa y se repite en Ajustes →
 **App instalable** (PWA): `manifest.webmanifest`, iconos en `icons/` y `sw.js` (red primero; sin conexión abre lo ya
 visitado). Botón «INSTALAR COMO APP» en Ajustes → Ayuda (en iPhone: Compartir → Añadir a pantalla de inicio).
 
+**Móvil** (`src/client/assist.js`, Ajustes → Controles, solo en pantallas táctiles): asistencia de apuntado (la vista
+se frena cerca de un enemigo visible y, con la mira, se desliza un poco hacia él; cono de 7° o el tamaño aparente del
+enemigo) y giroscopio (no / al apuntar / siempre, sensibilidad e inversión; en iPhone pide permiso al activarlo).
+
 **Multijugador**: la armadura y los acabados de arma equipados viajan con el jugador (`skin.f`), así los demás ven tu
 arma de oro o tu armadura de neón.
 
@@ -403,6 +407,7 @@ src/client/              El juego (navegador)
   music.js               Música dinámica procedural (menú, calma, combate, jefe)
   hill.js                Rey de la colina: zona móvil y puntos
   tutorial.js            Tutorial de la primera partida
+  assist.js              Asistencia de apuntado y giroscopio (táctil)
   hud.js · effects.js · audio.js · spectator.js · touch.js · drop.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)

@@ -27,6 +27,7 @@ import { Post } from './post.js';
 import { Music } from './music.js';
 import { Hill } from './hill.js';
 import { Tutorial } from './tutorial.js';
+import { AimAssist } from './assist.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
 import { shopThumb } from './shopview.js';
@@ -208,6 +209,8 @@ function musicMood() {
 const medals = (ctx.medals = new Medals(ctx));
 const hill = new Hill(ctx); // Rey de la colina (hill.js)
 const tutorial = new Tutorial(ctx); // primera partida de un jugador (tutorial.js)
+const assist = (ctx.assist = new AimAssist(ctx)); // asistencia de apuntado y giroscopio (táctil)
+onSettings((st, key) => { if (key === 'gyro') assist.enableGyro(); });
 $('btn-skip-tutorial').addEventListener('click', (e) => { e.stopPropagation(); tutorial.finish(); $('btn-skip-tutorial').classList.add('hidden'); });
 $('btn-tutorial-again').addEventListener('click', () => { tutorial.seen = false; $('btn-tutorial-again').textContent = 'SALDRÁ EN TU PRÓXIMA PARTIDA'; });
 const _dn = new THREE.Vector3();
@@ -400,6 +403,7 @@ function startSession(mode, rules = net.rules, map = mode === 'sp' ? ctx.spMap :
   player.reset(...pickSpawn());
   if (mode === 'dm' && ctx.rules.objective === 'hill') hill.start(); else hill.stop();
   if (mode === 'sp') tutorial.maybeStart(); else tutorial.stop();
+  assist.enableGyro();
   hud.showOverlay(null);
   $('pause-mp').classList.toggle('hidden', !online);
   lock();
@@ -1539,6 +1543,7 @@ function tick(dt) {
     medals.update(dt);
     hill.update(dt);
     tutorial.update(dt);
+    assist.update(dt);
     if (game.mode !== 'sp') spectator.update(dt);
     hud.update(ctx, dt);
     if (!player.alive && game.respawnIn > 0) {
