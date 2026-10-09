@@ -2,6 +2,7 @@
 // Solo afecta a lo visual: colisiones, hitboxes y reglas son idénticas en todos los niveles.
 import * as THREE from 'three';
 import { TOUCH } from './touch.js';
+import { S, onSettings } from './settings.js';
 
 const KEY = 'ringfall.quality';
 export const QUALITY_LEVELS = ['auto', 'alta', 'media', 'baja'];
@@ -54,9 +55,11 @@ export function applyRenderer(r) {
   r.shadowMap.needsUpdate = true;
   setPr();
 }
-const maxPr = () => Math.min(devicePixelRatio || 1, Q.pr);
+// Escala de resolución de los ajustes: recorta el máximo; la dinámica sigue bajando desde ahí.
+const maxPr = () => Math.min(devicePixelRatio || 1, Q.pr) * S.resScale;
 function setPr() {
-  const pr = Math.max(Q.minPr, maxPr() * scale);
+  if (!renderer) return;
+  const top = maxPr(), pr = Math.max(Math.min(Q.minPr, top), top * scale);
   if (Math.abs(renderer.getPixelRatio() - pr) > 0.01) renderer.setPixelRatio(pr);
 }
 
@@ -71,10 +74,12 @@ export function trackFrame(dtMs) {
   acc = 0; frames = 0;
   // Cada cambio de resolución reasigna el lienzo (un tirón): solo tras dos ventanas lentas seguidas (o una muy
   // lenta), y para subir hacen falta 4 buenas (8 s). Un pico breve al disparar no cambia nada.
-  if (fps < 45 && maxPr() * scale > Q.minPr + 0.01) {
+  // Con límite de FPS, los umbrales se miden respecto a ese límite (a 30 FPS no hay que bajar la resolución).
+  const cap = S.fpsCap || 60, lo = cap * 0.75, hi = cap * 0.95;
+  if (fps < lo && maxPr() * scale > Q.minPr + 0.01) {
     good = 0;
-    if (++bad >= 2 || fps < 25) { scale = Math.max(Q.minPr / maxPr(), scale * (fps < 30 ? 0.8 : 0.9)); bad = 0; setPr(); }
-  } else if (fps > 57 && scale < 1) {
+    if (++bad >= 2 || fps < cap * 0.42) { scale = Math.max(Q.minPr / maxPr(), scale * (fps < cap / 2 ? 0.8 : 0.9)); bad = 0; setPr(); }
+  } else if (fps > hi && scale < 1) {
     bad = 0;
     if (++good >= 4) { scale = Math.min(1, scale * 1.1); good = 0; setPr(); }
   } else { good = 0; bad = 0; }
@@ -86,3 +91,5 @@ let shadowF = false;
 export function beforeRender() {
   if (Q.shadows && Q.halfShadow && (shadowF = !shadowF)) renderer.shadowMap.needsUpdate = true;
 }
+
+onSettings((_, key) => { if (key === 'resScale') setPr(); });

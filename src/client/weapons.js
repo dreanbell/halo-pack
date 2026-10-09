@@ -7,6 +7,7 @@ import { hasPlayerModel, requestPlayerModel } from './playermodels.js';
 import { DEFAULT_SKIN } from '../shared/skins.js';
 import { buildGun, GUN_INFO } from './guns.js';
 import { Spring, damp } from './feel.js';
+import { S } from './settings.js';
 
 const W = CFG.weapons, G = CFG.grenade, M = CFG.melee;
 const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _m = new THREE.Vector3(), _n = new THREE.Vector3(), _c = new THREE.Vector3();
@@ -96,11 +97,12 @@ export class Arsenal {
     document.addEventListener('mousedown', (e) => {
       if (!playing()) return;
       if (e.button === 0) { this.trigger = true; this.pressed = true; }
-      if (e.button === 2) this.aimHeld = true;
+      // ALTERNAR: un clic entra y otro sale (los botones táctiles envían eventos sintéticos y ya alternan solos).
+      if (e.button === 2) this.aimHeld = S.aimToggle && e.isTrusted ? !this.aimHeld : true;
     });
     document.addEventListener('mouseup', (e) => {
       if (e.button === 0) this.trigger = false;
-      if (e.button === 2) this.aimHeld = false;
+      if (e.button === 2 && !(S.aimToggle && e.isTrusted)) this.aimHeld = false;
     });
     document.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('wheel', (e) => { if (playing() && Math.abs(e.deltaY) > 2) this.swap(); }, { passive: true });
@@ -168,7 +170,11 @@ export class Arsenal {
   buildViewmodelBase() {
     this.vm = new THREE.Group();
     this.vm.scale.setScalar(VM_SCALE);
-    this.ctx.camera.add(this.vm);
+    // Campo de visión del arma fijo (como en los AAA): con más FOV de los ajustes, esta capa estira X/Y en el
+    // espacio de la cámara para que el arma se vea igual que a 78°. Con 78° es la identidad.
+    this.vmRoot = new THREE.Group();
+    this.vmRoot.add(this.vm);
+    this.ctx.camera.add(this.vmRoot);
     this.flashTex = glowTexture('rgba(255,240,200,1)', 'rgba(255,170,60,0)');
     this.flashStar = flashTexture('star');
     this.flashSide = flashTexture('side');
@@ -501,7 +507,7 @@ export class Arsenal {
         this.reloadT = 0;
       }
       if (s.mag <= 0) {
-        if (s.reserve > 0) this.startReload(); else if (this.pressed) sfx.empty();
+        if (s.reserve > 0 && S.autoReload) this.startReload(); else if (this.pressed) sfx.empty();
         return;
       }
       s.mag--;
@@ -862,6 +868,8 @@ export class Arsenal {
       this.reloadT -= dt;
       if (this.reloadT <= 0) { this.reloadT = 0; this.finishReload(); }
     }
+    // Recarga automática al vaciar el cargador (sin esperar a apretar el gatillo).
+    if (S.autoReload && d.mag && s.mag <= 0 && s.reserve > 0 && !this.reloadT && !this.cooldown && !this.burstLeft && player.alive) this.startReload();
     const busy = this.swapT > 0 || this.meleeT > M.cooldown - 0.35 || this.throwT > 0.3;
     // Apuntar (mantener clic derecho): los visores solo amplían cuando la mira llega al ojo.
     const canAim = this.aimHeld && player.alive && !player.sprinting && this.reloadT <= 0 && !busy;
@@ -908,7 +916,7 @@ export class Arsenal {
     // Pasos: fase según la distancia recorrida (mismo ritmo que la cámara); amplitud suave al arrancar/parar.
     this.bobT = player.stepT ?? this.bobT;
     this.bobK = damp(this.bobK, ground ? Math.min(sp / 6.5, 1.25) : 0, 10, dt);
-    const bA = this.bobK * free, t = this.bobT;
+    const bA = this.bobK * free * S.bob, t = this.bobT;
     const bobX = Math.sin(t) * (0.011 + run * 0.016) * bA;
     const bobY = -(1 - Math.cos(2 * t)) * 0.5 * (0.009 + run * 0.012) * bA;
     const bobR = Math.sin(t) * (0.025 + run * 0.05) * bA;
@@ -920,7 +928,7 @@ export class Arsenal {
     const idt = 1 / Math.max(dt, 1 / 240);
     const mx = (player.lookDX ?? 0) * idt, my = (player.lookDY ?? 0) * idt;
     player.lookDX = player.lookDY = 0;
-    const sw = 1 - aimE * 0.8, cl = THREE.MathUtils.clamp;
+    const sw = (1 - aimE * 0.8) * (0.3 + 0.7 * S.bob), cl = THREE.MathUtils.clamp;
     this.swayX = f.swayX.update(dt, cl(-mx * 1.8e-5, -0.035, 0.035) * sw);
     this.swayY = f.swayY.update(dt, cl(my * 1.8e-5, -0.03, 0.03) * sw);
     this.swayR = f.swayR.update(dt, cl(-mx * 3.5e-5, -0.08, 0.08) * sw);
@@ -961,6 +969,9 @@ export class Arsenal {
       mel * 0.6 + run * 0.62 + this.swayR + kyaw * 0.05,
       rl * 0.3 + this.swayR * 0.5 + cyc * 0.12 + bobR + tilt + kr * 0.05 + run * 0.18 + this.crouchK * 0.12,
     );
+    const half = THREE.MathUtils.degToRad(camera.fov) / 2;
+    const vk = Math.tan(half) / Math.tan(half * 78 / S.fov);
+    this.vmRoot.scale.set(vk, vk, 1);
     // Con visor (DMR, francotirador) no se ve el arma.
     this.vm.visible = !(d.scope && this.zoom > 1.5);
 

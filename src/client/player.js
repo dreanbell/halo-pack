@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CFG, clamp } from './config.js';
 import { Spring, damp } from './feel.js';
+import { S } from './settings.js';
 
 const P = CFG.player;
 const SL = P.slide;
@@ -69,7 +70,9 @@ export class Player {
   }
 
   look(dx, dy) {
-    const k = P.sensitivity / (this.ctx.arsenal?.zoom ?? 1); // más fino con mira
+    const zoom = this.ctx.arsenal?.zoom ?? 1;
+    const k = P.sensitivity * S.sens * (zoom > 1 ? S.adsSens : 1) / zoom; // más fino con mira
+    if (S.invertY) dy = -dy;
     this.lookDX = (this.lookDX ?? 0) + dx; // para la inercia del arma en mano
     this.lookDY = (this.lookDY ?? 0) + dy;
     this.yaw.rotation.y -= dx * k;
@@ -260,21 +263,21 @@ export class Player {
     if (walking) this.stepT += dt * sp * 1.2;
     if (walking && sp > 1.5 && Math.floor(this.stepT / Math.PI) !== prevStep) this.ctx.sfx.step?.(this.sprinting ? 1 : 0);
     this.bobK = damp(this.bobK, walking ? Math.min(sp / 6.5, 1.3) : 0, 9, dt);
-    const run = this.sprinting ? 1 : 0, bA = this.bobK * (1 - aim * 0.85), t = this.stepT;
+    const run = this.sprinting ? 1 : 0, bA = this.bobK * (1 - aim * 0.85) * S.bob, t = this.stepT;
     const bobY = -(1 - Math.cos(2 * t)) * 0.5 * (0.022 + run * 0.016) * bA;
     const bobX = Math.sin(t) * (0.009 + run * 0.008) * bA;
     const bobR = Math.sin(t) * (0.0035 + run * 0.004) * bA;
     // Giro suave hacia el lado al que se desplaza (estilo Halo/CoD), más marcado al deslizar.
     const yaw = this.yaw.rotation.y, side = this.vel.x * Math.cos(yaw) - this.vel.z * Math.sin(yaw);
-    const lean = cf.lean.update(dt, clamp(-side * 0.0026, -0.022, 0.022) * (1 - aim * 0.6));
+    const lean = cf.lean.update(dt, clamp(-side * 0.0026, -0.022, 0.022) * (1 - aim * 0.6) * S.bob);
     this.slideK += ((this.sliding ? 1 : 0) - this.slideK) * Math.min(1, dt * 10);
     const kp = cf.pitch.update(dt), kr = cf.roll.update(dt), land = cf.land.update(dt);
-    cam.rotation.set(kp + land * 0.25, 0, this.slideK * 0.07 + lean + bobR + kr * 0.02);
+    cam.rotation.set(kp + land * 0.25 * S.bob, 0, this.slideK * 0.07 * S.bob + lean + bobR + kr * 0.02);
     this.shake = Math.max(0, this.shake - dt * 2.5);
-    const s = this.shake * this.shake * 0.25;
+    const s = this.shake * this.shake * 0.25 * S.shake;
     cam.position.set((Math.random() - 0.5) * s + bobX, (Math.random() - 0.5) * s + bobY + land, 0);
     const zoom = this.ctx.arsenal?.zoom ?? 1;
-    const fov = zoom > 1 ? 78 / zoom : this.sliding ? 90 : this.sprinting ? 86 : 78;
+    const fov = zoom > 1 ? S.fov / zoom : S.fov + (this.sliding ? 12 : this.sprinting ? 8 : 0);
     if (Math.abs(cam.fov - fov) > 0.05) {
       cam.fov += (fov - cam.fov) * Math.min(1, dt * 14);
       cam.updateProjectionMatrix();

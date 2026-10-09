@@ -3,6 +3,7 @@
 // Todo es visual: no afecta a daño ni colisiones. La cantidad de partículas se escala con la calidad (Q.fx).
 import * as THREE from 'three';
 import { Q } from './quality.js';
+import { S } from './settings.js';
 
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
 const _s = new THREE.Vector3(), _c = new THREE.Color(), _c2 = new THREE.Color();
@@ -333,7 +334,7 @@ export class Effects {
     this.light.position.set(pos.x, pos.y + 1, pos.z);
     this.light.color.set(color);
     this.lightT = this.lightMax = dur;
-    this.lightPow = 400 * power;
+    this.lightPow = 400 * power * S.flashes;
   }
 
   groundAt(p) {
@@ -494,7 +495,7 @@ export class Effects {
     const R = radius, energy = opts.color ?? null;
     const gy = this.groundAt(pos), nearGround = pos.y - gy < 1.5;
     const fire0 = energy ? col(energy, 1.4) : C.fire0, fire1 = energy ? col(energy, 0.9) : C.fire1, fire2 = energy ? col(energy, 0.3) : C.fire2;
-    this.add_.emit({ p: pos, life: 0.1, s0: R * 1.1, s1: R * 1.6, c0: energy ? col(energy, 1.5) : C.flash, a: 0.85, fi: 0, frame: GLOW });
+    this.add_.emit({ p: pos, life: 0.1, s0: R * 1.1, s1: R * 1.6, c0: energy ? col(energy, 1.5) : C.flash, a: 0.85 * S.flashes, fi: 0, frame: GLOW });
     for (let i = 0; i < n(12); i++) {
       _v.randomDirection().multiplyScalar(rnd(1.5, 5) * R / 7).add(_w.set(0, 1.2, 0));
       this.add_.emit({ p: _s.copy(pos).add(_w.randomDirection().multiplyScalar(R * 0.15)), v: _v, life: rnd(0.45, 0.8), s0: R * 0.22, s1: R * rnd(0.5, 0.8), c0: fire0, c1: fire2, a: 1, fi: 0.02, frame: FIRE, drag: 4, rv: rnd(-2, 2) });

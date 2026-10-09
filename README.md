@@ -16,7 +16,7 @@ A la izquierda, las pestañas; a la derecha, su panel; abajo, **▶ JUGAR** y **
 | ARMAS | Tu equipo (miniaturas) y acceso al menú de armas con vista 3D |
 | PERSONALIZAR | Modelo, colores, visor, casco y patrón: el soldado grande cambia en vivo |
 | TIENDA | Modelos, cascos y patrones que se desbloquean con créditos ◈ |
-| AJUSTES | Calidad gráfica, controles y ayuda táctil |
+| AJUSTES | Controles, gráficos, audio, interfaz, accesibilidad y ayuda (también desde la pausa) |
 
 **Créditos ◈ y desbloqueos** (`src/client/wallet.js`, guardados en el navegador): empiezas con ◈ 300 y ganas al
 terminar cada partida (o al salir a mitad, por lo conseguido):
@@ -227,6 +227,23 @@ Todo con muelles amortiguados (`src/client/feel.js`): se pasan un poco y vuelven
 Apuntando con la mira, todo se reduce. Es solo visual: las balas salen de la cabeza (`Arsenal.aimRay`), no de la
 cámara sacudida, así que la puntería y el retroceso real no cambian. La retícula se abre al disparar y esprintar.
 
+## Ajustes
+
+Pestaña **AJUSTES** del inicio o botón **AJUSTES** en la pausa. Se aplican al momento, se guardan en el navegador
+(`ringfall.settings`) y no cambian la jugabilidad (daño, hitboxes y puntería son iguales). Doble clic en un deslizador =
+valor por defecto; **RESTABLECER** (dos pulsaciones) vuelve a todo lo de fábrica.
+
+| Grupo | Opciones |
+|---|---|
+| Controles | Sensibilidad del ratón (×0,1–3) · sensibilidad al apuntar (×0,2–1,5) · sensibilidad táctil (móvil) · invertir eje Y · apuntar MANTENER/ALTERNAR · recarga automática |
+| Gráficos | Calidad AUTO/ALTA/MEDIA/BAJA (solo desde el menú) · campo de visión 65–105° · escala de resolución 50–100 % · límite de FPS 30/60/sin límite · contador de FPS · brillo |
+| Audio | Volumen general y por canal: armas, impactos y explosiones, enemigos, jugador, interfaz · silenciar en segundo plano |
+| Interfaz | Tamaño del HUD · color, tamaño y punto central de la retícula · marcador de impacto · radar |
+| Accesibilidad | Balanceo de cámara y arma · sacudida de pantalla · destellos de explosiones (0–100 %) |
+
+El arma en primera persona tiene su propio campo de visión: con más FOV se ve igual que a 78°. Con límite de FPS, la
+resolución dinámica mide respecto a ese límite (a 30 FPS no baja la resolución).
+
 ## Efectos de disparo y explosiones
 
 `src/client/effects.js`: partículas por GPU (dos mallas instanciadas, aditiva y normal: 2 llamadas de dibujo para
@@ -257,9 +274,9 @@ en MEDIA (70 %) y BAJA (45 %). Solo visual: daño, alcance y colisiones no cambi
 | C / Ctrl | Agacharse (menos dispersión). Mientras esprintas: deslizarse (salta durante el deslizamiento para conservar la inercia) |
 | R | Recargar |
 | Q / 1 / 2 / rueda | Cambiar arma |
-| Clic der. (mantener) | Apuntar con la mira del arma · visor en DMR y francotirador |
+| Clic der. (mantener o alternar) | Apuntar con la mira del arma · visor en DMR y francotirador |
 | G | Granada |
-| E | Caja misteriosa (cooperativo) |
+| E | Abrir suministros caídos del cielo · coger el arma |
 | F | Golpe cuerpo a cuerpo (por la espalda = eliminación) |
 | Tab | Marcador (multijugador) |
 | Círculo luminoso | Ascensor gravitatorio (Plataforma Cenit): te lanza a lo alto de la torre |
@@ -313,6 +330,7 @@ src/client/              El juego (navegador)
   armory.js · loadout.js · setup.js · gunview.js · guns.js   Armería, menú de armas, reglas, armas
   world.js · maps.js     Kit de construcción procedural y colisiones · los mapas
   quality.js             Calidad gráfica (AUTO/ALTA/MEDIA/BAJA) y resolución dinámica por FPS
+  settings.js · settingsui.js   Ajustes del jugador (esquema, guardado) y su pantalla
   hud.js · effects.js · audio.js · spectator.js · touch.js · drop.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)

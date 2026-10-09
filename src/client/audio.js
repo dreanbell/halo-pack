@@ -1,7 +1,30 @@
 // Efectos de sonido sintetizados con WebAudio (sin archivos de audio).
+// Mezcla: cada sonido va a su canal (armas, combate, enemigos, jugador, interfaz) → general → altavoces.
+import { S, onSettings } from './settings.js';
+
+const BUSES = {
+  volWeapons: ['rifle', 'pistol', 'shot', 'smg', 'shotgun', 'dmr', 'sniper', 'plasma', 'needle', 'arc', 'zoom', 'shell', 'casing', 'bolt', 'overheat', 'empty', 'reload', 'swap', 'throwG', 'melee'],
+  volCombat: ['explosion', 'hit', 'kill', 'shieldPop', 'shieldHit', 'shieldBreak', 'death'],
+  volEnemies: ['mortar', 'boss', 'enemyShot', 'enemyMelee', 'spawn'],
+  volPlayer: ['shieldRecharge', 'alarm', 'hurt', 'lift', 'slide', 'land', 'step'],
+  volUi: ['boxOpen', 'boxTick', 'boxReveal', 'deny', 'pickup', 'wave'],
+};
+const MASTER = 0.45;
+
 export class Sfx {
   constructor() {
     this.ctx = null;
+    this.hidden = false;
+    onSettings(() => this.mix());
+    document.addEventListener('visibilitychange', () => { this.hidden = document.hidden; this.mix(); });
+  }
+
+  // Aplica los volúmenes de los ajustes (suave, sin chasquidos).
+  mix() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, set = (g, v) => g.gain.setTargetAtTime(v, t, 0.03);
+    set(this.master, this.hidden && S.muteHidden ? 0 : MASTER * S.volMaster);
+    for (const k of Object.keys(BUSES)) set(this.buses[k], S[k]);
   }
 
   unlock() {
@@ -10,14 +33,21 @@ export class Sfx {
     if (!this.ctx) {
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.45;
+      this.master.gain.value = MASTER * S.volMaster;
       this.master.connect(this.ctx.destination);
+      this.buses = {};
+      for (const k of Object.keys(BUSES)) {
+        const g = this.buses[k] = this.ctx.createGain();
+        g.gain.value = S[k];
+        g.connect(this.master);
+      }
       const len = this.ctx.sampleRate * 1.5;
       this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
+    this.mix();
   }
 
   noise({ dur, freq = 1000, freqEnd, q = 1, type = 'bandpass', gain = 0.5, attack = 0.002, delay = 0 }) {
@@ -35,7 +65,7 @@ export class Sfx {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(gain, t + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f).connect(g).connect(this.master);
+    src.connect(f).connect(g).connect(this.out ?? this.master);
     src.start(t, Math.random() * 0.5);
     src.stop(t + dur + 0.05);
   }
@@ -52,7 +82,7 @@ export class Sfx {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(gain, t + 0.004);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(this.master);
+    o.connect(g).connect(this.out ?? this.master);
     o.start(t);
     o.stop(t + dur + 0.05);
   }
@@ -219,4 +249,17 @@ export class Sfx {
     this.tone({ freq: 440, dur: 0.6, type: 'triangle', gain: 0.15, delay: 0.3 });
   }
   death() { this.tone({ freq: 420, freqEnd: 50, dur: 1.4, type: 'sawtooth', gain: 0.22 }); }
+}
+
+// Cada sonido sale por su canal: durante la llamada, noise()/tone() conectan a this.out.
+for (const [bus, names] of Object.entries(BUSES)) {
+  for (const n of names) {
+    const fn = Sfx.prototype[n];
+    if (!fn) throw new Error(`Sfx.${n} no existe`);
+    Sfx.prototype[n] = function (...a) {
+      const prev = this.out;
+      this.out = prev ?? this.buses?.[bus];
+      try { return fn.apply(this, a); } finally { this.out = prev; }
+    };
+  }
 }

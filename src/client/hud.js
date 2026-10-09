@@ -1,5 +1,6 @@
 import { CFG } from './config.js';
 import { gunThumbnails } from './gunview.js';
+import { S } from './settings.js';
 
 const IDS = [
   'hud', 'menu', 'pause', 'gameover', 'lobby', 'armory', 'loadout', 'setup', 'shield-bar', 'shield-fill', 'health-bar', 'health-fill',
@@ -126,6 +127,7 @@ export class Hud {
   }
 
   hitMarker(kill) {
+    if (!S.hitmarker) return;
     const h = this.el.hitmarker;
     // Web Animations: reinicia sin forzar un recálculo de diseño (antes, offsetWidth en cada impacto).
     h.classList.toggle('kill', kill);
@@ -243,8 +245,9 @@ export class Hud {
       this.toggle('timer', 'low', tl < 30);
     }
 
-    this.toggle('radar', 'hidden', !r.radar);
-    if (!r.radar) return;
+    const radar = r.radar && S.radar;
+    this.toggle('radar', 'hidden', !radar);
+    if (!radar) return;
     // El radar no necesita 60 Hz: ~20 Hz basta y ahorra rasterizar el lienzo 2D en cada fotograma (sobre todo en móvil).
     this.radarT = (this.radarT ?? 0) - dt;
     if (this.radarT > 0) return;

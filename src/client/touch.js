@@ -1,6 +1,8 @@
 // Controles táctiles (móvil/tablet): joystick de movimiento, arrastrar para apuntar y botones.
 // Los botones simulan las mismas teclas/clics que el teclado, así toda la lógica del juego se reutiliza.
 
+import { S } from './settings.js';
+
 const params = new URLSearchParams(location.search);
 export const TOUCH = params.get('touch') === '1'
   || (params.get('touch') !== '0' && matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0);
@@ -117,8 +119,8 @@ export class TouchControls {
       this.look.x = e.clientX;
       this.look.y = e.clientY;
       if (!this.inGame()) return;
-      if (player.alive) player.look(dx * LOOK_K, dy * LOOK_K);
-      else spectator.orbit(dx * LOOK_K, dy * LOOK_K);
+      if (player.alive) player.look(dx * LOOK_K * S.touchSens, dy * LOOK_K * S.touchSens);
+      else spectator.orbit(dx * LOOK_K * S.touchSens, dy * LOOK_K * S.touchSens);
     }
   }
 

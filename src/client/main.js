@@ -27,6 +27,8 @@ import { buildAlien } from './aliens.js';
 import { loadGunModels } from './guns.js';
 import { loadDropModel } from './drop.js';
 import { loadPlayerModels, requestPlayerModel } from './playermodels.js';
+import { S, onSettings } from './settings.js';
+import { buildSettings } from './settingsui.js';
 import { Q, QUALITY_LEVELS, setQuality, needsReload, applyRenderer, trackFrame, beforeRender } from './quality.js';
 
 const BEST_KEY = 'ringfall.best';
@@ -84,7 +86,7 @@ function loadMap(id, force = false) {
   scene.environment?.userData.target?.dispose();
   ctx.world = createWorld(scene, id);
   scene.environment = skyEnvironment(renderer, ctx.world.env);
-  renderer.toneMappingExposure = ctx.world.exposure;
+  renderer.toneMappingExposure = ctx.world.exposure * S.brightness;
   ctx.nav = new NavGrid(ctx.world);
   dropWarm(); // otro mapa, otras luces: otros shaders
   prewarm();
@@ -470,16 +472,18 @@ function renderMaps(el, current, editable, pick) {
   const desc = el.nextElementSibling;
   if (desc?.classList.contains('map-desc')) desc.textContent = mapInfo(current).desc;
 }
-// Selector de gráficos (menú). Se reconstruye el mapa actual con el nuevo nivel de detalle.
+// Selector de gráficos (ajustes). Se reconstruye el mapa actual con el nuevo nivel de detalle, así que en
+// mitad de una partida (pausa) no se puede cambiar.
 const QUALITY_NAMES = { auto: 'AUTO', alta: 'ALTA', media: 'MEDIA', baja: 'BAJA' };
 function renderQuality() {
-  const el = $('menu-quality');
+  const el = $('menu-quality'), locked = game.state !== 'menu';
   el.replaceChildren(...QUALITY_LEVELS.map((lv) => {
     const b = document.createElement('button');
     b.className = 'chip' + (Q.choice === lv ? ' selected' : '');
     b.textContent = QUALITY_NAMES[lv];
+    b.disabled = locked && Q.choice !== lv;
     b.addEventListener('click', () => {
-      if (Q.choice === lv) return;
+      if (Q.choice === lv || game.state !== 'menu') return;
       setQuality(lv);
       applyRenderer(renderer);
       loadMap(ctx.world.id, true);
@@ -490,9 +494,49 @@ function renderQuality() {
   const notes = [];
   if (Q.choice === 'auto') notes.push(`Automático: ${QUALITY_NAMES[Q.level]} en este dispositivo`);
   if (needsReload()) notes.push('El suavizado de bordes cambia al recargar la página');
+  if (locked) notes.push('Se cambia desde el menú principal');
   $('quality-note').textContent = notes.join(' · ');
 }
+
+// --- Ajustes: controles, gráficos, audio, interfaz y accesibilidad (settings.js) -----------------------------
+const settingsBox = $('settings-box');
+buildSettings(settingsBox, {
+  quality: () => {
+    const w = document.createElement('div');
+    w.innerHTML = '<div class="quality"><div id="menu-quality"></div></div><p class="tip quality-note" id="quality-note"></p>';
+    return w;
+  },
+  extra: { AYUDA: $('settings-help') },
+});
 renderQuality();
+const fpsMeter = Object.assign(document.createElement('div'), { id: 'fps-meter', hidden: true });
+document.body.appendChild(fpsMeter);
+onSettings((st, key) => {
+  const root = document.documentElement.style;
+  root.setProperty('--hud-scale', st.hudScale);
+  root.setProperty('--xh-scale', st.xhScale);
+  root.setProperty('--xh-color', st.xhColor);
+  document.body.classList.toggle('no-xh-dot', !st.xhDot);
+  fpsMeter.hidden = !st.showFps;
+  if (ctx.world && (key === null || key === 'brightness')) renderer.toneMappingExposure = ctx.world.exposure * st.brightness;
+});
+// La caja de ajustes vive en la pestaña AJUSTES; en la pausa se toma prestada.
+function settingsHome() {
+  $('home-settings').querySelector('h3').after(settingsBox);
+  $('pause-settings').hidden = true;
+  $('pause').querySelector('.panel').classList.remove('with-settings');
+  $('btn-pause-settings').textContent = 'AJUSTES';
+}
+$('btn-pause-settings').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!$('pause-settings').hidden) { settingsHome(); return; }
+  $('pause-settings').appendChild(settingsBox);
+  $('pause-settings').hidden = false;
+  $('pause').querySelector('.panel').classList.add('with-settings');
+  $('btn-pause-settings').textContent = 'VOLVER';
+  renderQuality();
+});
+$('pause-settings').addEventListener('click', (e) => e.stopPropagation());
 function renderMenuMaps() {
   const pick = (id) => {
     ctx.spMap = id;
@@ -514,6 +558,7 @@ function selectTab(tab) {
   for (const b of $('home-nav').children) b.classList.toggle('selected', b.dataset.tab === tab);
   for (const sec of $('home-panel').children) sec.hidden = sec.dataset.panel !== tab;
   if (tab === 'custom') { $('home-custom').appendChild(armoryOpts); armory.syncControls(); }
+  if (tab === 'settings') { settingsHome(); renderQuality(); }
   renderHome();
 }
 for (const b of $('home-nav').children) b.addEventListener('click', () => selectTab(b.dataset.tab));
@@ -1014,6 +1059,7 @@ function pause() {
   if (game.state !== 'playing') return;
   pausedAt = performance.now();
   game.state = 'paused';
+  settingsHome();
   arsenal.trigger = arsenal.aimHeld = false;
   player.keys.clear();
   touch.release();
@@ -1103,8 +1149,19 @@ function tick(dt) {
 }
 
 let last = performance.now();
+// Límite de FPS (ajustes): se salta fotogramas del navegador manteniendo el ritmo medio pedido.
+let nextT = 0, fpsN = 0, fpsT = 0;
 function frame(now) {
   requestAnimationFrame(frame);
+  if (S.fpsCap) {
+    const step = 1000 / S.fpsCap;
+    if (now < nextT - 1.5) return;
+    nextT = Math.max(nextT + step, now - step);
+  }
+  if (S.showFps) {
+    fpsN++;
+    if (now - fpsT >= 500) { fpsMeter.textContent = `${Math.round((fpsN * 1000) / (now - fpsT))} FPS`; fpsN = 0; fpsT = now; }
+  }
   trackFrame(now - last);
   tick(Math.min((now - last) / 1000, 0.05));
   last = now;

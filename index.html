@@ -199,18 +199,17 @@
           <button id="acc-server-save" class="secondary">CONECTAR</button>
         </details>
       </section>
-      <section data-panel="settings" hidden>
+      <section data-panel="settings" id="home-settings" hidden>
         <h3>AJUSTES</h3>
-        <div class="quality"><span>GRÁFICOS</span><div id="menu-quality"></div></div>
-        <p class="tip quality-note" id="quality-note"></p>
+        <div id="settings-box" class="settings"></div>
+      <div id="settings-help">
       <div class="touch-help">
         <p><b>Izquierda</b>: arrastra para moverte (al tope hacia delante, esprintas)</p>
         <p><b>Derecha</b>: arrastra para apuntar · <b>✹</b> disparar (también apunta al arrastrar)</p>
         <p><b>▲</b> saltar · <b>▼</b> agacharse · <b>↻</b> recargar · <b>⇄</b> cambiar arma · <b>◆</b> granada · <b>◎</b> apuntar (toque para activar/quitar) · <b>▼</b> corriendo = deslizarse</p>
         <p class="tip">Juega en horizontal. Si tu navegador lo permite, se pone a pantalla completa.</p>
       </div>
-      <details class="controls-box"><summary>CONTROLES</summary>
-      <div class="controls">
+      <div class="controls desktop-only">
         <kbd>WASD</kbd><span>Moverse</span>
         <kbd>Ratón</kbd><span>Apuntar · Clic izq. dispara</span>
         <kbd>Shift</kbd><span>Esprintar</span>
@@ -218,7 +217,7 @@
         <kbd>C / Ctrl</kbd><span>Agacharse · corriendo: deslizarse</span>
         <kbd>R</kbd><span>Recargar</span>
         <kbd>Q / 1 / 2</kbd><span>Cambiar arma</span>
-        <kbd>Clic der.</kbd><span>Apuntar con la mira (mantener) · visor en DMR y francotirador</span>
+        <kbd>Clic der.</kbd><span>Apuntar con la mira (mantener o alternar, ver CONTROLES) · visor en DMR y francotirador</span>
         <kbd>G</kbd><span>Granada</span>
         <kbd>E</kbd><span>Abrir suministros caídos del cielo · coger el arma</span>
         <kbd>F</kbd><span>Golpe cuerpo a cuerpo (por la espalda = eliminación)</span>
@@ -227,7 +226,7 @@
         <kbd>Esc</kbd><span>Pausa</span>
       </div>
       <p class="tip">La pistola de iones destroza escudos; la carabina remata. Los escudos se recargan si te cubres.</p>
-      </details>
+      </div>
         <p class="note">Proyecto fan original. No usa assets, nombres ni código de ninguna franquicia comercial. <span class="build"></span></p>
       </section>
     </aside>
@@ -244,7 +243,11 @@
       <h2>PAUSA</h2>
       <p><span class="desktop-only">Haz clic</span><span class="touch-only">Toca la pantalla</span> para continuar</p>
       <p id="pause-mp" class="status hidden">En multijugador la partida sigue en marcha.</p>
-      <button id="btn-quit" class="secondary">SALIR AL MENÚ</button>
+      <div id="pause-settings" hidden></div>
+      <div class="pause-actions">
+        <button id="btn-pause-settings" class="secondary">AJUSTES</button>
+        <button id="btn-quit" class="secondary">SALIR AL MENÚ</button>
+      </div>
     </div>
   </div>
 
@@ -358,6 +361,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/client/main.js?v=1.24.0"></script>
+  <script type="module" src="src/client/main.js?v=1.25.0"></script>
 </body>
 </html>

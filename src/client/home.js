@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Avatar } from './avatar.js';
+import { S } from './settings.js';
 
 // Pantalla de inicio: tu soldado (skin y arma principal) de pie sobre un pedestal holográfico en el mapa elegido,
 // encuadrado a la izquierda (los paneles del menú van a la derecha). Arrastrar lo gira; la rueda o el pellizco acercan.
@@ -81,7 +82,7 @@ export class Home {
     this.active = false;
     this.ctx.scene.remove(this.group);
     const cam = this.ctx.camera, l = this.ctx.arsenal.muzzleLight;
-    cam.fov = 78;
+    cam.fov = S.fov;
     cam.updateProjectionMatrix();
     l.intensity = 0;
     l.distance = 9;
