@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { Room } from '../src/shared/room.js';
 import { createStatic } from './static.js';
 import { acceptWebSocket } from './ws.js';
+import { createAccounts } from './accounts.js';
 
 const PORT = Number(process.env.PORT || process.argv[2] || 8080);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -17,15 +18,20 @@ const SCORE_LIMIT = 15;
 const log = (msg) => console.log(`[${new Date().toLocaleTimeString()}] ${msg}`);
 const room = new Room({ maxPlayers: MAX_PLAYERS, scoreLimit: SCORE_LIMIT, log });
 const serveStatic = createStatic(ROOT);
+// Cuentas (créditos y desbloqueos): datos fuera de lo que se sirve como archivo.
+const DATA = path.resolve(process.env.RINGFALL_DATA || path.join(ROOT, 'data'));
+const accounts = createAccounts(DATA, log);
 
 const server = http.createServer((req, res) => {
   let rel;
   try { rel = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { res.writeHead(400).end(); return; }
   if (rel === '/api/info') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify({ ringfall: true, players: room.players.size, state: room.state }));
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ ringfall: true, accounts: true, players: room.players.size, state: room.state }));
     return;
   }
+  if (accounts(req, res, rel)) return;
+  if (rel === '/data' || rel.startsWith('/data/')) { res.writeHead(404).end(); return; } // nunca se sirven las cuentas
   serveStatic(req, res, rel);
 });
 

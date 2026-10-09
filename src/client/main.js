@@ -18,7 +18,8 @@ import { Spectator } from './spectator.js';
 import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
 import { DEFAULT_SKIN, sanitizeSkin, MODELS, PRIMARY } from '../shared/skins.js';
 import { Home } from './home.js';
-import { Wallet, matchReward, PRICES, ITEM_NAMES, KIND_NAMES } from './wallet.js';
+import { Wallet, PRICES, ITEM_NAMES, KIND_NAMES } from './wallet.js';
+import { Account } from './account.js';
 import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../shared/rules.js';
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
@@ -157,6 +158,8 @@ net.skin = ctx.skin;
 arsenal.setSkin(ctx.skin);
 // Créditos y desbloqueos (lo que ya llevas equipado al estrenar el monedero queda desbloqueado).
 const wallet = (ctx.wallet = new Wallet(ctx.skin));
+const account = (ctx.account = new Account());
+wallet.attach(account);
 const armory = new Armory({
   canvas: $('armory-view'),
   skin: ctx.skin,
@@ -174,6 +177,7 @@ const armory = new Armory({
     net.setSkin(skin);
     home.setSkin(skin);
     renderHome();
+    syncProfile({ skin });
   },
 });
 let armoryReturn = 'menu';
@@ -198,6 +202,7 @@ const loadoutMenu = new LoadoutMenu({
     try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(l)); } catch { /* sin almacenamiento */ }
     home.setWeapon(l[0]);
     renderHome();
+    syncProfile({ loadout: l });
   },
 });
 // Miniaturas de armas (menú y HUD): se generan en segundo plano mientras se está en el menú.
@@ -386,10 +391,10 @@ game.onCoopOver = (extra = {}) => {
 };
 
 // Créditos de la partida (una vez por partida: al terminar o al salir a mitad).
-function payMatch(stats) {
+async function payMatch(stats) {
   if (game.paid) return 0;
   game.paid = true;
-  const n = wallet.add(matchReward(stats));
+  const n = await wallet.reward(stats);
   if (n) $('home-earn').textContent = `+${n} ◈ ÚLTIMA PARTIDA`;
   renderHome();
   return n;
@@ -414,7 +419,7 @@ function gameOver(timeUp = false) {
     title: timeUp ? '¡TIEMPO!' : 'FIN DE LA PARTIDA',
     recordLabel: ctx.rules.variant === 'classic' ? 'Récord' : `Récord ${variant.toLowerCase()}`,
   });
-  showEarned(payMatch({ mode: 'sp', kills: game.kills, wave: game.wave, score: game.score, time: game.time }));
+  payMatch({ mode: 'sp', kills: game.kills, wave: game.wave, score: game.score, time: game.time }).then(showEarned);
 }
 
 function toMenu() {
@@ -528,9 +533,9 @@ const slotHtml = (id, label) => {
 };
 function renderHome() {
   const skin = ctx.skin, m = mapInfo(ctx.spMap);
-  let name = 'SOLDADO';
-  try { name = (localStorage.getItem(NAME_KEY) || name).toUpperCase(); } catch { /* sin almacenamiento */ }
-  $('home-name').textContent = name;
+  $('home-name').textContent = account.online ? account.profile.name.toUpperCase() : 'INVITADO';
+  $('home-name').title = account.online ? 'Cuenta en el servidor' : 'Sin cuenta: progreso guardado solo en este navegador';
+  renderAccount();
   $('home-model').textContent = MODELS[skin.m] ?? '';
   $('home-emblem').style.background = `linear-gradient(135deg, ${skin.p}, ${skin.s})`;
   const card = $('home-map-card');
@@ -563,9 +568,11 @@ function renderHome() {
       p.textContent = equipped ? 'EQUIPADO' : owned ? 'EQUIPAR' : `◈ ${price.toLocaleString('es-ES')}`;
       if (!owned) p.classList.add('price');
       c.append(ico, t, p);
-      c.addEventListener('click', () => {
+      c.addEventListener('click', async () => {
         if (!owned) {
-          if (!wallet.buy(kind, i)) { $('shop-msg').textContent = `Te faltan ◈ ${(price - wallet.coins).toLocaleString('es-ES')} para ${label}. ¡Juega para ganar más!`; return; }
+          let ok;
+          try { ok = await wallet.buy(kind, i); } catch (e) { $('shop-msg').textContent = e.message; return; }
+          if (!ok) { $('shop-msg').textContent = `Te faltan ◈ ${(price - wallet.coins).toLocaleString('es-ES')} para ${label}. ¡Juega para ganar más!`; return; }
           $('shop-msg').textContent = `¡Desbloqueado: ${label}!`;
           sfx.boxReveal?.();
         }
@@ -580,6 +587,95 @@ function renderHome() {
 }
 renderHome();
 setTimeout(renderHome, 1500); // miniaturas de armas listas
+
+// --- Cuenta: inicio de sesión y sincronización con el servidor ----------------------------------------
+let profileT = null, profilePatch = {};
+function syncProfile(patch) {
+  if (!account.online) return;
+  Object.assign(profilePatch, patch);
+  clearTimeout(profileT);
+  profileT = setTimeout(() => { const p = profilePatch; profilePatch = {}; account.call('profile', p).catch(() => {}); }, 600);
+}
+// Lo equipado debe estar desbloqueado en el monedero activo (cuenta o invitado); si no, la pieza gratis.
+function fitSkin(skin) {
+  const s = sanitizeSkin(skin);
+  for (const k of ['m', 'h', 't']) if (wallet.locked(k, s[k])) s[k] = 0;
+  return s;
+}
+function applySkin(skin) {
+  armory.skin = skin;
+  ctx.skin = skin;
+  try { localStorage.setItem(SKIN_KEY, JSON.stringify(skin)); } catch { /* sin almacenamiento */ }
+  arsenal.setSkin(skin);
+  net.setSkin(skin);
+  home.setSkin(skin);
+  armory.avatar?.setSkin(skin);
+  armory.syncControls();
+}
+// Tras iniciar sesión: la armadura y las armas de la cuenta (o se suben las actuales si es nueva).
+function onLoggedIn() {
+  const p = account.profile;
+  if (p.skin) applySkin(fitSkin(p.skin)); else applySkin(fitSkin(ctx.skin));
+  if (p.loadout?.every((id) => CFG.weapons[id])) { ctx.loadout = p.loadout; home.setWeapon(p.loadout[0]); }
+  account.call('profile', { skin: ctx.skin, loadout: ctx.loadout }).catch(() => {});
+  try { if (!localStorage.getItem(NAME_KEY)) localStorage.setItem(NAME_KEY, p.name); } catch { /* sin almacenamiento */ }
+  renderHome();
+}
+function renderAccount() {
+  const on = account.online;
+  $('acc-out').hidden = on;
+  $('acc-in').hidden = !on;
+  if (on) {
+    const p = account.profile;
+    $('acc-user').textContent = p.name.toUpperCase();
+    const rows = [['Créditos', `◈ ${p.coins.toLocaleString('es-ES')}`], ['Ganados en total', `◈ ${p.earned.toLocaleString('es-ES')}`], ['Partidas cobradas', p.matches], ['Desbloqueos', p.owned.length]];
+    $('acc-stats').replaceChildren(...rows.flatMap(([k, v]) => { const a = document.createElement('dt'); a.textContent = k; const b = document.createElement('dd'); b.textContent = v; return [a, b]; }));
+  }
+  $('acc-server-state').textContent = account.available
+    ? `Conectado a ${account.base || 'este servidor (el que sirve el juego)'}.`
+    : 'No hay servidor de cuentas: juegas como invitado. Arranca el servidor del juego (npm start) o escribe aquí su dirección.';
+  for (const id of ['acc-login', 'acc-register']) $(id).disabled = !account.available;
+}
+async function accountAction(kind) {
+  const name = $('acc-name').value.trim(), pw = $('acc-pass').value;
+  $('acc-msg').textContent = kind === 'login' ? 'Entrando…' : 'Creando la cuenta…';
+  try {
+    if (kind === 'login') await account.login(name, pw);
+    else {
+      await account.register(name, pw, wallet.localData);
+      wallet.handOver(); // el progreso del navegador pasa a la cuenta (no se puede volver a importar)
+    }
+    $('acc-pass').value = '';
+    $('acc-msg').textContent = kind === 'login' ? `¡Hola de nuevo, ${account.profile.name}!` : `Cuenta creada. ¡Bienvenido, ${account.profile.name}!`;
+    onLoggedIn();
+  } catch (e) {
+    $('acc-msg').textContent = e.message;
+  }
+}
+$('acc-login').addEventListener('click', () => accountAction('login'));
+$('acc-register').addEventListener('click', () => accountAction('register'));
+$('acc-logout').addEventListener('click', async () => {
+  await account.logout();
+  applySkin(fitSkin(ctx.skin)); // de vuelta al monedero de invitado
+  $('acc-msg').textContent = 'Sesión cerrada. Ahora juegas como invitado.';
+  renderHome();
+});
+$('acc-server-save').addEventListener('click', async () => {
+  account.setServer($('acc-server').value);
+  $('acc-msg').textContent = 'Buscando el servidor…';
+  const ok = await account.detect();
+  $('acc-msg').textContent = ok ? 'Servidor de cuentas encontrado.' : 'No responde ningún servidor de cuentas en esa dirección.';
+  if (ok) await account.resume();
+  if (account.online) onLoggedIn();
+  renderHome();
+});
+document.querySelector('.home-player').addEventListener('click', () => selectTab('account'));
+wallet.onChange(() => renderHome());
+account.detect().then(async () => {
+  if (await account.resume()) onLoggedIn();
+  $('acc-server').value = account.base ?? '';
+  renderHome();
+});
 
 // Girar (arrastrar) y acercar (rueda / pellizco) al avatar; los paneles y botones no cuentan.
 let homeDrag = null;
@@ -831,7 +927,7 @@ net.on('matchEnd', (m) => {
     const title = w ? (w.id === net.id ? '¡VICTORIA!' : `GANA ${w.name.toUpperCase()}`) : m.timeUp ? '¡TIEMPO! · EMPATE' : 'FIN DE LA PARTIDA';
     hud.showResults(title, ['JUGADOR', 'BAJAS', 'MUERTES'], rows, 'VOLVER AL LOBBY');
     const me = m.players.find((p) => p.id === net.id);
-    showEarned(payMatch({ mode: 'dm', kills: me?.kills ?? 0, won: m.winner === net.id, time: 999 }));
+    payMatch({ mode: 'dm', kills: me?.kills ?? 0, won: m.winner === net.id, time: 999 }).then(showEarned);
   } else {
     // Sin resumen del anfitrión (no respondió a tiempo): lo que sabe este equipo.
     const s = m.summary ?? {
@@ -843,7 +939,7 @@ net.on('matchEnd', (m) => {
     })).sort((a, b) => b.cols[0] - a.cols[0]);
     hud.showResults(`${m.timeUp ? '¡TIEMPO!' : 'EQUIPO CAÍDO'} · OLEADA ${s.wave}`, ['JUGADOR', 'BAJAS', 'PUNTOS'], rows, 'VOLVER AL LOBBY');
     const me = s.players.find((p) => p.id === net.id);
-    showEarned(payMatch({ mode: 'coop', kills: me?.kills ?? 0, wave: s.wave, score: me?.score ?? 0, time: 999 }));
+    payMatch({ mode: 'coop', kills: me?.kills ?? 0, wave: s.wave, score: me?.score ?? 0, time: 999 }).then(showEarned);
   }
 });
 

@@ -35,6 +35,20 @@ terminar cada partida (o al salir a mitad, por lo conseguido):
 Colores y visor siempre gratis. En PERSONALIZAR lo bloqueado lleva candado y precio; al tocarlo te lleva a la tienda.
 Lo que ya llevabas equipado al estrenar el monedero queda desbloqueado.
 
+**Cuentas** (pestaña CUENTA, `src/client/account.js` + `server/accounts.js`): usuario y contraseña para guardar
+créditos, desbloqueos, armadura y armas en el servidor (no se pierden al borrar el navegador y valen en cualquier
+dispositivo). El servidor manda: valida cada compra con sus precios y calcula los créditos de cada partida
+(`src/shared/shop.js`) con topes (◈ 1 500 por partida, una cada 25 s, ◈ 6 000 por hora). Contraseñas con scrypt y
+sal; sesiones de 30 días (se guarda el hash del token); límite de intentos por IP. Sin cuenta se juega como
+**invitado** (monedero en el navegador). Al crear la cuenta se traslada el progreso de invitado (hasta ◈ 2 000 y
+◈ 3 000 en desbloqueos).
+
+- Con `npm start` (servidor del juego) las cuentas funcionan solas. Datos en `data/accounts.json`
+  (`RINGFALL_DATA=/otra/carpeta` para cambiarla; nunca se sirve como archivo).
+- Para la versión de GitHub Pages hace falta el servidor publicado en internet (p. ej. con el `Dockerfile` en
+  Render, Fly.io o Railway, con un volumen en `/data`). Después: o se escribe su dirección en CUENTA → SERVIDOR DE
+  CUENTAS, o se abre el juego con `?api=https://tu-servidor`, o se fija en `DEFAULT_API` (`src/client/account.js`).
+
 El avatar usa la escena y la cámara del juego (sin renderer extra) y se retira al empezar la partida (`src/client/home.js`).
 
 ## Jugar

@@ -135,6 +135,7 @@
       <button data-tab="arms"><i>⌖</i>ARMAS</button>
       <button data-tab="custom"><i>⛨</i>PERSONALIZAR</button>
       <button data-tab="shop"><i>◆</i>TIENDA</button>
+      <button data-tab="account"><i>◉</i>CUENTA</button>
       <button data-tab="settings"><i>⚙</i>AJUSTES</button>
     </nav>
 
@@ -174,6 +175,29 @@
         <p class="tip">Gana créditos jugando: bajas, oleadas superadas y puntuación (en todos contra todos, bajas y victorias). Los colores y el visor son gratis.</p>
         <p class="tip shop-msg" id="shop-msg"></p>
         <div id="shop-grid"></div>
+      </section>
+      <section data-panel="account" hidden>
+        <h3>CUENTA</h3>
+        <div id="acc-out">
+          <p class="tip">Con una cuenta, tus créditos, desbloqueos, armadura y armas se guardan en el servidor: no se pierden al borrar el navegador y te siguen a cualquier dispositivo.</p>
+          <form id="acc-form" autocomplete="on" onsubmit="return false">
+            <label class="field">USUARIO <input id="acc-name" maxlength="16" autocomplete="username" spellcheck="false" /></label>
+            <label class="field">CONTRASEÑA <input id="acc-pass" type="password" maxlength="128" autocomplete="current-password" /></label>
+            <div class="row-buttons"><button id="acc-login" type="submit">INICIAR SESIÓN</button><button id="acc-register" type="button" class="secondary">CREAR CUENTA</button></div>
+          </form>
+          <p class="tip">Al crear la cuenta te llevas el progreso de este navegador (hasta ◈ 2 000 y ◈ 3 000 en desbloqueos).</p>
+        </div>
+        <div id="acc-in" hidden>
+          <p class="acc-who">CONECTADO COMO <b id="acc-user"></b></p>
+          <dl class="acc-stats" id="acc-stats"></dl>
+          <button id="acc-logout" class="secondary">CERRAR SESIÓN</button>
+        </div>
+        <p class="tip acc-msg" id="acc-msg"></p>
+        <details class="acc-server"><summary>SERVIDOR DE CUENTAS</summary>
+          <p class="tip" id="acc-server-state"></p>
+          <input id="acc-server" placeholder="https://tu-servidor-de-ringfall" spellcheck="false" />
+          <button id="acc-server-save" class="secondary">CONECTAR</button>
+        </details>
       </section>
       <section data-panel="settings" hidden>
         <h3>AJUSTES</h3>
@@ -334,6 +358,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/client/main.js?v=1.23.0"></script>
+  <script type="module" src="src/client/main.js?v=1.24.0"></script>
 </body>
 </html>
