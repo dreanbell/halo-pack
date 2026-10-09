@@ -24,6 +24,7 @@ import { CaseOpener } from './cases.js';
 import { Progress, LOGIN, levelReward, MAX_LEVEL, dayKey } from './progress.js';
 import { Medals } from './medals.js';
 import { Post } from './post.js';
+import { Music } from './music.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
 import { shopThumb } from './shopview.js';
@@ -186,6 +187,19 @@ function notice(text) {
   clearTimeout(noticeT);
   noticeT = setTimeout(() => n.classList.remove('show'), 2800);
 }
+// Música dinámica (music.js): arranca con el primer toque o tecla (el navegador no deja sonar antes).
+const music = (ctx.music = new Music(sfx));
+const startAudio = () => { sfx.unlock(); if (sfx.ctx) music.start(); };
+for (const ev of ['pointerdown', 'keydown', 'touchend']) addEventListener(ev, startAudio, { passive: true });
+function musicMood() {
+  const st = game.state;
+  music.setDuck(st === 'paused' ? 0.45 : 1);
+  if (st !== 'playing' && st !== 'paused') { music.setMood(st === 'over' ? 'calm' : 'menu'); return; }
+  if (game.mode === 'dm') { music.setMood('combat'); return; }
+  const alive = director.alive();
+  music.setMood(alive.some((e) => e.cfg.boss) ? 'boss' : alive.length ? 'combat' : 'calm');
+}
+
 // Medallas, locutor y rachas de bajas (medals.js) · números de daño de lo que haces tú.
 const medals = (ctx.medals = new Medals(ctx));
 const _dn = new THREE.Vector3();
@@ -1482,8 +1496,10 @@ function netTick(dt) {
   }
 }
 
+let moodT = 0;
 function tick(dt) {
   tickFinishes(performance.now() / 1000);
+  if ((moodT -= dt) <= 0) { moodT = 0.5; musicMood(); }
   // En multijugador la partida sigue aunque el jugador esté en pausa.
   const running = game.state === 'playing' || (game.state === 'paused' && game.mode !== 'sp');
   if (running) {

@@ -53,6 +53,10 @@ resplandor (bloom a 1/4 y 1/8 de resolución) en fogonazos, explosiones, visores
 AUTO = solo en calidad ALTA; en MEDIA/BAJA no hay pase extra. **Pantalla de muerte**: quién te eliminó (enemigo o
 jugador), distancia, arma y acabado o vida que le quedaba; la cámara gira hacia él.
 
+**Música dinámica** (`src/client/music.js`, Ajustes → Audio → Música): generada con WebAudio, sin archivos. Capas de
+pad, arpegio, bajo y batería que se funden según el momento: menú, calma entre oleadas, combate y jefe. Un
+programador pone las notas 0,3 s por adelantado (no depende de los FPS; ~0,3 ms cada 90 ms).
+
 **Multijugador**: la armadura y los acabados de arma equipados viajan con el jugador (`skin.f`), así los demás ven tu
 arma de oro o tu armadura de neón.
 
@@ -381,6 +385,7 @@ src/client/              El juego (navegador)
   progress.js            Nivel, XP, misiones diarias/semanales y recompensa diaria
   medals.js              Medallas, locutor y recompensas por racha (orbital, dron)
   post.js                Postprocesado HDR ligero: bloom, color y viñeta
+  music.js               Música dinámica procedural (menú, calma, combate, jefe)
   hud.js · effects.js · audio.js · spectator.js · touch.js · drop.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)

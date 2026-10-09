@@ -22,6 +22,7 @@ export const SCHEMA = [
   ] },
   { group: 'AUDIO', items: [
     { key: 'volMaster', label: 'Volumen general', type: 'range', min: 0, max: 1, step: 0.05, def: 0.8, fmt: pct },
+    { key: 'volMusic', label: 'Música', type: 'range', min: 0, max: 1, step: 0.05, def: 0.45, fmt: pct, tip: 'Cambia sola: menú, calma entre oleadas, combate y jefe.' },
     { key: 'volWeapons', label: 'Armas', type: 'range', min: 0, max: 1, step: 0.05, def: 1, fmt: pct },
     { key: 'volCombat', label: 'Impactos y explosiones', type: 'range', min: 0, max: 1, step: 0.05, def: 1, fmt: pct },
     { key: 'volEnemies', label: 'Enemigos', type: 'range', min: 0, max: 1, step: 0.05, def: 1, fmt: pct },
