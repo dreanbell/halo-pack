@@ -644,7 +644,7 @@ net.on('boxTake', (m) => { director.boxes[m.id]?.close(); });
 net.on('gren', (m) => { if (inMatch()) arsenal.remoteGrenade(m.p, m.v, m.from); });
 net.on('hit', (m) => {
   if (!inMatch() || !arsenal.pvp) return;
-  player.takeHit(m.dmg, { shieldMult: m.sm, headMult: m.hm, part: m.part }, vec(m.from), m.from);
+  player.takeHit(m.dmg, { shieldMult: m.sm, headMult: m.hm, part: m.part, frac: m.fr }, vec(m.from), m.from);
 });
 net.on('feed', (m) => {
   const victim = { text: playerName(m.victim), color: playerColor(m.victim) };

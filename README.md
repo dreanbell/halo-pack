@@ -115,17 +115,17 @@ Todo es procedural (sin imágenes externas): paneles de aleación con vetas lumi
 
 ## Armas
 
-| Arma | Tipo | Notas |
-|---|---|---|
-| AR-9 Carbine | Fusil automático | Todoterreno |
-| Ion Sidearm | Pistola de calor | ×2 contra escudos, cabeza ×3 |
-| Viper SMG | Subfusil | Cadencia altísima, poco alcance |
-| Breacher-12 | Escopeta | 9 perdigones, recarga cartucho a cartucho |
-| DMR-3 Marksman | Tirador | Ráfaga de 3, mira ×2 |
-| Longshot SR-2 | Francotirador | 95 de daño, cabeza ×2,5, mira ×5 |
-| Plasma Lance 👽 | Alienígena, calor | ×1,8 contra escudos |
-| Needle Swarm 👽 | Alienígena | Agujas que persiguen al objetivo |
-| Arc Cannon 👽 | Alienígena | Proyectil explosivo con daño en área |
+| Arma | Tipo | Daño | Notas |
+|---|---|---|---|
+| AR-9 Carbine | Fusil automático | 10 | Todoterreno, cabeza ×2 |
+| Ion Sidearm | Pistola de calor | 20 | ×2 contra escudos, cabeza ×3 |
+| Viper SMG | Subfusil | 6,5 | Cadencia altísima, poco alcance, cabeza ×1,5 |
+| Breacher-12 | Escopeta | 13 × 9 | Perdigones, recarga cartucho a cartucho |
+| DMR-3 Marksman | Tirador | 17 | Ráfaga de 3, mira ×2, cabeza ×2,5 |
+| Longshot SR-2 | Francotirador | 120 | Mira ×5. Un tiro al cuerpo mata a los básicos (Skitter, Dron); **a la cabeza mata a cualquier enemigo que no sea jefe**, aunque tenga escudo (a los jefes, ×2,5). **Multijugador:** cuerpo = mitad de la vida total del rival (escudo + salud), cabeza = baja |
+| Plasma Lance 👽 | Alienígena, calor | 11 | ×1,8 contra escudos |
+| Needle Swarm 👽 | Alienígena | 12 | Agujas que persiguen al objetivo |
+| Arc Cannon 👽 | Alienígena | 140 | Proyectil explosivo con daño en área |
 
 - **Armas iniciales «a elegir»** (un jugador y DM por defecto): eliges tus dos armas en **ARMAS** (menú, pantalla de un jugador o lobby). El menú tiene vista previa 3D giratoria de cada arma (arrastra para girar, rueda para acercar), miniaturas, ficha técnica (daño, cadencia, modo, munición, recarga, alcance, mira, calibre, multiplicadores, peso) y barras comparativas.
 - **Apuntar:** mantén **clic derecho** para llevar el arma a la cara y alinear su mira (punto rojo, holográfica, miras de tritio, anillo fantasma o retícula alienígena). Al apuntar: menos dispersión, algo de aumento, movimiento más lento. El tiempo para apuntar depende del peso del arma. DMR y francotirador pasan a **visor** con retícula propia (BDC, mil-dots) y **telémetro**.

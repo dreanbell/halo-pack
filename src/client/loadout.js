@@ -38,7 +38,7 @@ function stats(w, id) {
     ['ALCANCE', `${range} m`],
     ['MIRA', `${GUN_INFO[id]?.optic ?? '—'} ×${fmt(w.zoom ?? w.ads ?? 1.25, 2)}`],
     ['CALIBRE', GUN_INFO[id]?.caliber ?? '—'],
-    ['CABEZA / ESCUDO', `×${fmt(w.headMult ?? 1)} / ×${fmt(w.shieldMult ?? 1)}`],
+    ['CABEZA / ESCUDO', `${w.headKill ? 'BAJA' : `×${fmt(w.headMult ?? 1)}`} / ×${fmt(w.shieldMult ?? 1)}`],
     ['PESO', `${fmt(GUN_INFO[id]?.weight ?? 0)} kg`],
   ];
 }

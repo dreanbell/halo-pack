@@ -286,13 +286,22 @@ export class Player {
   }
 
   // shieldMult: multiplicador contra escudo; headMult: tiro a la cabeza sin escudo. by: id del atacante (red).
-  takeHit(amount, { shieldMult = 1, headMult = 1, part = 'body' } = {}, from = null, by = null) {
+  // frac: el daño es esa fracción de la vida total (escudo + salud máximos), p. ej. francotirador: 0,5 cuerpo, 1 cabeza.
+  takeHit(amount, { shieldMult = 1, headMult = 1, part = 'body', frac = 0 } = {}, from = null, by = null) {
     if (!this.alive) return;
     const { sfx, hud } = this.ctx;
     this.sinceHit = 0;
     this.recharging = false;
-    this.lastHit = by !== null ? { by, head: false } : null;
-    if (this.shield > 0) {
+    this.lastHit = by !== null ? { by, head: frac >= 1 && part === 'head' } : null;
+    if (frac) {
+      const pool = this.maxShield + P.maxHealth;
+      if (frac >= 1) amount = this.shield + this.health + 1; // mata
+      else amount = pool * frac;
+      shieldMult = 1;
+    }
+    if (frac >= 1) {
+      if (this.shield > 0) { this.shield = 0; sfx.shieldBreak(); }
+    } else if (this.shield > 0) {
       const sd = amount * shieldMult;
       const absorbed = Math.min(this.shield, sd);
       this.shield -= absorbed;

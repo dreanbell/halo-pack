@@ -327,7 +327,9 @@ export class Arsenal {
   // Impacto a otro jugador (DM): la víctima aplica el daño sobre su propio escudo.
   hitRemote(r, dmg, opts, part, from) {
     const { net, hud, sfx } = this.ctx;
-    net.to(r.id, 'hit', { dmg: dmg * this.pvpMult, sm: opts.shieldMult ?? 1, hm: opts.headMult ?? 1, part, from: v3(from) });
+    // pvp (francotirador): daño como fracción de la vida total del otro jugador, sin multiplicador de partida.
+    const frac = opts.pvp ? (part === 'head' ? opts.pvp.head : opts.pvp.body) : 0;
+    net.to(r.id, 'hit', { dmg: dmg * this.pvpMult, sm: opts.shieldMult ?? 1, hm: opts.headMult ?? 1, part, from: v3(from), ...(frac ? { fr: frac } : {}) });
     hud.hitMarker(false);
     sfx.hit();
   }
@@ -464,7 +466,7 @@ export class Arsenal {
   applyHit(hit, damage, d) {
     const { fx, hud, sfx, game } = this.ctx;
     const e = hit.object.userData.enemy, r = hit.object.userData.remote;
-    const opts = { shieldMult: d.shieldMult ?? 1, headMult: d.headMult ?? 1 };
+    const opts = { shieldMult: d.shieldMult ?? 1, headMult: d.headMult ?? 1, headKill: !!d.headKill, pvp: d.pvp };
     // Potencia visual del impacto según el daño de la bala (subfusil ~0,5 … francotirador 2).
     const power = Math.min(2, Math.max(0.5, d.damage / 14)) * (d.kind === 'pellets' ? 0.6 : 1);
     const energy = d.alien || d.heat ? d.tracer : null;

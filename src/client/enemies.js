@@ -573,7 +573,7 @@ class Enemy {
   }
 
   // by: id del jugador que causa el daño (null = jugador local en un jugador).
-  takeDamage(dmg, { shieldMult = 1, headMult = 1, part = 'body', by = null } = {}) {
+  takeDamage(dmg, { shieldMult = 1, headMult = 1, part = 'body', by = null, headKill = false } = {}) {
     if (this.dead) return { killed: false };
     this.hitT = 1;
     this.revealT = Math.max(this.revealT, 1.5);
@@ -581,13 +581,15 @@ class Enemy {
     if (this.replica) {
       // El anfitrión decide; aquí solo hay respuesta visual inmediata.
       const net = this.ctx.net;
-      net.to(net.hostId, 'edmg', { id: this.id, dmg, sm: shieldMult, hm: headMult, part });
+      net.to(net.hostId, 'edmg', { id: this.id, dmg, sm: shieldMult, hm: headMult, part, hk: headKill ? 1 : 0 });
       return { killed: false, shieldHit: this.shield > 0 };
     }
     this.sinceHit = 0;
     this.los = true;
     let remaining = dmg, shieldHit = false;
-    if (this.shield > 0) {
+    // Arma de precisión (francotirador): a la cabeza elimina a cualquiera que no sea jefe, atraviesa el escudo.
+    if (headKill && part === 'head' && !this.cfg.boss) { remaining = this.hp + 1; if (this.shield > 0) { this.shield = 0; this.ctx.sfx.shieldPop(); } }
+    else if (this.shield > 0) {
       shieldHit = true;
       const sd = remaining * shieldMult;
       if (sd < this.shield) { this.shield -= sd; remaining = 0; }
@@ -987,7 +989,7 @@ export class Director {
   onRemoteDamage(m) {
     const e = this.byId.get(m.id);
     if (!this.authority || !e || e.dead || e.replica) return;
-    e.takeDamage(m.dmg, { shieldMult: m.sm, headMult: m.hm, part: m.part, by: m.from });
+    e.takeDamage(m.dmg, { shieldMult: m.sm, headMult: m.hm, part: m.part, by: m.from, headKill: !!m.hk });
   }
 
   onClaim(m) {
