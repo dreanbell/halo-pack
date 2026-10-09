@@ -23,6 +23,7 @@ import { FINISHES, finishItem, finishOf, CASES, RARITIES, rarityOf, itemName, GU
 import { CaseOpener } from './cases.js';
 import { Progress, LOGIN, levelReward, MAX_LEVEL, dayKey } from './progress.js';
 import { Medals } from './medals.js';
+import { Post } from './post.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
 import { shopThumb } from './shopview.js';
@@ -60,6 +61,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 $('app').appendChild(renderer.domElement);
+const post = new Post(renderer); // postprocesado (post.js): solo actúa si está activo
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(78, innerWidth / innerHeight, 0.03, 3000);
@@ -94,6 +96,7 @@ function loadMap(id, force = false) {
   ctx.world = createWorld(scene, id);
   scene.environment = skyEnvironment(renderer, ctx.world.env);
   renderer.toneMappingExposure = ctx.world.exposure * S.brightness;
+  post.setGrade(ctx.world.grade);
   ctx.nav = new NavGrid(ctx.world);
   dropWarm(); // otro mapa, otras luces: otros shaders
   prewarm();
@@ -114,8 +117,10 @@ function prewarm(enemies = false) {
       temp.push(rig.root);
     }
   }
+  // Con postprocesado la escena se pinta a una textura HDR: los shaders son otra variante (sin tone mapping).
+  if (post.enabled) { post.resize(); renderer.setRenderTarget(post.rt); }
   renderer.compile(scene, camera); // todo el mapa, también lo que queda fuera de la vista
-  if (!temp.length && !flashes.length) return;
+  if (!temp.length && !flashes.length) { renderer.setRenderTarget(null); return; }
   const holder = new THREE.Group();
   camera.updateMatrixWorld(true);
   camera.getWorldPosition(holder.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(2));
@@ -124,6 +129,7 @@ function prewarm(enemies = false) {
   scene.add(holder);
   for (const f of flashes) { f.visible = true; f.userData.warmScale = f.scale.x; f.scale.setScalar(0.001); }
   renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
   for (const f of flashes) { f.visible = false; f.scale.setScalar(f.userData.warmScale); }
   scene.remove(holder);
   holder.clear();
@@ -356,6 +362,7 @@ function startSession(mode, rules = net.rules, map = mode === 'sp' ? ctx.spMap :
   game.firstBlood = false;
   progress.matchXp = 0;
   medals.reset();
+  $('deathcard').classList.remove('show');
   director.configure(mode, !online || net.isHost);
   arsenal.reset(loadoutFor());
   fx.clear();
@@ -412,9 +419,47 @@ function resume() {
   if (!lock()) { game.state = 'playing'; hud.showOverlay(null); }
 }
 
+// Pantalla de muerte: quién te eliminó, con qué, a qué distancia y cómo le dejaste; la cámara gira hacia él.
+let deathCardT = null;
+function deathCard(lastHit) {
+  let name = null, info = [], pos = null;
+  if (lastHit?.by != null) {
+    const r = remotes.get(lastHit.by);
+    name = playerName(lastHit.by);
+    if (r) {
+      pos = r.pos;
+      const w = CFG.weapons[r.weapon]?.name, f = r.avatar?.skin?.f?.[r.weapon];
+      if (w) info.push(f ? `${w} · ${FINISHES[f].name}` : w);
+      info.push(`${Math.round(r.pos.distanceTo(player.pos))} m`);
+      if (lastHit.head) info.push('A LA CABEZA');
+    }
+  } else {
+    // El enemigo que dio el golpe; si no se sabe (cliente en cooperativo), el más cercano al origen del golpe.
+    let e = player.killSource;
+    if (!e && player.killFrom) {
+      let best = 9;
+      for (const x of director.alive()) { const d = x.pos.distanceTo(player.killFrom); if (d < best) { best = d; e = x; } }
+    }
+    if (e) {
+      name = e.cfg.label;
+      pos = e.pos;
+      info.push(`${Math.round(e.pos.distanceTo(player.pos))} m`);
+      if (!e.dead) info.push(`LE QUEDA ${Math.max(1, Math.round((e.hp / e.maxHp) * 100))} % DE VIDA`);
+      if (e.cfg.boss) info.push('JEFE');
+    }
+  }
+  if (pos) player.deathLook = pos.clone();
+  $('dc-name').textContent = (name ?? 'UNA EXPLOSIÓN').toUpperCase();
+  $('dc-info').textContent = info.join(' · ');
+  $('deathcard').classList.add('show');
+  clearTimeout(deathCardT);
+  deathCardT = setTimeout(() => $('deathcard').classList.remove('show'), 3200);
+}
+
 game.onPlayerDeath = (lastHit) => {
   game.deathT = 0;
   medals.onDeath(lastHit?.by ?? null);
+  deathCard(lastHit);
   arsenal.trigger = arsenal.aimHeld = false;
   sfx.death();
   if (game.mode === 'dm') {
@@ -587,6 +632,7 @@ onSettings((st, key) => {
   document.body.classList.toggle('no-xh-dot', !st.xhDot);
   fpsMeter.hidden = !st.showFps;
   if (ctx.world && (key === null || key === 'brightness')) renderer.toneMappingExposure = ctx.world.exposure * st.brightness;
+  if (key === 'post' && ctx.world) prewarm(game.state !== 'menu' && game.mode !== 'dm'); // otra variante de shaders
 });
 // La caja de ajustes vive en la pestaña AJUSTES; en la pausa se toma prestada.
 function settingsHome() {
@@ -1500,7 +1546,7 @@ function frame(now) {
   tick(Math.min((now - last) / 1000, 0.05));
   last = now;
   beforeRender();
-  renderer.render(scene, camera);
+  post.render(scene, camera);
 }
 requestAnimationFrame(frame);
 

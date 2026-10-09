@@ -64,6 +64,7 @@ export class Player {
     this.alarmT = 0;
     this.deathT = 0;
     this.lastHit = null;
+    this.deathLook = this.lastSource = this.killSource = null;
     this.yaw.rotation.set(0, yaw, 0);
     this.pitch.rotation.set(0, 0, 0);
     this.syncCamera(0);
@@ -296,6 +297,10 @@ export class Player {
     this.sinceHit = 0;
     this.recharging = false;
     this.lastHit = by !== null ? { by, head: frac >= 1 && part === 'head' } : null;
+    // Para la pantalla de muerte: de dónde vino y qué enemigo fue (lo marca el director antes del golpe).
+    this.killFrom = from ? (this.killFrom ?? new THREE.Vector3()).copy(from) : null;
+    this.killSource = this.lastSource ?? null;
+    this.lastSource = null;
     if (frac) {
       const pool = this.maxShield + P.maxHealth;
       if (frac >= 1) amount = this.shield + this.health + 1; // mata
@@ -328,6 +333,13 @@ export class Player {
   deathAnim(dt) {
     this.deathT += dt;
     const t = Math.min(1, this.deathT / 0.8);
+    // Cámara de muerte: gira despacio hacia quien te eliminó.
+    if (this.deathLook) {
+      const want = Math.atan2(-(this.deathLook.x - this.pos.x), -(this.deathLook.z - this.pos.z));
+      let d = want - this.yaw.rotation.y;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.yaw.rotation.y += d * Math.min(1, dt * 3.5);
+    }
     this.yaw.position.y = this.pos.y + this.height * (1 - 0.75 * t);
     this.pitch.rotation.z = t * 0.9;
     this.ctx.camera.position.set(0, 0, 0);

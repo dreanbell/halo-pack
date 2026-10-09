@@ -16,6 +16,7 @@ export const SCHEMA = [
     { key: 'fov', label: 'Campo de visión', type: 'range', min: 65, max: 105, step: 1, def: 78, fmt: (v) => `${v}°` },
     { key: 'resScale', label: 'Escala de resolución', type: 'range', min: 0.5, max: 1, step: 0.05, def: 1, fmt: (v) => `${Math.round(v * 100)} %`, tip: 'Menos píxeles = más FPS. La resolución dinámica sigue actuando por debajo.' },
     { key: 'fpsCap', label: 'Límite de FPS', type: 'choice', def: 0, options: [[30, '30'], [60, '60'], [0, 'SIN LÍMITE']] },
+    { key: 'post', label: 'Postprocesado (resplandor y color)', type: 'choice', def: 'auto', options: [['auto', 'AUTO'], ['on', 'SÍ'], ['off', 'NO']], tip: 'AUTO: solo en calidad ALTA. Resplandor en fogonazos, explosiones y brillos, color de cine y viñeta.' },
     { key: 'showFps', label: 'Mostrar FPS', type: 'toggle', def: false },
     { key: 'brightness', label: 'Brillo', type: 'range', min: 0.6, max: 1.6, step: 0.05, def: 1, fmt: (v) => `${Math.round(v * 100)} %` },
   ] },

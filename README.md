@@ -48,6 +48,11 @@ impactos sobre el enemigo más cercano a la mira), 15 dron de apoyo (25 s). Núm
 azul escudo, rojo baja; desactivables). Oleadas de élite (3, 7, 11…, sin jefe): enemigos más duros, puntos ×2 y lluvia
 de suministros al superarla.
 
+**Postprocesado** (`src/client/post.js`, Ajustes → Gráficos): la escena se pinta en HDR y un pase final añade
+resplandor (bloom a 1/4 y 1/8 de resolución) en fogonazos, explosiones, visores y neones, color de cine y viñeta.
+AUTO = solo en calidad ALTA; en MEDIA/BAJA no hay pase extra. **Pantalla de muerte**: quién te eliminó (enemigo o
+jugador), distancia, arma y acabado o vida que le quedaba; la cámara gira hacia él.
+
 **Multijugador**: la armadura y los acabados de arma equipados viajan con el jugador (`skin.f`), así los demás ven tu
 arma de oro o tu armadura de neón.
 
@@ -375,6 +380,7 @@ src/client/              El juego (navegador)
   shopview.js · cases.js · profile.js   Miniaturas de la tienda · cajas (ruleta) · código de respaldo
   progress.js            Nivel, XP, misiones diarias/semanales y recompensa diaria
   medals.js              Medallas, locutor y recompensas por racha (orbital, dron)
+  post.js                Postprocesado HDR ligero: bloom, color y viñeta
   hud.js · effects.js · audio.js · spectator.js · touch.js · drop.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)

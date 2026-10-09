@@ -318,7 +318,7 @@ class Enemy {
         this.cool = rand(...c.interval);
         this.attackT = 0.4;
         this.revealT = Math.max(this.revealT, 1.5);
-        this.ctx.director.hurtTarget(tg, c.dmg * this.dmgMult, this.pos, fx * 6, fz * 6);
+        this.ctx.director.hurtTarget(tg, c.dmg * this.dmgMult, this.pos, fx * 6, fz * 6, this);
       }
     } else if (this.los && dist < (c.ai === 'artillery' ? 60 : 50)) {
       this.burstFire(dt, tg);
@@ -390,7 +390,7 @@ class Enemy {
     dir.y += (Math.random() - 0.5) * sp * 2;
     dir.z += (Math.random() - 0.5) * sp * 2;
     dir.normalize().multiplyScalar(speed);
-    this.ctx.director.spawnProjectile(origin, dir, (opts.dmg ?? c.dmg) * this.dmgMult, c.glow, true, opts);
+    this.ctx.director.spawnProjectile(origin, dir, (opts.dmg ?? c.dmg) * this.dmgMult, c.glow, true, { ...opts, src: this });
   }
 
   // Mortero en parábola hacia donde estará el objetivo.
@@ -401,7 +401,7 @@ class Enemy {
     const T = Math.min(2.6, Math.max(1.1, o.distanceTo(t) / 15));
     if (!at) t.addScaledVector(tg.vel, T * 0.5);
     const v = new THREE.Vector3((t.x - o.x) / T, (t.y + 0.2 - o.y + 0.5 * MORTAR_G * T * T) / T, (t.z - o.z) / T);
-    this.ctx.director.spawnProjectile(o, v, dmg * this.dmgMult, this.cfg.glow, true, { gravity: MORTAR_G, splash, size: 2.2 });
+    this.ctx.director.spawnProjectile(o, v, dmg * this.dmgMult, this.cfg.glow, true, { gravity: MORTAR_G, splash, size: 2.2, src: this });
   }
 
   // --- Jefe de tierra: abanico de plasma, salto con onda expansiva, embestida, refuerzos ---
@@ -475,7 +475,7 @@ class Enemy {
         for (const t of director.targets) {
           if (this.hitSet.has(t) || Math.hypot(t.pos.x - this.pos.x, t.pos.z - this.pos.z) > 2.8) continue;
           this.hitSet.add(t);
-          director.hurtTarget(t, c.chargeDmg * this.dmgMult, this.pos, this.chargeDir.x * 14, this.chargeDir.z * 14);
+          director.hurtTarget(t, c.chargeDmg * this.dmgMult, this.pos, this.chargeDir.x * 14, this.chargeDir.z * 14, this);
         }
         // Termina por tiempo o al chocar contra un muro.
         if (this.bT <= 0 || (this.bT < 1.0 && before.distanceTo(this.pos) < 17 * dt * 0.25)) { this.bstate = 'recover'; this.bT = 1.0; }
@@ -894,10 +894,12 @@ export class Director {
   }
 
   // Daño cuerpo a cuerpo de un enemigo: local directo, remoto por la red.
-  hurtTarget(tg, dmg, from, pushX, pushZ) {
+  // src: el enemigo que golpea (para la pantalla de muerte).
+  hurtTarget(tg, dmg, from, pushX, pushZ, src = null) {
     const { player, sfx, net } = this.ctx;
     sfx.enemyMelee(tg.pos.distanceTo(player.pos));
     if (tg === player) {
+      player.lastSource = src;
       player.damage(dmg, from);
       player.vel.x += pushX;
       player.vel.z += pushZ;
@@ -915,7 +917,7 @@ export class Director {
     if (opts.size) mesh.scale.setScalar(opts.size);
     this.ctx.scene.add(mesh);
     const gravity = opts.gravity ?? 0, splash = opts.splash ?? 0;
-    this.projectiles.push({ mesh, vel: vel.clone(), dmg, color, life: gravity ? 6 : 3.5, gravity, splash });
+    this.projectiles.push({ mesh, vel: vel.clone(), dmg, color, life: gravity ? 6 : 3.5, gravity, splash, src: opts.src ?? null });
     const dist = origin.distanceTo(this.ctx.player.pos);
     if (gravity) this.ctx.sfx.mortar(dist); else this.ctx.sfx.enemyShot(dist);
     if (broadcast && this.online) this.net.bcast('proj', { p: v3(origin), v: v3(vel), d: dmg, c: color, g: gravity, s: splash, z: opts.size ?? 0 });
@@ -928,7 +930,7 @@ export class Director {
     sfx.explosion(pos.distanceTo(player.pos));
     if (!player.alive) return;
     const d = _b.set(player.pos.x, player.pos.y + 0.9, player.pos.z).distanceTo(pos);
-    if (d < p.splash) player.damage(p.dmg * (1 - (d / p.splash) * 0.7), pos.clone());
+    if (d < p.splash) { player.lastSource = p.src ?? null; player.damage(p.dmg * (1 - (d / p.splash) * 0.7), pos.clone()); }
   }
 
   damageRadius(center, radius, damage, by = null) {
@@ -1205,7 +1207,7 @@ export class Director {
           const cy = Math.min(Math.max(pos.y, player.pos.y + 0.2), player.pos.y + player.height - 0.1);
           if (Math.hypot(pos.x - player.pos.x, pos.y - cy, pos.z - player.pos.z) < P.radius + 0.12 * (p.mesh.scale.x || 1)) {
             if (p.splash) this.projExplode(pos, p);
-            else player.damage(p.dmg, _b.copy(pos).addScaledVector(p.vel, -0.1));
+            else { player.lastSource = p.src ?? null; player.damage(p.dmg, _b.copy(pos).addScaledVector(p.vel, -0.1)); }
             hit = true;
             break;
           }

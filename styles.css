@@ -795,3 +795,11 @@ body.touch #menu.home .home-panel { backdrop-filter: none; background: rgba(5, 1
 #dmgnums span.shield { color: #7fd3ff; }
 #dmgnums span.kill { color: #ff5a5a; font-size: 20px; }
 body.touch #medals { bottom: 34%; }
+#deathcard {
+  position: absolute; left: 50%; top: 28%; transform: translate(-50%, -10px); opacity: 0; transition: opacity 0.35s, transform 0.35s; pointer-events: none;
+  text-align: center; padding: 10px 26px; background: linear-gradient(90deg, transparent, rgba(60, 6, 12, 0.75), transparent); min-width: 320px;
+}
+#deathcard.show { opacity: 1; transform: translate(-50%, 0); }
+#deathcard small { display: block; font-size: 12px; letter-spacing: 0.4em; color: #ff8a8a; }
+#deathcard b { display: block; font-size: 30px; letter-spacing: 0.18em; color: #fff; text-shadow: 0 0 14px rgba(255, 60, 70, 0.7); }
+#deathcard p { margin: 4px 0 0; font-size: 13px; letter-spacing: 0.12em; color: #ffd0d0; }
