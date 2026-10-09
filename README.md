@@ -25,7 +25,7 @@ La partida va **directa entre navegadores** (WebRTC). La sala vive en el navegad
 | Variante | Modos | Reglas |
 |---|---|---|
 | Clásico | Todos | Las reglas de siempre del modo. |
-| Tiroteo | Un jugador · Coop | 7 vidas compartidas: al caer gastas una y reapareces a los 5 s. +1 vida por oleada superada. Sin vidas, quien cae no vuelve (en coop, vuelve si el equipo gana una). Dificultad difícil, sin cajas, armas a elegir. |
+| Tiroteo | Un jugador · Coop | 7 vidas compartidas: al caer gastas una y reapareces a los 5 s. +1 vida por oleada superada. Sin vidas, quien cae no vuelve (en coop, vuelve si el equipo gana una). Dificultad difícil, sin suministros, armas a elegir. |
 | Jefes en cadena | Un jugador · Coop | Un jefe con escolta en cada oleada, alternando WARLORD y OVERSEER; desde la 6.ª, los dos juntos cada tres oleadas. 4 granadas. |
 | Francotiradores | Todos | Francotirador y pistola, munición infinita, sin granadas ni radar. |
 | Swat | Todos | Sin escudos (la salud se regenera) ni radar. Un tiro a la cabeza elimina, salvo a los jefes. DMR y pistola, sin granadas. |
@@ -64,7 +64,7 @@ node server.js            # o npm start · puerto 8080; otro: node server.js 900
 La consola muestra la dirección de red local (p. ej. `http://192.168.1.20:8080`). Los demás la abren en el navegador → **MULTIJUGADOR LAN** → **SERVIDOR LAN DE ESTE EQUIPO**. Si no conectan, permite "Node.js" en el firewall para redes privadas o abre el puerto TCP 8080.
 
 ### Móvil y tablet
-Se juega en horizontal con controles táctiles: mitad izquierda = joystick (al tope hacia delante, esprintas), mitad derecha = apuntar, y botones de disparo, salto, agacharse, recarga, cambio de arma, granada, golpe, mira y usar caja. Entra a pantalla completa si el navegador lo permite. Para forzarlos o quitarlos: `?touch=1` / `?touch=0`.
+Se juega en horizontal con controles táctiles: mitad izquierda = joystick (al tope hacia delante, esprintas), mitad derecha = apuntar, y botones de disparo, salto, agacharse, recarga, cambio de arma, granada, golpe, mira y abrir suministros. Entra a pantalla completa si el navegador lo permite. Para forzarlos o quitarlos: `?touch=1` / `?touch=0`.
 
 ### Un jugador en local
 No necesita build ni dependencias: three.js y PeerJS van incluidos en `vendor/`.
@@ -134,14 +134,14 @@ Todo es procedural (sin imágenes externas): paneles de aleación con vetas lumi
 **Modelos 3D:** todas las armas usan modelos CC0 descargados (Quaternius «50+ LowPoly Guns» y Kenney «Blaster Kit»,
 ver `vendor/assets/guns/ATTRIBUTION.md`), vestidos con el pack de texturas del juego y animados por el juego
 (retroceso, cargador que cae al recargar, inercia). Si un modelo no carga se usa el procedural de respaldo.
-Las nuevas salen en la caja misteriosa (fusil de batalla y revólver desde la oleada 1; recortada y carabina desde la 3).
+Las nuevas salen en los suministros del cielo (fusil de batalla y revólver desde la oleada 1; recortada y carabina desde la 3).
 
 - **Armas iniciales «a elegir»** (un jugador y DM por defecto): eliges tus dos armas en **ARMAS** (menú, pantalla de un jugador o lobby). El menú tiene vista previa 3D giratoria de cada arma (arrastra para girar, rueda para acercar), miniaturas, ficha técnica (daño, cadencia, modo, munición, recarga, alcance, mira, calibre, multiplicadores, peso) y barras comparativas.
 - **Apuntar:** mantén **clic derecho** para llevar el arma a la cara y alinear su mira (punto rojo, holográfica, miras de tritio, anillo fantasma o retícula alienígena). Al apuntar: menos dispersión, algo de aumento, movimiento más lento. El tiempo para apuntar depende del peso del arma. DMR y francotirador pasan a **visor** con retícula propia (BDC, mil-dots) y **telémetro**.
 - **Detalle de las armas:** modelos procedurales de 30–60 piezas (raíles, guardamanos con ranuras, ventana de expulsión, guardamonte, miras con lente y retícula luminosa, rótulos grabados) con un pack de texturas PBR generado por código: acero pavonado cepillado con arañazos, polímero granulado, cerakote con desconchones, nogal veteado, goma moleteada, fibra de carbono y caparazón alienígena iridiscente con venas luminosas. Las piezas estáticas se unen por material (pocas llamadas de dibujo).
 - **Animaciones:** el cargador cae y entra al recargar, corredera de la escopeta, cerrojo manual del francotirador, cerrojo que retrocede al disparar, inercia del arma al mover el ratón, cristales de la Needle Swarm que muestran la carga y núcleos de energía que laten. Fogonazo con estrella y llamas laterales, casquillos (latón o cartucho rojo) que rebotan y suenan.
 - **Retícula de cadera** distinta para cada arma; se abre con la dispersión y se pone roja sobre un enemigo.
-- **Cooperativo** (y cualquier partida de oleadas con **cajas misteriosas** activadas): por defecto empiezas con carabina y pistola. Ganas **créditos** con cada baja y cada oleada superada. Las **cajas misteriosas** (una en la plataforma central y otra en el campo, marcadas con un haz de luz) cuestan 500 créditos: pulsa **E**, la caja se abre, van pasando armas y sale una al azar, que coges con **E** antes de 8 s. Sustituye al arma que llevas en la mano. Si ya la tenías, te llena la munición. Las mejores salen en rondas altas: francotirador y agujas desde la 3, cañón de arco desde la 5.
+- **Suministros del cielo** (un jugador y cooperativo; regla «SUMINISTROS DEL CIELO», activada por defecto): a los 25 s y luego cada 45 s (máximo 2 a la vez) cae una **maleta de armas en paracaídas** en un punto despejado al azar. Antes de que aterrice, una **bengala de humo naranja** y un haz de luz marcan el sitio; al tocar suelo levanta polvo, el paracaídas se desploma y el haz pasa a verde. **No cuesta nada**: pulsa **E** junto a ella, la tapa se abre, van pasando armas y sale una al azar, que coges con **E** (10 s). Sustituye al arma que llevas en la mano; si ya la tenías, te llena la munición. Las mejores salen en oleadas altas (francotirador, agujas, recortada y carabina desde la 3; cañón de arco desde la 5). Si nadie la abre en 90 s, desaparece. En cooperativo las decide el anfitrión y la abre el primero que llega. Modelo de la maleta: «crate-wide» del Blaster Kit de Kenney (CC0, `vendor/assets/drops/`).
 
 ## Armería (skins)
 
@@ -264,7 +264,7 @@ src/client/              El juego (navegador)
   armory.js · loadout.js · setup.js · gunview.js · guns.js   Armería, menú de armas, reglas, armas
   world.js · maps.js     Kit de construcción procedural y colisiones · los mapas
   quality.js             Calidad gráfica (AUTO/ALTA/MEDIA/BAJA) y resolución dinámica por FPS
-  hud.js · effects.js · audio.js · spectator.js · touch.js · box.js
+  hud.js · effects.js · audio.js · spectator.js · touch.js · drop.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)
   index.js               Arranque, sala única, latido y direcciones de red

@@ -84,9 +84,11 @@ export const CFG = {
   },
   defaultLoadout: ['rifle', 'pistol'],
 
-  // Cooperativo: caja misteriosa (créditos por bajas y oleadas; mejores armas en rondas altas).
-  box: {
-    cost: 500, roll: 2.6, offer: 8, range: 2.2, waveBonus: 150,
+  // Suministros del cielo (modos de oleadas con la regla de suministros): cada `every` s cae una caja en paracaídas
+  // (la primera a los `first` s). Se abre gratis con E; sale un arma al azar (mejores en oleadas altas).
+  // speed: m/s de caída · fall: segundos de caída · expire: s que espera en el suelo · roll/offer: tirada y oferta.
+  drop: {
+    first: 25, every: 45, max: 2, fall: 9, speed: 6, expire: 90, roll: 1.6, offer: 10, range: 2.4,
     pool: [
       { wave: 1, ids: ['smg', 'shotgun', 'dmr', 'plasma', 'battle', 'revolver'] },
       { wave: 3, ids: ['sniper', 'needler', 'sawed', 'carbine'] },

@@ -22,6 +22,7 @@ import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
 import { buildAlien } from './aliens.js';
 import { loadGunModels } from './guns.js';
+import { loadDropModel } from './drop.js';
 import { loadPlayerModels, requestPlayerModel } from './playermodels.js';
 import { Q, QUALITY_LEVELS, setQuality, needsReload, applyRenderer, trackFrame, beforeRender } from './quality.js';
 
@@ -37,7 +38,7 @@ console.info(`Ringfall v${BUILD}`);
 
 // Calidad (quality.js): en móvil, menos píxeles, sin antialias y sombras/detalle reducidos; resolución dinámica por FPS.
 // Modelos 3D de las armas (~0,9 MB, CC0): antes de crear la vista en primera persona y las miniaturas.
-await loadGunModels();
+await Promise.all([loadGunModels(), loadDropModel()]);
 
 const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: 'high-performance' });
 applyRenderer(renderer);
@@ -199,7 +200,7 @@ $('btn-loadout-done').addEventListener('click', () => {
   if (loadoutReturn === 'setup') renderSetup();
 });
 
-// Tecla E: caja misteriosa (si la partida tiene cajas).
+// Tecla E: abrir suministros / coger el arma (si hay alguna caja cerca).
 addEventListener('keydown', (e) => {
   if (e.code !== 'KeyE' || e.repeat || game.state !== 'playing' || !director.boxes.length) return;
   director.interact();
@@ -644,7 +645,8 @@ net.on('efx', (m) => {
 net.on('box', (m) => { if (inMatch() && game.mode === 'coop') director.onBox(m); });
 net.on('boxUse', (m) => { if (inMatch() && director.authority) director.useBox(m.id, m.from); });
 net.on('boxDeny', (m) => { hud.toast(m.reason); sfx.deny(); });
-net.on('boxTake', (m) => { director.boxes[m.id]?.close(); });
+net.on('boxTake', (m) => { director.boxes.find((b) => b.id === m.id)?.close(); });
+net.on('drop', (m) => { if (inMatch() && game.mode === 'coop') director.onDrop(m); });
 net.on('gren', (m) => { if (inMatch()) arsenal.remoteGrenade(m.p, m.v, m.from); });
 net.on('hit', (m) => {
   if (!inMatch() || !arsenal.pvp) return;

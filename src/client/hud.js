@@ -188,7 +188,7 @@ export class Hud {
       this.text('wave-info', lead ? `LÍDER: ${lead.name.toUpperCase()} · ${lead.kills}` : '');
     } else {
       this.text('score', g.score.toLocaleString('es-ES'));
-      this.text('score-label', g.mode === 'coop' ? `CRÉDITOS ${d.credits()} · TUS BAJAS ${g.kills}` : '');
+      this.text('score-label', g.mode === 'coop' ? `TUS BAJAS ${g.kills}` : '');
       const lives = r.lives ? ` · VIDAS ${d.lives}` : '';
       this.text('wave-info', `OLEADA ${d.state === 'combat' ? g.wave : g.wave + 1} · ${d.state === 'combat' ? `${d.remaining()} HOSTILES` : 'PREPARANDO…'}${lives}`);
     }

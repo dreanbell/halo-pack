@@ -32,7 +32,7 @@ export const RULES = {
   startWave: { label: 'OLEADA INICIAL', type: 'int', min: 1, max: 30, step: 1, modes: WAVES },
   waveSet: { label: 'OLEADAS', type: 'enum', options: { classic: 'NORMALES', bosses: 'SOLO JEFES' }, modes: WAVES },
   difficulty: { label: 'DIFICULTAD', type: 'enum', options: { easy: 'FÁCIL', normal: 'NORMAL', hard: 'DIFÍCIL', legendary: 'LEGENDARIA' }, modes: WAVES },
-  box: { label: 'CAJAS MISTERIOSAS', type: 'bool', modes: WAVES },
+  box: { label: 'SUMINISTROS DEL CIELO', type: 'bool', modes: WAVES },
   friendlyFire: { label: 'FUEGO AMIGO', type: 'bool', modes: ['coop'] },
   pvpDamage: { label: 'DAÑO ENTRE JUGADORES', type: 'num', min: 0.6, max: 3, step: 0.2, prefix: '×', modes: ['dm', 'coop'], show: (r, m) => m === 'dm' || r.friendlyFire },
   loadout: {
@@ -48,7 +48,7 @@ export const RULES = {
 
 const BASE = {
   scoreLimit: 15, timeLimit: 0, lives: 0, respawn: 3, startWave: 1, waveSet: 'classic', difficulty: 'normal',
-  box: false, friendlyFire: false, pvpDamage: 1.6, loadout: 'choice', grenades: 2, infiniteAmmo: false,
+  box: true, friendlyFire: false, pvpDamage: 1.6, loadout: 'choice', grenades: 2, infiniteAmmo: false,
   shields: true, headKill: false, radar: true,
 };
 
