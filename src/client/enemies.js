@@ -103,7 +103,12 @@ class Enemy {
     this.hitT = Math.max(0, this.hitT - dt * 5);
     this.flash = Math.max(0, this.flash - dt * 3);
     if (this.dead) {
-      if (this.deathT === 0) this.ctx.fx.burst(this.center(_a).clone(), this.cfg.glow, this.cfg.boss ? 90 : 28, this.cfg.boss ? 14 : 6, 0.9, 0.14, 6);
+      if (this.deathT === 0) {
+        // Criatura de carne: estallido de sangre y vísceras, con un destello de su energía.
+        const c = this.center(_a).clone();
+        this.ctx.fx.gore?.(c, this.cfg.boss ? 2.6 : 1.2);
+        this.ctx.fx.burst(c, this.cfg.glow, this.cfg.boss ? 40 : 12, this.cfg.boss ? 10 : 5, 0.7, 0.1, 6);
+      }
       this.deathT += dt;
       const body = this.rig.body;
       if (this.flying) {
@@ -900,7 +905,7 @@ export class Director {
   // Explosión de proyectil enemigo: cada equipo calcula solo el daño a su jugador.
   projExplode(pos, p) {
     const { fx, sfx, player } = this.ctx;
-    fx.explosion(pos, p.splash);
+    fx.explosion(pos, p.splash, { color: p.color });
     sfx.explosion(pos.distanceTo(player.pos));
     if (!player.alive) return;
     const d = _b.set(player.pos.x, player.pos.y + 0.9, player.pos.z).distanceTo(pos);
@@ -1137,6 +1142,7 @@ export class Director {
         p.vel.y -= p.gravity * dt;
         p.mesh.lookAt(_a.copy(pos).add(p.vel));
       }
+      this.ctx.fx.trail?.(pos, p.color, 0.2 * (p.mesh.scale.x || 1));
       for (let s = 0; s < 3 && !hit; s++) {
         pos.addScaledVector(p.vel, dt / 3);
         if (player.alive) {

@@ -169,6 +169,25 @@ Todo con muelles amortiguados (`src/client/feel.js`): se pasan un poco y vuelven
 Apuntando con la mira, todo se reduce. Es solo visual: las balas salen de la cabeza (`Arsenal.aimRay`), no de la
 cámara sacudida, así que la puntería y el retroceso real no cambian. La retícula se abre al disparar y esprintar.
 
+## Efectos de disparo y explosiones
+
+`src/client/effects.js`: partículas por GPU (dos mallas instanciadas, aditiva y normal: 2 llamadas de dibujo para
+todos los efectos) y marcas agrupadas (agujeros de bala y quemaduras, 2 llamadas más).
+
+| Efecto | Qué se ve |
+|---|---|
+| Trazadoras | Estela que viaja del cañón al impacto con perspectiva real; balas finas y rápidas, energía gruesa y lenta, francotirador con estela de vapor |
+| Fogonazo | Destello, chispas hacia delante y humo del cañón (las de energía, resplandor de su color) |
+| Impacto en superficie | Metal: chispas que rebotan + humo. Tierra, roca, nieve: polvo del color del suelo + esquirlas. Siempre agujero de bala |
+| Impacto en enemigo | Sin escudo: niebla de sangre y gotas en la dirección del disparo (más en la cabeza). Con escudo: chispazo de energía |
+| Muerte de criatura | Estallido de sangre y vísceras |
+| Granada | Estela de humo y piloto parpadeante; explosión con destello, bola de fuego, metralla que rebota, escombros, polvo a ras de suelo, onda, columna de humo (~3 s), quemadura y luz |
+| Energía (cañón de arco, plasma enemigo) | Explosión del color del arma, sin humo negro; estela luminosa en vuelo |
+| Golpe de jefe | Onda, polvo en círculo y escombros |
+
+La potencia visual depende del daño del arma (subfusil < fusil < francotirador). La cantidad de partículas se reduce
+en MEDIA (70 %) y BAJA (45 %). Solo visual: daño, alcance y colisiones no cambian.
+
 ## Controles
 
 | Tecla | Acción |

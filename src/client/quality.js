@@ -8,9 +8,9 @@ export const QUALITY_LEVELS = ['auto', 'alta', 'media', 'baja'];
 
 const PRESETS = {
   // pr: densidad de píxeles máx. · minPr: suelo de la resolución dinámica · halfShadow: sombras a 30 Hz · halfAnim: esqueletos a 30 Hz
-  alta: { pr: 2, shadows: true, shadowSize: 2048, soft: true, grass: 1, particles: 1, trees: 1, clouds: 1, lights: 6, seg: 150, tex: 512, normals: true, aa: true, halfAnim: false, halfShadow: false, minPr: 0.75 },
-  media: { pr: 1.25, shadows: true, shadowSize: 1024, soft: false, grass: 0.45, particles: 0.45, trees: 0.7, clouds: 0.6, lights: 3, seg: 96, tex: 256, normals: true, aa: false, halfAnim: false, halfShadow: true, minPr: 0.65 },
-  baja: { pr: 1, shadows: false, shadowSize: 512, soft: false, grass: 0, particles: 0.2, trees: 0.45, clouds: 0.35, lights: 1, seg: 64, tex: 256, normals: false, aa: false, halfAnim: true, halfShadow: false, minPr: 0.55 },
+  alta: { pr: 2, shadows: true, shadowSize: 2048, soft: true, grass: 1, particles: 1, trees: 1, clouds: 1, lights: 6, seg: 150, tex: 512, normals: true, fx: 1, aa: true, halfAnim: false, halfShadow: false, minPr: 0.75 },
+  media: { pr: 1.25, shadows: true, shadowSize: 1024, soft: false, grass: 0.45, particles: 0.45, trees: 0.7, clouds: 0.6, lights: 3, seg: 96, tex: 256, normals: true, fx: 0.7, aa: false, halfAnim: false, halfShadow: true, minPr: 0.65 },
+  baja: { pr: 1, shadows: false, shadowSize: 512, soft: false, grass: 0, particles: 0.2, trees: 0.45, clouds: 0.35, lights: 1, seg: 64, tex: 256, normals: false, fx: 0.45, aa: false, halfAnim: true, halfShadow: false, minPr: 0.55 },
 };
 
 const params = new URLSearchParams(location.search);

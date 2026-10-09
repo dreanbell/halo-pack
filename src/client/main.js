@@ -80,6 +80,7 @@ const monstersReady = new Promise((ok) => idle(() => loadMonsters().then(ok), { 
 const playersReady = Promise.resolve().then(() => ctx.skin?.m && requestPlayerModel(ctx.skin.m)); // ctx.skin se lee más abajo
 const loadAllPlayerModels = loadPlayerModels; // pruebas
 ctx.fx = new Effects(scene);
+ctx.fx.ground = (x, z, y) => ctx.world.groundHeightAt(x, z, 0.05, y);
 ctx.net = new Net();
 ctx.remotes = new RemotePlayers(ctx);
 ctx.player = new Player(ctx);
@@ -572,7 +573,9 @@ net.on('fx', (m) => {
   if (r) r.lastShot = performance.now();
   const w = CFG.weapons[m.w] ?? CFG.weapons.rifle;
   const a = vec(m.a);
-  for (const b of m.bs ?? [m.b]) fx.tracer(a, vec(b), w.tracer);
+  const bs = m.bs ?? [m.b];
+  for (const b of bs) fx.tracer(a, vec(b), w.tracer, w);
+  if (bs[0]) fx.muzzle(a, vec(bs[0]).sub(a).normalize(), w);
   sfx.shot(w.sound, Math.max(1, a.distanceTo(player.pos)));
 });
 net.on('pshot', (m) => {

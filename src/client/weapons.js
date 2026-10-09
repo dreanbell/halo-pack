@@ -458,13 +458,18 @@ export class Arsenal {
     const { fx, hud, sfx, game } = this.ctx;
     const e = hit.object.userData.enemy, r = hit.object.userData.remote;
     const opts = { shieldMult: d.shieldMult ?? 1, headMult: d.headMult ?? 1 };
+    // Potencia visual del impacto según el daño de la bala (subfusil ~0,5 … francotirador 2).
+    const power = Math.min(2, Math.max(0.5, d.damage / 14)) * (d.kind === 'pellets' ? 0.6 : 1);
+    const energy = d.alien || d.heat ? d.tracer : null;
     if (r) {
+      const shielded = r.shield > 0;
       this.hitRemote(r, damage, opts, hit.object.userData.part, _o);
-      fx.sparks(hit.point, r.shield > 0 ? 0x7fe7ff : 0xffb347);
+      if (shielded) fx.shieldHit(hit.point, 0x7fe7ff, power); else fx.blood(hit.point, _d, power, 0x7a0a0a);
     } else if (e) {
       const res = e.takeDamage(damage, { ...opts, part: hit.object.userData.part });
       hud.hitMarker(res.killed);
-      fx.sparks(hit.point, res.shieldHit ? e.cfg.glow : 0xffb347);
+      if (res.shieldHit) fx.shieldHit(hit.point, e.cfg.glow, power);
+      else fx.blood(hit.point, _d, power * (hit.object.userData.part === 'head' ? 1.5 : 1));
       sfx.hit();
       if (res.killed) {
         sfx.kill();
@@ -472,7 +477,7 @@ export class Arsenal {
       }
     } else {
       _n.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
-      fx.impact(hit.point, _n);
+      fx.impact(hit.point, _n, hit, power, energy);
     }
   }
 
@@ -512,7 +517,8 @@ export class Arsenal {
       ends.push(end);
       if (d.burst && !this.burstFiring) { this.burstLeft = d.burst - 1; this.burstT = d.burstGap; }
     }
-    for (const e of ends) fx.tracer(muzzle, e, d.tracer);
+    for (const e of ends) fx.tracer(muzzle, e, d.tracer, d);
+    fx.muzzle(muzzle, this.aimRay(_o, _d), d);
     if (net.active && ends.length) net.bcast('fx', { w: s.id, a: v3(muzzle), bs: ends.map(v3) });
 
     if (d.sprayGrow) this.spray = Math.min(d.sprayMax, this.spray + d.sprayGrow);
@@ -631,6 +637,7 @@ export class Arsenal {
         }
       }
       s.mesh.lookAt(_c.copy(p).add(s.vel));
+      fx.trail(p, d.tracer, d.splash ? 0.45 : 0.16);
       if (done || s.life <= 0) {
         if (!done && d.splash) this.splash(p, d, s.owner);
         this.ctx.scene.remove(s.mesh);
@@ -659,7 +666,7 @@ export class Arsenal {
   // Explosión del cañón de arco. Solo el que dispara (owner null) aplica daño.
   splash(p, d, owner) {
     const { fx, sfx, player, director, remotes, world, hud } = this.ctx;
-    fx.explosion(p, d.splash);
+    fx.explosion(p, d.splash, { color: d.tracer });
     sfx.explosion(p.distanceTo(player.pos));
     if (owner !== null) return;
     let hits = 0, kills = 0;
@@ -765,7 +772,13 @@ export class Arsenal {
       }
       g.mesh.rotation.x += dt * g.vel.length();
       g.fuse -= dt;
-      g.mesh.material.emissive.setHex(Math.sin(g.fuse * 30) > 0 ? 0x88ff44 : 0x000000);
+      const blink = Math.sin(g.fuse * 30) > 0;
+      g.mesh.material.emissive.setHex(blink ? 0x88ff44 : 0x000000);
+      // Estela de humo y destello del piloto (más rápido al final de la mecha).
+      g.trailT = (g.trailT ?? 0) - dt;
+      if (g.trailT <= 0 && g.vel.lengthSq() > 1) { g.trailT = 0.035; this.ctx.fx.grenadeTrail(p, false); }
+      if (blink && !g.blink) this.ctx.fx.grenadeTrail(p, true);
+      g.blink = blink;
       if (g.fuse <= 0) {
         this.grenadeList.splice(i, 1);
         this.explode(g);
