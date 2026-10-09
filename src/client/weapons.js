@@ -406,6 +406,18 @@ export class Arsenal {
     return 'new';
   }
 
+  // Escalada de armas: la única arma pasa a ser id (con animación de cambio).
+  giveOnly(id) {
+    if (!W[id]) return;
+    this.slots = [new Slot(id)];
+    this.current = 0;
+    this.reloadT = this.burstLeft = 0;
+    this.zoom = 1;
+    this.swapT = CFG.swapTime;
+    this.ctx.sfx.swap();
+    this.equip();
+  }
+
   swap(to) {
     if (this.slots.length < 2) return;
     if (to === undefined) to = 1 - this.current;

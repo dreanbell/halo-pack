@@ -3,7 +3,7 @@
 // conn: { send(obj), close(), player? }
 import { sanitizeSkin } from './skins.js';
 import { DEFAULT_MAP, isMap } from './mapinfo.js';
-import { MODES, MODE_NAMES, VARIANTS, defaultRules, sanitizeRules } from './rules.js';
+import { MODES, MODE_NAMES, VARIANTS, defaultRules, sanitizeRules, hillTarget } from './rules.js';
 
 const TIMEUP_GRACE = 4000; // ms que espera la sala el resumen del anfitrión al acabarse el tiempo (coop)
 
@@ -46,8 +46,9 @@ export class Room {
   timeUp() {
     if (this.state !== 'playing') return;
     if (this.mode === 'dm') {
-      const [a, b] = [...this.players.values()].sort((x, y) => y.kills - x.kills);
-      this.endMatch(a && (!b || a.kills > b.kills) ? a.id : null, null, true);
+      const pts = (p) => (this.rules.objective === 'hill' ? p.pts : p.kills);
+      const [a, b] = [...this.players.values()].sort((x, y) => pts(y) - pts(x));
+      this.endMatch(a && (!b || pts(a) > pts(b)) ? a.id : null, null, true);
       return;
     }
     this.players.get(this.hostId)?.conn.send({ t: 'timeUp' });
@@ -55,7 +56,7 @@ export class Room {
   }
 
   pub(p) {
-    return { id: p.id, name: p.name, color: p.color, skin: p.skin, kills: p.kills, deaths: p.deaths };
+    return { id: p.id, name: p.name, color: p.color, skin: p.skin, kills: p.kills, deaths: p.deaths, pts: p.pts ?? 0 };
   }
 
   roster() {
@@ -138,7 +139,7 @@ export class Room {
       case 'start':
         if (me.id === this.hostId && this.state === 'lobby') {
           this.state = 'playing';
-          for (const p of this.players.values()) { p.kills = 0; p.deaths = 0; }
+          for (const p of this.players.values()) { p.kills = 0; p.deaths = 0; p.pts = 0; }
           this.clearTimers();
           const limit = this.rules.timeLimit * 60000;
           if (limit) {
@@ -157,7 +158,17 @@ export class Room {
         if (valid) killer.kills++;
         else me.kills--; // suicidio
         this.broadcast({ t: 'feed', killer: valid ? killer.id : null, victim: me.id, head: !!m.head, players: this.roster() });
-        if (valid && killer.kills >= this.rules.scoreLimit) this.endMatch(killer.id);
+        if (valid && this.rules.objective !== 'hill' && killer.kills >= this.rules.scoreLimit) this.endMatch(killer.id);
+        break;
+      }
+      case 'hill': { // Rey de la colina: el jugador que está solo en la zona suma 1 punto (como mucho 1 por segundo)
+        if (this.state !== 'playing' || this.mode !== 'dm' || this.rules.objective !== 'hill') break;
+        const now = Date.now();
+        if (now - (me.hillAt ?? 0) < 900) break;
+        me.hillAt = now;
+        me.pts = (me.pts ?? 0) + 1;
+        this.broadcast({ t: 'hillpts', id: me.id, pts: me.pts });
+        if (me.pts >= hillTarget(this.rules)) this.endMatch(me.id);
         break;
       }
       case 'end': // coop: el anfitrión cierra la partida

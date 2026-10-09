@@ -25,10 +25,11 @@ import { Progress, LOGIN, levelReward, MAX_LEVEL, dayKey } from './progress.js';
 import { Medals } from './medals.js';
 import { Post } from './post.js';
 import { Music } from './music.js';
+import { Hill } from './hill.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
 import { shopThumb } from './shopview.js';
-import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom } from '../shared/rules.js';
+import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom, gunGameWeapon, hillTarget } from '../shared/rules.js';
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
 import { buildAlien } from './aliens.js';
@@ -202,6 +203,7 @@ function musicMood() {
 
 // Medallas, locutor y rachas de bajas (medals.js) · números de daño de lo que haces tú.
 const medals = (ctx.medals = new Medals(ctx));
+const hill = new Hill(ctx); // Rey de la colina (hill.js)
 const _dn = new THREE.Vector3();
 ctx.onEnemyDamage = (e, amount, head, shield, killed, by) => {
   if (by !== null && by !== director.myId()) return;
@@ -268,6 +270,7 @@ function syncFinishes() {
   home.setWeapon(ctx.loadout[0], finishFor(ctx.loadout[0]));
 }
 function loadoutFor() {
+  if (game.mode === 'dm' && ctx.rules.objective === 'gungame') return [gunGameWeapon(net.players.get(net.id)?.kills ?? 0, ctx.rules.scoreLimit)];
   return LOADOUTS[ctx.rules.loadout] ?? ctx.loadout;
 }
 
@@ -389,6 +392,7 @@ function startSession(mode, rules = net.rules, map = mode === 'sp' ? ctx.spMap :
     remotes.setTagsThroughWalls(mode === 'coop');
   }
   player.reset(...pickSpawn());
+  if (mode === 'dm' && ctx.rules.objective === 'hill') hill.start(); else hill.stop();
   hud.showOverlay(null);
   $('pause-mp').classList.toggle('hidden', !online);
   lock();
@@ -552,6 +556,7 @@ function gameOver(timeUp = false) {
 }
 
 function toMenu() {
+  hill.stop();
   // Salir a mitad de partida también paga lo conseguido.
   if (['playing', 'paused'].includes(game.state) && game.mode === 'sp') payMatch({ mode: 'sp', kills: game.kills, wave: game.wave, score: game.score, time: game.time });
   spectator.stop();
@@ -569,6 +574,7 @@ function toMenu() {
 }
 
 function toLobby(status = '') {
+  hill.stop();
   spectator.stop();
   remotes.clear();
   director.configure('menu', true);
@@ -1344,6 +1350,11 @@ net.on('feed', (m) => {
       medals.onKill({ head: !!m.head, dm: true, victim: m.victim, first, dist: v ? v.pos.distanceTo(player.pos) : 0 });
     }
     hud.toast(m.head ? `TIRO A LA CABEZA · ${victim.text}` : `ELIMINASTE A ${victim.text}`);
+    // Escalada de armas: siguiente arma de la lista.
+    if (game.mode === 'dm' && ctx.rules.objective === 'gungame' && player.alive) {
+      const k = net.players.get(net.id)?.kills ?? 0, w = gunGameWeapon(k, ctx.rules.scoreLimit);
+      if (w !== arsenal.w?.id) { arsenal.giveOnly(w); hud.banner(`ARMA ${Math.min(k + 1, ctx.rules.scoreLimit)} / ${ctx.rules.scoreLimit}`, CFG.weapons[w].name, 1.6); }
+    }
   } else if (m.victim === net.id && m.killer !== null) {
     hud.banner('ELIMINADO', `POR ${playerName(m.killer).toUpperCase()}`, 2);
   }
@@ -1353,12 +1364,14 @@ net.on('matchEnd', (m) => {
   spectator.stop();
   game.state = 'over';
   if (document.pointerLockElement) document.exitPointerLock();
+  hill.stop();
   if (m.mode === 'dm') {
-    const rows = [...m.players].sort((a, b) => b.kills - a.kills)
-      .map((p) => ({ name: p.name, color: p.color, cols: [p.kills, p.deaths], me: p.id === net.id }));
+    const hl = ctx.rules.objective === 'hill', val = (p) => (hl ? p.pts ?? 0 : p.kills);
+    const rows = [...m.players].sort((a, b) => val(b) - val(a))
+      .map((p) => ({ name: p.name, color: p.color, cols: hl ? [p.pts ?? 0, p.kills, p.deaths] : [p.kills, p.deaths], me: p.id === net.id }));
     const w = m.players.find((p) => p.id === m.winner);
     const title = w ? (w.id === net.id ? '¡VICTORIA!' : `GANA ${w.name.toUpperCase()}`) : m.timeUp ? '¡TIEMPO! · EMPATE' : 'FIN DE LA PARTIDA';
-    hud.showResults(title, ['JUGADOR', 'BAJAS', 'MUERTES'], rows, 'VOLVER AL LOBBY');
+    hud.showResults(title, hl ? ['JUGADOR', 'COLINA', 'BAJAS', 'MUERTES'] : ['JUGADOR', 'BAJAS', 'MUERTES'], rows, 'VOLVER AL LOBBY');
     const me = m.players.find((p) => p.id === net.id);
     payMatch({ mode: 'dm', kills: me?.kills ?? 0, won: m.winner === net.id, time: 999 }).then(showEarned);
   } else {
@@ -1426,9 +1439,11 @@ function renderBoard() {
   if (!showBoard || !inMatch()) { hud.scoreboard(false); return; }
   const players = [...net.players.values()];
   if (game.mode === 'dm') {
-    const rows = players.sort((a, b) => b.kills - a.kills)
-      .map((p) => ({ name: p.name, color: p.color, cols: [p.kills, p.deaths], me: p.id === net.id }));
-    hud.scoreboard(true, `${VARIANTS[ctx.rules.variant].name} · TODOS CONTRA TODOS · ${ctx.rules.scoreLimit} BAJAS`, ['JUGADOR', 'BAJAS', 'MUERTES'], rows);
+    const hl = ctx.rules.objective === 'hill', val = (p) => (hl ? p.pts ?? 0 : p.kills);
+    const rows = players.sort((a, b) => val(b) - val(a))
+      .map((p) => ({ name: p.name, color: p.color, cols: hl ? [p.pts ?? 0, p.kills, p.deaths] : [p.kills, p.deaths], me: p.id === net.id }));
+    const goal = hl ? `${hillTarget(ctx.rules)} S EN LA COLINA` : `${ctx.rules.scoreLimit} BAJAS`;
+    hud.scoreboard(true, `${VARIANTS[ctx.rules.variant].name} · TODOS CONTRA TODOS · ${goal}`, hl ? ['JUGADOR', 'COLINA', 'BAJAS', 'MUERTES'] : ['JUGADOR', 'BAJAS', 'MUERTES'], rows);
   } else {
     const rows = players.map((p) => {
       const s = director.scores.get(p.id) ?? { kills: 0, score: 0 };
@@ -1510,6 +1525,7 @@ function tick(dt) {
     director.update(dt);
     arsenal.update(dt);
     medals.update(dt);
+    hill.update(dt);
     if (game.mode !== 'sp') spectator.update(dt);
     hud.update(ctx, dt);
     if (!player.alive && game.respawnIn > 0) {

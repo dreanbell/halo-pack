@@ -228,11 +228,12 @@ export class Hud {
     }
     this.text('grenades', '◆'.repeat(a.grenades) + '◇'.repeat(CFG.grenade.max - a.grenades));
     if (g.mode === 'dm') {
-      const net = ctx.net, me = net.players.get(net.id);
-      const lead = [...net.players.values()].sort((x, y) => y.kills - x.kills)[0];
-      this.text('score', `${me?.kills ?? 0} / ${r.scoreLimit}`);
-      this.text('score-label', 'BAJAS');
-      this.text('wave-info', lead ? `LÍDER: ${lead.name.toUpperCase()} · ${lead.kills}` : '');
+      const net = ctx.net, me = net.players.get(net.id), hill = r.objective === 'hill';
+      const val = (p) => (hill ? p.pts ?? 0 : p.kills);
+      const lead = [...net.players.values()].sort((x, y) => val(y) - val(x))[0];
+      this.text('score', `${me ? val(me) : 0} / ${hill ? r.scoreLimit * 4 : r.scoreLimit}`);
+      this.text('score-label', hill ? 'PUNTOS DE COLINA' : r.objective === 'gungame' ? `ARMA ${Math.min(r.scoreLimit, (me?.kills ?? 0) + 1)} · ${a.w?.def.name ?? ''}` : 'BAJAS');
+      this.text('wave-info', lead ? `LÍDER: ${lead.name.toUpperCase()} · ${val(lead)}` : '');
     } else {
       this.text('score', g.score.toLocaleString('es-ES'));
       this.text('score-label', g.mode === 'coop' ? `TUS BAJAS ${g.kills}` : '');

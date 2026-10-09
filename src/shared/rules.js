@@ -15,6 +15,12 @@ export const LOADOUTS = {
   alien: ['plasma', 'needler'],
 };
 
+// Escalada de armas (todos contra todos): cada baja te sube a la siguiente; gana quien hace una baja con la última.
+export const GUNGAME = ['smg', 'rifle', 'shotgun', 'battle', 'carbine', 'dmr', 'sniper', 'plasma', 'needler', 'revolver'];
+export const gunGameWeapon = (kills, limit) => GUNGAME[Math.min(GUNGAME.length - 1, Math.floor((Math.max(0, kills) * GUNGAME.length) / Math.max(1, limit)))];
+// Rey de la colina: segundos en la zona para ganar = límite × 4.
+export const hillTarget = (rules) => rules.scoreLimit * 4;
+
 // Multiplicadores de vida y daño de la IA.
 export const DIFFICULTY = {
   easy: { hp: 0.7, dmg: 0.6 },
@@ -25,7 +31,8 @@ export const DIFFICULTY = {
 
 // Esquema de ajustes. modes: en qué modos se muestra/aplica. show(rules, mode): visibilidad condicional.
 export const RULES = {
-  scoreLimit: { label: 'LÍMITE DE BAJAS', type: 'int', min: 5, max: 50, step: 5, modes: ['dm'] },
+  objective: { label: 'OBJETIVO', type: 'enum', options: { kills: 'BAJAS', gungame: 'ESCALADA DE ARMAS', hill: 'REY DE LA COLINA' }, modes: ['dm'] },
+  scoreLimit: { label: 'LÍMITE (BAJAS · COLINA ×4 S)', type: 'int', min: 5, max: 50, step: 5, modes: ['dm'] },
   timeLimit: { label: 'LÍMITE DE TIEMPO', type: 'int', min: 0, max: 30, step: 1, unit: ' MIN', zero: 'SIN LÍMITE', modes: MODES },
   lives: { label: 'VIDAS', type: 'int', min: 0, max: 30, step: 1, zero: 'CLÁSICO', modes: WAVES },
   respawn: { label: 'REAPARICIÓN', type: 'int', min: 1, max: 15, step: 1, unit: ' S', modes: MODES, show: (r, m) => m === 'dm' || r.lives > 0 },
@@ -47,7 +54,7 @@ export const RULES = {
 };
 
 const BASE = {
-  scoreLimit: 15, timeLimit: 0, lives: 0, respawn: 3, startWave: 1, waveSet: 'classic', difficulty: 'normal',
+  objective: 'kills', scoreLimit: 15, timeLimit: 0, lives: 0, respawn: 3, startWave: 1, waveSet: 'classic', difficulty: 'normal',
   box: true, friendlyFire: false, pvpDamage: 1.6, loadout: 'choice', grenades: 2, infiniteAmmo: false,
   shields: true, headKill: false, radar: true,
 };
@@ -79,6 +86,14 @@ export const VARIANTS = {
   swat: {
     name: 'SWAT', modes: MODES, rules: { loadout: 'swat', shields: false, headKill: true, radar: false, grenades: 0 },
     desc: 'Sin escudos ni radar. Un tiro en la cabeza elimina (salvo a los jefes). DMR y pistola.',
+  },
+  gungame: {
+    name: 'ESCALADA DE ARMAS', modes: ['dm'], rules: { objective: 'gungame', scoreLimit: 10, loadout: 'choice', grenades: 0, infiniteAmmo: true },
+    desc: 'Todos empiezan con la misma arma; cada baja te sube a la siguiente (subfusil → … → revólver). Gana el primero que elimina con la última.',
+  },
+  hill: {
+    name: 'REY DE LA COLINA', modes: ['dm'], rules: { objective: 'hill', scoreLimit: 15, respawn: 3 },
+    desc: 'Quédate solo dentro de la zona marcada para sumar 1 punto por segundo; si hay dos, está disputada. La zona se mueve cada 45 s. Gana quien llega a 60.',
   },
 };
 

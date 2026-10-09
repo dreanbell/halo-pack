@@ -11,7 +11,7 @@ const TIMEOUT = 15000;
 const HEARTBEAT = 2000; // ms entre pings
 const SILENCE = 9000; // ms sin mensajes = conexión perdida
 
-export const BUILD = '1.32.0';
+export const BUILD = '1.33.0';
 export const DEBUG = new URLSearchParams(location.search).has('debug');
 
 export const makeCode = () => Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
@@ -291,6 +291,9 @@ export class Net {
     } else if (m.t === 'feed' || m.t === 'matchEnd') {
       for (const p of m.players) this.players.set(p.id, p);
       if (m.t === 'matchEnd') { this.state = 'lobby'; this.deadline = 0; }
+    } else if (m.t === 'hillpts') {
+      const p = this.players.get(m.id);
+      if (p) p.pts = m.pts;
     } else if (m.t === 'pong') {
       this.ping = performance.now() - m.ts;
     }
