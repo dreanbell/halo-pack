@@ -1,0 +1,3 @@
+# graphify: excluir three.js minificado y binarios (meten ~2300 nodos de ruido)
+vendor/
+assets/
