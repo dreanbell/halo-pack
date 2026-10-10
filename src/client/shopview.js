@@ -4,6 +4,7 @@ import { studio } from './gunview.js';
 import { requestPlayerModel } from './playermodels.js';
 import { buildGun } from './guns.js';
 import { finishOf } from '../shared/shop.js';
+import { emblemURL } from './emblem.js';
 
 // Miniaturas 3D de la tienda: el artículo puesto en un soldado con tus colores.
 // Modelos: cuerpo entero · cascos: primer plano de la cabeza · patrones: torso · acabados: el arma de perfil. Se generan en segundo plano
@@ -18,6 +19,8 @@ const keyOf = (kind, i, skin) => (kind === 'w' ? `w|${i}` : `${kind}|${i}|${skin
 
 // Pide la miniatura; cb(url) se llama al tenerla (al momento si ya estaba hecha).
 export function shopThumb(kind, i, skin, cb, prio = false) {
+  // Iconos de emblema: dibujo 2D instantáneo con la forma y colores del jugador.
+  if (kind === 'e') { const em = skin.em ?? [0, 0, 0, 1]; cb(emblemURL([em[0], i, em[2], em[3]])); return; }
   const key = keyOf(kind, i, skin);
   if (cache.has(key)) { cb(cache.get(key)); return; }
   if (waiting.has(key)) { waiting.get(key).push(cb); return; }

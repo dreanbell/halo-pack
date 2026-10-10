@@ -9,14 +9,14 @@ import { Hud } from './hud.js';
 import { Sfx } from './audio.js';
 import { Effects } from './effects.js';
 import { NavGrid } from './nav.js';
-import { Net, v3, normalizeCode, BUILD, DEBUG } from './net.js';
+import { Net, v3, normalizeCode, BUILD, DEBUG, quickCode, QUICK_SLOTS } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { Armory } from './armory.js';
 import { LoadoutMenu } from './loadout.js';
 import { gunThumbnails } from './gunview.js';
 import { Spectator } from './spectator.js';
 import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
-import { DEFAULT_SKIN, sanitizeSkin, MODELS, TITLES } from '../shared/skins.js';
+import { DEFAULT_SKIN, sanitizeSkin, MODELS, TITLES, EMBLEM_NAMES } from '../shared/skins.js';
 import { Home } from './home.js';
 import { Wallet, PRICES, ITEM_NAMES, KIND_NAMES } from './wallet.js';
 import { FINISHES, finishItem, finishOf, CASES, RARITIES, rarityOf, itemName, GUN_NAMES } from '../shared/shop.js';
@@ -27,6 +27,7 @@ import { Post } from './post.js';
 import { Music } from './music.js';
 import { Hill } from './hill.js';
 import { Tutorial } from './tutorial.js';
+import { emblemURL, PALETTE, SHAPE_NAMES } from './emblem.js';
 import { AimAssist } from './assist.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
@@ -455,9 +456,12 @@ function resume() {
 let deathCardT = null;
 function deathCard(lastHit) {
   let name = null, info = [], pos = null;
+  $('dc-emblem').hidden = true;
   if (lastHit?.by != null) {
     const r = remotes.get(lastHit.by);
     name = playerName(lastHit.by);
+    const em = net.players.get(lastHit.by)?.skin?.em;
+    if (em) { $('dc-emblem').src = emblemURL(em, 96); $('dc-emblem').hidden = false; }
     if (r) {
       pos = r.pos;
       const w = CFG.weapons[r.weapon]?.name, f = r.avatar?.skin?.f?.[r.weapon];
@@ -568,6 +572,49 @@ function gameOver(timeUp = false) {
   });
   payMatch({ mode: 'sp', kills: game.kills, wave: game.wave, score: game.score, time: game.time }).then(showEarned);
   saveRun();
+}
+
+// Emblema de un jugador de la sala (marcador).
+const playerEmblem = (id) => { const p = net.players.get(id); return p?.skin ? emblemURL(p.skin.em) : null; };
+// Equipar desde la tienda o una caja: los iconos de emblema van dentro de skin.em.
+function setEquip(kind, i) {
+  if (kind === 'e') { const em = [...ctx.skin.em]; em[1] = i; armory.set({ em }); } else armory.set({ [kind]: i });
+}
+// Editor de emblema (PERSONALIZAR): forma, icono (los de pago, en la tienda) y dos colores.
+function renderEmblemEditor() {
+  const em = ctx.skin.em ?? [0, 0, 0, 1];
+  $('em-preview').src = emblemURL(em, 128);
+  const set = (k, v) => { const next = [...em]; next[k] = v; armory.set({ em: next }); renderHome(); };
+  $('em-shapes').replaceChildren(...SHAPE_NAMES.map((n, i) => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (em[0] === i ? ' selected' : '');
+    b.textContent = n;
+    b.addEventListener('click', () => set(0, i));
+    return b;
+  }));
+  $('em-icons').replaceChildren(...EMBLEM_NAMES.map((n, i) => {
+    const b = document.createElement('button');
+    const lock = wallet.locked('e', i);
+    b.className = 'em-icon' + (em[1] === i ? ' selected' : '') + (lock ? ' locked' : '');
+    b.title = lock ? `${n} · ◈ ${lock} en la TIENDA` : n;
+    b.style.backgroundImage = `url(${emblemURL([em[0], i, em[2], em[3]], 64)})`;
+    if (lock) b.dataset.price = lock;
+    b.addEventListener('click', () => {
+      if (lock) { selectTab('shop'); $('shop-msg').textContent = `El emblema ${n} está bloqueado: cómpralo por ◈ ${lock} (sección EMBLEMAS).`; return; }
+      set(1, i);
+    });
+    return b;
+  }));
+  for (const [id, k] of [['em-c1', 2], ['em-c2', 3]]) {
+    $(id).replaceChildren(...PALETTE.map((c, i) => {
+      const b = document.createElement('button');
+      b.className = 'swatch' + (em[k] === i ? ' selected' : '');
+      b.style.background = c;
+      b.setAttribute('aria-label', c);
+      b.addEventListener('click', () => set(k, i));
+      return b;
+    }));
+  }
 }
 
 // Nombre con su título (marcador y resultados).
@@ -724,7 +771,7 @@ wallet.onChange(syncFinishes); // al iniciar o cerrar sesión cambian los acabad
 function selectTab(tab) {
   for (const b of $('home-nav').children) b.classList.toggle('selected', b.dataset.tab === tab);
   for (const sec of $('home-panel').children) sec.hidden = sec.dataset.panel !== tab;
-  if (tab === 'custom') { $('home-custom').appendChild(armoryOpts); armory.syncControls(); }
+  if (tab === 'custom') { $('home-custom').appendChild(armoryOpts); armory.syncControls(); renderEmblemEditor(); }
   if (tab === 'settings') { settingsHome(); renderQuality(); }
   renderHome();
 }
@@ -749,7 +796,8 @@ function renderHome() {
   $('home-name').title = account.online ? 'Cuenta en el servidor' : 'Perfil guardado en este dispositivo';
   renderAccount();
   $('home-model').textContent = MODELS[skin.m] ?? '';
-  $('home-emblem').style.background = `linear-gradient(135deg, ${skin.p}, ${skin.s})`;
+  $('home-emblem').style.background = `center / contain no-repeat url(${emblemURL(skin.em)})`;
+  renderEmblemEditor();
   const card = $('home-map-card');
   card.style.background = `linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7)), linear-gradient(180deg, ${m.sky[0]}, ${m.sky[1]})`;
   card.innerHTML = '';
@@ -762,14 +810,14 @@ function renderHome() {
   $('shop-coins').textContent = wallet.coins.toLocaleString('es-ES');
   // Tienda: modelos, cascos y patrones; comprar con créditos, equipar lo que ya tienes.
   const sections = [];
-  for (const kind of ['m', 'h', 't']) {
+  for (const kind of ['m', 'h', 't', 'e']) {
     const h = document.createElement('h4');
     h.className = 'shop-kind';
     h.textContent = KIND_NAMES[kind];
     const grid = document.createElement('div');
     grid.className = 'shop-grid';
     grid.append(...ITEM_NAMES[kind].map((label, i) => {
-      const owned = wallet.owns(kind, i), price = wallet.price(kind, i), equipped = skin[kind] === i;
+      const owned = wallet.owns(kind, i), price = wallet.price(kind, i), equipped = kind === 'e' ? skin.em[1] === i : skin[kind] === i;
       const c = document.createElement('button');
       c.className = 'shop-card' + (equipped ? ' equipped' : owned ? ' owned' : ' locked') + (!owned && wallet.coins < price ? ' poor' : '');
       const rr = rarityOf(kind, i);
@@ -796,7 +844,7 @@ function renderHome() {
           $('shop-msg').textContent = `¡Desbloqueado: ${label}!`;
           sfx.boxReveal?.();
         }
-        armory.set({ [kind]: i });
+        setEquip(kind, i);
         renderHome();
       });
       return c;
@@ -1004,7 +1052,7 @@ const cases = new CaseOpener({
   skin: () => ctx.skin,
   message: (t) => { $('shop-msg').textContent = t; },
   onEquip: (r) => {
-    if (r.kind === 'w') { const { gun, f } = finishOf(r.i); setFinish(gun, f); } else armory.set({ [r.kind]: r.i });
+    if (r.kind === 'w') { const { gun, f } = finishOf(r.i); setFinish(gun, f); } else setEquip(r.kind, r.i);
     renderHome();
   },
   onClose: () => renderHome(),
@@ -1026,6 +1074,7 @@ function syncProfile(patch) {
 function fitSkin(skin) {
   const s = sanitizeSkin(skin);
   for (const k of ['m', 'h', 't']) if (wallet.locked(k, s[k])) s[k] = 0;
+  if (wallet.locked('e', s.em[1])) s.em = [s.em[0], 0, s.em[2], s.em[3]];
   return s;
 }
 function applySkin(skin) {
@@ -1268,8 +1317,13 @@ function renderLobby(status) {
       renderLobby();
     },
   });
-  $('btn-mp-start').classList.toggle('hidden', !net.isHost);
-  $('mp-wait').textContent = net.isHost ? '' : net.state === 'playing' ? 'Partida en curso…' : 'Esperando a que el anfitrión inicie la partida…';
+  // Sala rápida: todo automático (sin elegir modo, reglas ni mapa).
+  const quick = isQuickRoom();
+  for (const id of ['mp-modes', 'mp-rules', 'lobby-maps', 'btn-mp-start']) $(id).classList.toggle('hidden', quick || (id === 'btn-mp-start' && !net.isHost));
+  document.querySelector('#lobby .maps-title')?.classList.toggle('hidden', quick);
+  $('quick-info').classList.toggle('hidden', !quick || !qInfo);
+  if (quick) { $('room-code').textContent = 'PARTIDA RÁPIDA'; $('btn-copy').classList.add('hidden'); } else $('btn-copy').classList.remove('hidden');
+  $('mp-wait').textContent = quick ? (net.state === 'playing' ? 'Partida en curso: entrarás en la siguiente…' : '') : net.isHost ? '' : net.state === 'playing' ? 'Partida en curso…' : 'Esperando a que el anfitrión inicie la partida…';
 }
 
 function roomLink(code) {
@@ -1300,7 +1354,7 @@ function playerNameInput() {
 }
 
 async function connectWith(label, fn) {
-  const buttons = ['btn-host', 'btn-join', 'btn-lan'].map($);
+  const buttons = ['btn-quick', 'btn-host', 'btn-join', 'btn-lan'].map($);
   for (const b of buttons) b.disabled = true;
   renderLobby(label);
   try {
@@ -1315,7 +1369,66 @@ async function connectWith(label, fn) {
   }
 }
 
-$('btn-host').addEventListener('click', () => connectWith('Creando sala…', (name) => net.hostP2P(name)));
+$('btn-host').addEventListener('click', () => { wantQuick = false; connectWith('Creando sala…', (name) => net.hostP2P(name)); });
+
+// --- Partida rápida: búsqueda de sala y anfitrión automático -------------------------------------------------
+// El anfitrión de una sala rápida no elige nada: con 2+ jugadores cuenta atrás y arranca la siguiente partida de la
+// lista (modo y mapa rotan). Si el anfitrión se va, los demás buscan otra sala (o crean una) solos.
+let wantQuick = false, qCount = null, qIndex = (Math.random() * 4) | 0, qInfo = '', lonelyT = 0;
+const PLAYLIST = [
+  { mode: 'dm', variant: 'classic', timeLimit: 8, label: 'TODOS CONTRA TODOS' },
+  { mode: 'dm', variant: 'gungame', timeLimit: 8, label: 'ESCALADA DE ARMAS' },
+  { mode: 'coop', variant: 'classic', timeLimit: 10, label: 'COOPERATIVO' },
+  { mode: 'dm', variant: 'hill', timeLimit: 8, label: 'REY DE LA COLINA' },
+];
+const QUICK_WAIT = 15;
+const isQuickRoom = () => net.active && /^QK\d{3}$/.test(net.code ?? '');
+function quickMatch() {
+  wantQuick = true;
+  connectWith('Buscando partida…', (name) => net.quickMatch(name));
+}
+$('btn-quick').addEventListener('click', quickMatch);
+function showQuick(text) {
+  qInfo = text;
+  for (const id of ['quick-info', 'go-next']) { $(id).textContent = text; $(id).classList.toggle('hidden', !text); }
+}
+setInterval(async () => {
+  if (!isQuickRoom()) { qCount = null; if (!net.active) showQuick(''); return; }
+  if (!net.isHost) return; // los invitados ven la cuenta que manda el anfitrión
+  if (net.state !== 'lobby') { qCount = null; return; }
+  if (net.players.size < 2) {
+    qCount = null;
+    showQuick('Esperando jugadores… la partida empieza en cuanto entre alguien más.');
+    // Anfitrión solo: ¿hay otra sala rápida abierta? Mejor juntarse (solo hacia las de número menor, para no cruzarse).
+    if ((lonelyT += 1) >= 12) {
+      lonelyT = 0;
+      const mine = Number(net.code.slice(2)), rooms = await net.probeQuick(mine);
+      const lower = rooms.find((n) => n < mine);
+      if (lower && net.players.size < 2 && net.state === 'lobby') {
+        net.disconnect();
+        connectWith('Uniéndote a otra partida…', async (name) => { await net.joinP2P(name, quickCode(lower)); net.code = quickCode(lower); });
+      }
+    }
+    return;
+  }
+  lonelyT = 0;
+  const next = PLAYLIST[qIndex % PLAYLIST.length];
+  if (qCount === null) qCount = QUICK_WAIT;
+  qCount--;
+  const text = `SIGUIENTE: ${next.label} · EMPIEZA EN ${Math.max(0, qCount)} S`;
+  showQuick(text);
+  net.bcast('qcount', { text });
+  if (qCount <= 0) {
+    qCount = null;
+    qIndex++;
+    const map = MAPS[(Math.random() * MAPS.length) | 0].id;
+    net.send('mode', { mode: next.mode });
+    net.send('rules', { rules: sanitizeRules(next.mode, { ...defaultRules(next.mode, next.variant), timeLimit: next.timeLimit }) });
+    net.send('map', { map });
+    net.send('start');
+  }
+}, 1000);
+net.on('qcount', (m) => { if (isQuickRoom()) showQuick(String(m.text ?? '').slice(0, 80)); });
 function join() {
   const code = normalizeCode($('mp-code').value);
   if (code.length !== 5) { renderLobby('El código tiene 5 caracteres.'); $('mp-code').focus(); return; }
@@ -1332,7 +1445,7 @@ $('btn-copy').addEventListener('click', async () => {
 });
 for (const b of document.querySelectorAll('.mode')) b.addEventListener('click', () => net.send('mode', { mode: b.dataset.mode }));
 $('btn-mp-start').addEventListener('click', () => net.send('start'));
-$('btn-lobby-back').addEventListener('click', () => { history.replaceState(null, '', location.pathname + location.search); toMenu(); });
+$('btn-lobby-back').addEventListener('click', () => { wantQuick = false; showQuick(''); history.replaceState(null, '', location.pathname + location.search); toMenu(); });
 
 // Enlace de invitación: …#sala=ABCDE
 const invite = normalizeCode(new URLSearchParams(location.hash.slice(1)).get('sala'));
@@ -1367,6 +1480,11 @@ net.on('start', (m) => {
 });
 net.on('disconnect', (m) => {
   if (game.state !== 'menu') toLobby(`${m.reason ?? 'Se perdió la conexión'}.`);
+  // Partida rápida: el anfitrión se fue → buscar otra sala (o ser el nuevo anfitrión) solo.
+  if (wantQuick && game.state === 'lobby') {
+    renderLobby('El anfitrión salió. Buscando otra partida…');
+    setTimeout(() => { if (wantQuick && !net.active && game.state === 'lobby') quickMatch(); }, 1500);
+  }
 });
 
 net.on('st', (m) => remotes.onState(m));
@@ -1434,7 +1552,7 @@ net.on('matchEnd', (m) => {
   if (m.mode === 'dm') {
     const hl = ctx.rules.objective === 'hill', val = (p) => (hl ? p.pts ?? 0 : p.kills);
     const rows = [...m.players].sort((a, b) => val(b) - val(a))
-      .map((p) => ({ name: withTitle(p), color: p.color, cols: hl ? [p.pts ?? 0, p.kills, p.deaths] : [p.kills, p.deaths], me: p.id === net.id }));
+      .map((p) => ({ name: withTitle(p), color: p.color, emblem: p.skin ? emblemURL(p.skin.em) : null, cols: hl ? [p.pts ?? 0, p.kills, p.deaths] : [p.kills, p.deaths], me: p.id === net.id }));
     const w = m.players.find((p) => p.id === m.winner);
     const title = w ? (w.id === net.id ? '¡VICTORIA!' : `GANA ${w.name.toUpperCase()}`) : m.timeUp ? '¡TIEMPO! · EMPATE' : 'FIN DE LA PARTIDA';
     hud.showResults(title, hl ? ['JUGADOR', 'COLINA', 'BAJAS', 'MUERTES'] : ['JUGADOR', 'BAJAS', 'MUERTES'], rows, 'VOLVER AL LOBBY');
@@ -1447,7 +1565,7 @@ net.on('matchEnd', (m) => {
       players: [...net.players.values()].map((p) => ({ id: p.id, ...(director.scores.get(p.id) ?? { kills: 0, score: 0 }) })),
     };
     const rows = s.players.map((p) => ({
-      name: playerName(p.id), color: playerColor(p.id), cols: [p.kills, p.score.toLocaleString('es-ES')], me: p.id === net.id,
+      name: playerName(p.id), color: playerColor(p.id), emblem: playerEmblem(p.id), cols: [p.kills, p.score.toLocaleString('es-ES')], me: p.id === net.id,
     })).sort((a, b) => b.cols[0] - a.cols[0]);
     hud.showResults(`${m.timeUp ? '¡TIEMPO!' : 'EQUIPO CAÍDO'} · OLEADA ${s.wave}`, ['JUGADOR', 'BAJAS', 'PUNTOS'], rows, 'VOLVER AL LOBBY');
     const me = s.players.find((p) => p.id === net.id);
@@ -1507,13 +1625,13 @@ function renderBoard() {
   if (game.mode === 'dm') {
     const hl = ctx.rules.objective === 'hill', val = (p) => (hl ? p.pts ?? 0 : p.kills);
     const rows = players.sort((a, b) => val(b) - val(a))
-      .map((p) => ({ name: withTitle(p), color: p.color, cols: hl ? [p.pts ?? 0, p.kills, p.deaths] : [p.kills, p.deaths], me: p.id === net.id }));
+      .map((p) => ({ name: withTitle(p), color: p.color, emblem: p.skin ? emblemURL(p.skin.em) : null, cols: hl ? [p.pts ?? 0, p.kills, p.deaths] : [p.kills, p.deaths], me: p.id === net.id }));
     const goal = hl ? `${hillTarget(ctx.rules)} S EN LA COLINA` : `${ctx.rules.scoreLimit} BAJAS`;
     hud.scoreboard(true, `${VARIANTS[ctx.rules.variant].name} · TODOS CONTRA TODOS · ${goal}`, hl ? ['JUGADOR', 'COLINA', 'BAJAS', 'MUERTES'] : ['JUGADOR', 'BAJAS', 'MUERTES'], rows);
   } else {
     const rows = players.map((p) => {
       const s = director.scores.get(p.id) ?? { kills: 0, score: 0 };
-      return { name: p.name, color: p.color, cols: [s.kills, s.score.toLocaleString('es-ES')], me: p.id === net.id };
+      return { name: withTitle(p), color: p.color, emblem: p.skin ? emblemURL(p.skin.em) : null, cols: [s.kills, s.score.toLocaleString('es-ES')], me: p.id === net.id };
     }).sort((a, b) => b.cols[0] - a.cols[0]);
     const lives = ctx.rules.lives ? ` · VIDAS ${director.lives}` : '';
     hud.scoreboard(true, `${VARIANTS[ctx.rules.variant].name} · COOPERATIVO · OLEADA ${Math.max(1, game.wave)}${lives}`, ['JUGADOR', 'BAJAS', 'PUNTOS'], rows);

@@ -11,6 +11,13 @@ export const DEFAULT_SKIN = { p: PRIMARY[0], s: SECONDARY[0], v: VISORS[0], h: 0
 // Armas con acabado de caja (src/shared/shop.js): f = { arma: acabado } viaja con la armadura en multijugador.
 export const GUN_IDS = ['rifle', 'pistol', 'smg', 'shotgun', 'dmr', 'sniper', 'plasma', 'needler', 'arc', 'battle', 'revolver', 'sawed', 'carbine'];
 export const FINISH_COUNT = 18;
+// Emblemas: [forma, icono, color de fondo, color del icono] (dibujo en src/client/emblem.js; iconos en la tienda).
+export const EMBLEM_SHAPES = 5, EMBLEM_ICONS = 16, EMBLEM_COLORS = 10;
+export const EMBLEM_NAMES = ['ESTRELLA', 'RAYO', 'DIANA', 'GALONES', 'CORONA', 'CALAVERA', 'ESPADA', 'LLAMA', 'ALAS', 'LUNA', 'CORAZÓN', 'GARRAS', 'PLANETA', 'OJO', 'TRIÁNGULO', 'COMETA'];
+function sanitizeEmblem(e) {
+  if (!Array.isArray(e) || e.length !== 4) return [0, 0, 0, 1];
+  return [idx(e[0], EMBLEM_SHAPES), idx(e[1], EMBLEM_ICONS), idx(e[2], EMBLEM_COLORS), idx(e[3], EMBLEM_COLORS)];
+}
 // Títulos de jugador (se desbloquean por nivel y logros; requisitos en src/client/progress.js). ti = índice.
 export const TITLES = ['RECLUTA', 'SOLDADO', 'VETERANO', 'CAZADOR', 'ESPECTRO', 'COMANDANTE', 'ÉLITE', 'LEYENDA', 'INMORTAL', 'SEMIDIÓS',
   'OJO DE HALCÓN', 'CAZAJEFES', 'GRANADERO', 'SUPERVIVIENTE', 'GLADIADOR', 'COLECCIONISTA', 'INCANSABLE'];
@@ -36,6 +43,7 @@ export function sanitizeSkin(x) {
     m: idx(s.m, MODELS.length),
     f: sanitizeFinishes(s.f),
     ti: idx(s.ti, TITLES.length),
+    em: sanitizeEmblem(s.em),
   };
 }
 

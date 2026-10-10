@@ -108,7 +108,7 @@
     <div id="medals"></div>
     <div id="hill-mark" class="hidden"></div>
     <div id="tutor"></div>
-    <div id="deathcard"><small>ELIMINADO POR</small><b id="dc-name"></b><p id="dc-info"></p></div>
+    <div id="deathcard"><img id="dc-emblem" alt="" hidden /><small>ELIMINADO POR</small><b id="dc-name"></b><p id="dc-info"></p></div>
     <div id="dmg-dir"></div>
     <div id="hint"></div>
     <div id="spectate" aria-live="polite">
@@ -356,6 +356,7 @@
     <div class="panel">
       <h2 id="go-title">FIN DE LA PARTIDA</h2>
       <div id="go-stats" class="stats"></div>
+      <p id="go-next" class="quick-info hidden"></p>
       <button id="btn-retry">REINTENTAR</button>
     </div>
   </div>
@@ -365,7 +366,9 @@
       <h2>MULTIJUGADOR LAN</h2>
       <div id="lobby-connect">
         <label class="field">Tu nombre <input id="mp-name" maxlength="16" autocomplete="off" spellcheck="false" /></label>
-        <button id="btn-host">CREAR SALA</button>
+        <button id="btn-quick" class="cta-quick">⚡ PARTIDA RÁPIDA</button>
+        <p class="note quick-note">Te mete en una partida abierta o crea una (serás el anfitrión). Las partidas empiezan solas y rotan modo y mapa.</p>
+        <button id="btn-host" class="secondary">CREAR SALA PRIVADA</button>
         <div class="join-row">
           <input id="mp-code" maxlength="5" placeholder="CÓDIGO" autocomplete="off" spellcheck="false" aria-label="Código de sala" />
           <button id="btn-join">UNIRSE</button>
@@ -383,7 +386,8 @@
         </div>
         <p id="room-address" class="address hidden">Para unirse: <b id="mp-address"></b></p>
         <ul id="mp-players"></ul>
-        <div class="modes">
+        <p id="quick-info" class="quick-info hidden"></p>
+        <div class="modes" id="mp-modes">
           <button class="mode" data-mode="coop">COOPERATIVO</button>
           <button class="mode" data-mode="dm">TODOS CONTRA TODOS</button>
         </div>
@@ -431,6 +435,11 @@
           <h4>VISOR</h4><div class="swatches" id="sw-v"></div>
           <h4>CASCO</h4><div class="chips" id="ch-h"></div>
           <h4>PATRÓN</h4><div class="chips" id="ch-t"></div>
+          <h4>EMBLEMA <small class="em-note">lo ven los demás junto a tu nombre</small></h4>
+          <div class="em-editor"><img id="em-preview" alt="Tu emblema" /><div class="chips" id="em-shapes"></div></div>
+          <div class="em-icons" id="em-icons"></div>
+          <h4>COLOR DEL EMBLEMA</h4><div class="swatches" id="em-c1"></div>
+          <h4>COLOR DEL ICONO</h4><div class="swatches" id="em-c2"></div>
           <button id="btn-skin-random" class="secondary">ALEATORIO</button>
         </div>
       </div>
@@ -462,6 +471,6 @@
   </div>
 
   <script src="vendor/peerjs/peerjs.min.js"></script>
-  <script type="module" src="src/client/main.js?v=1.37.0"></script>
+  <script type="module" src="src/client/main.js?v=1.38.0"></script>
 </body>
 </html>

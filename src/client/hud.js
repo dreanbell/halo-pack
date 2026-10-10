@@ -101,6 +101,12 @@ export class Hud {
     el.replaceChildren(tr(headers, 'th'), ...rows.map((row) => {
       const r = tr([row.name, ...row.cols], 'td', row.me ? 'me' : '');
       r.firstChild.style.color = row.color;
+      if (row.emblem) {
+        const img = document.createElement('img');
+        img.className = 'sb-emblem';
+        img.src = row.emblem;
+        r.firstChild.prepend(img);
+      }
       return r;
     }));
   }

@@ -1,6 +1,6 @@
 // Economía compartida por el juego y el servidor de cuentas: precios de la tienda, cajas y créditos por partida.
 // Módulo puro (sin navegador): el servidor lo usa para validar compras, abrir cajas y calcular recompensas.
-import { MODELS, HELMETS, PATTERNS, GUN_IDS, FINISH_COUNT } from './skins.js';
+import { MODELS, HELMETS, PATTERNS, GUN_IDS, FINISH_COUNT, EMBLEM_NAMES } from './skins.js';
 
 export const START_COINS = 300;
 // Precios por tipo de artículo (índice = el de la lista de skins.js). 0 = gratis desde el principio;
@@ -9,9 +9,11 @@ export const PRICES = {
   m: [0, 400, 400, 600, 900, 500, 500, 750, 750, 750, 1200, 1000, 1000],
   h: [0, 300, 300, 450, 550],
   t: [0, 150, 200, 250, 300, 350, 400, 500, -1, -1],
+  // Iconos de emblema (estrella, rayo, diana y galones gratis).
+  e: [0, 0, 0, 0, 800, 500, 300, 300, 600, 250, 250, 400, 500, 400, 600, 350],
 };
-export const ITEM_NAMES = { m: MODELS, h: HELMETS, t: PATTERNS };
-export const KIND_NAMES = { m: 'MODELOS', h: 'CASCOS', t: 'PATRONES' };
+export const ITEM_NAMES = { m: MODELS, h: HELMETS, t: PATTERNS, e: EMBLEM_NAMES };
+export const KIND_NAMES = { m: 'MODELOS', h: 'CASCOS', t: 'PATRONES', e: 'EMBLEMAS' };
 export const itemPrice = (kind, i) => (Number.isInteger(i) ? PRICES[kind]?.[i] ?? null : null);
 
 // --- Acabados de arma (solo en cajas) ----------------------------------------------------------------------
@@ -59,13 +61,14 @@ function armorRarity(kind, i) {
   if (p <= 0) return -1;
   if (kind === 'm') return p >= 1000 ? 3 : p >= 600 ? 2 : 1;
   if (kind === 'h') return p >= 550 ? 2 : p >= 450 ? 1 : 0;
+  if (kind === 'e') return p >= 800 ? 3 : p >= 500 ? 2 : p >= 350 ? 1 : 0;
   return p >= 400 ? 2 : p >= 300 ? 1 : 0;
 }
 // Contenido de las cajas por rareza: [{ kind, i }].
 export const CASE_POOL = [[], [], [], []];
 for (const gun of GUN_IDS) FINISHES.forEach((f, k) => { if (f.r >= 0) CASE_POOL[f.r].push({ kind: 'w', i: finishItem(gun, k) }); });
 export const ARMOR_POOL = [[], [], [], []];
-for (const kind of ['m', 'h', 't']) PRICES[kind].forEach((_, i) => { const r = armorRarity(kind, i); if (r >= 0) ARMOR_POOL[r].push({ kind, i }); });
+for (const kind of ['m', 'h', 't', 'e']) PRICES[kind].forEach((_, i) => { const r = armorRarity(kind, i); if (r >= 0) ARMOR_POOL[r].push({ kind, i }); });
 
 export function rarityOf(kind, i) {
   if (kind === 'w') return isFinishItem(i) ? FINISHES[i % 32].r : -1;

@@ -852,3 +852,26 @@ body.touch #tutor { top: 64px; }
 .run small { font-size: 10px; letter-spacing: 0.06em; opacity: 0.8; }
 .run.top { border-color: #ffd27a; }
 .run.top b { color: #ffd27a; }
+/* --- Partida rápida --- */
+.cta-quick { display: block; width: 100%; margin: 6px 0 4px; font-size: 24px; color: #031018; border: none; background: linear-gradient(90deg, #7fe7ff, #c8f6ff); box-shadow: 0 0 22px rgba(127, 231, 255, 0.45); }
+.cta-quick:hover, .cta-quick:focus-visible { background: linear-gradient(90deg, #a8f0ff, #e9fbff); }
+.quick-note { margin: 0 0 14px; }
+#btn-host { margin-bottom: 10px; }
+.quick-info { margin: 10px 0; font-size: 15px; letter-spacing: 0.14em; color: #ffd27a; text-align: center; }
+.quick-info.hidden { display: none; }
+/* --- Emblemas --- */
+.home-emblem { width: 44px; height: 44px; clip-path: none; position: relative; align-items: flex-end; justify-content: flex-end; }
+.home-emblem b { position: absolute; right: -6px; bottom: -4px; min-width: 18px; padding: 0 3px; font-size: 11px; line-height: 16px; text-align: center; color: #031018; background: #7fe7ff; border-radius: 8px; text-shadow: none; }
+.em-note { font-size: 10px; letter-spacing: 0.08em; opacity: 0.7; margin-left: 6px; }
+.em-editor { display: flex; gap: 10px; align-items: center; }
+.em-editor img { width: 72px; height: 72px; flex: none; filter: drop-shadow(0 0 8px rgba(127, 231, 255, 0.35)); }
+.em-editor .chips .chip { font-size: 11px; padding: 5px 8px; margin: 0; }
+.em-icons { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin-top: 8px; }
+.em-icon { position: relative; aspect-ratio: 1; padding: 0; margin: 0; border: 1px solid rgba(127, 231, 255, 0.2); background: center / 82% no-repeat, rgba(0, 0, 0, 0.25); }
+.em-icon.selected { border-color: var(--hud); box-shadow: 0 0 0 1px var(--hud); }
+.em-icon.locked { filter: grayscale(0.8) brightness(0.6); }
+.em-icon.locked::after { content: '🔒'; position: absolute; right: 2px; bottom: 1px; font-size: 10px; }
+.sb-emblem { width: 18px; height: 18px; vertical-align: -4px; margin-right: 6px; }
+#dc-emblem { display: block; width: 56px; height: 56px; margin: 0 auto 4px; }
+#dc-emblem[hidden] { display: none; }
+@media (max-height: 560px), (max-width: 900px) { .home-emblem { width: 30px; height: 30px; } .em-icons { grid-template-columns: repeat(6, 1fr); } }

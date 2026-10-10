@@ -11,9 +11,13 @@ const TIMEOUT = 15000;
 const HEARTBEAT = 2000; // ms entre pings
 const SILENCE = 9000; // ms sin mensajes = conexión perdida
 
-export const BUILD = '1.37.0';
+export const BUILD = '1.38.0';
 export const DEBUG = new URLSearchParams(location.search).has('debug');
 
+// Partida rápida: salas con código fijo (QK001…QK008) que cualquiera puede encontrar sin servidor propio.
+// Los códigos normales nunca chocan con estos (no usan 0 ni 1).
+export const QUICK_SLOTS = 8;
+export const quickCode = (n) => `QK${String(n).padStart(3, '0')}`;
 export const makeCode = () => Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
 export const normalizeCode = (s) => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
 
@@ -166,10 +170,9 @@ export class Net {
   }
 
   // --- Transportes ---
-  hostP2P(name) {
+  hostP2P(name, code = makeCode()) {
     if (!window.Peer) return Promise.reject(new Error('No se pudo cargar PeerJS'));
     const done = this.waitWelcome();
-    const code = makeCode();
     const room = (this.room = new Room({ fixedHost: true }));
     const peer = (this.peer = new window.Peer(PEER_PREFIX + code, peerOptions()));
     this.kind = 'p2p-host';
@@ -197,9 +200,64 @@ export class Net {
     // Si se cae el servidor de emparejamiento, las conexiones ya hechas siguen; reintenta para nuevas.
     peer.on('disconnected', () => { if (!peer.destroyed) setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 2000); });
     peer.on('error', (e) => {
-      if (this.id === null) this.fail(new Error(this.explain(e)));
+      if (this.id === null) this.fail(Object.assign(new Error(this.explain(e)), { type: e.type }));
     });
     return done;
+  }
+
+  // ¿Qué salas de partida rápida existen? Conecta en paralelo con todas (sin entrar) y devuelve las que responden.
+  // Usa el peer del anfitrión si lo hay; si no, uno temporal.
+  probeQuick(skip = null) {
+    return new Promise((resolve) => {
+      const own = !!this.peer && !this.peer.destroyed && this.peer.open;
+      const peer = own ? this.peer : new window.Peer(peerOptions());
+      const found = new Set(), conns = [];
+      let left = QUICK_SLOTS - (skip ? 1 : 0), done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        peer.off?.('error', onErr);
+        for (const c of conns) { try { c.close(); } catch { /* cerrado */ } }
+        if (!own) setTimeout(() => { try { peer.destroy(); } catch { /* ya */ } }, 300);
+        resolve([...found].sort((a, b) => a - b));
+      };
+      const settle = () => { if (--left <= 0) finish(); };
+      const onErr = (e) => { if (e.type === 'peer-unavailable') settle(); };
+      const timer = setTimeout(finish, 6000);
+      const go = () => {
+        peer.on('error', onErr);
+        for (let n = 1; n <= QUICK_SLOTS; n++) {
+          if (n === skip) continue;
+          const dc = peer.connect(PEER_PREFIX + quickCode(n), { serialization: 'json', reliable: true });
+          conns.push(dc);
+          dc.on('open', () => { found.add(n); settle(); });
+          dc.on('error', settle);
+        }
+      };
+      if (own) go();
+      else { peer.on('open', go); peer.on('error', (e) => { if (e.type !== 'peer-unavailable') finish(); }); }
+    });
+  }
+
+  // Partida rápida: entra en una sala que exista (con sitio); si no hay ninguna, crea una en un hueco libre al azar
+  // y este jugador es el anfitrión automático.
+  async quickMatch(name) {
+    if (!window.Peer) throw new Error('No se pudo cargar PeerJS');
+    this.progress('broker', 'Buscando partidas…');
+    const rooms = await this.probeQuick();
+    for (const n of rooms) {
+      this.progress('room', `Entrando en una partida (${quickCode(n)})…`);
+      try { await this.joinP2P(name, quickCode(n)); this.code = quickCode(n); return 'join'; } catch (e) {
+        if (!['room-full', 'peer-unavailable', 'room'].includes(e.type)) throw e;
+      }
+    }
+    const free = Array.from({ length: QUICK_SLOTS }, (_, i) => i + 1).filter((n) => !rooms.includes(n)).sort(() => Math.random() - 0.5);
+    for (const n of free) {
+      this.progress('room', 'No hay partidas libres: creando una (serás el anfitrión)…');
+      try { await this.hostP2P(name, quickCode(n)); return 'host'; } catch (e) { if (e.type !== 'unavailable-id') throw e; }
+    }
+    throw new Error('Todas las salas de partida rápida están ocupadas. Prueba en un momento');
   }
 
   explain(e) {
@@ -230,7 +288,7 @@ export class Net {
       });
     });
     peer.on('error', (e) => {
-      if (this.id === null) this.fail(new Error(this.explain(e)));
+      if (this.id === null) this.fail(Object.assign(new Error(this.explain(e)), { type: e.type }));
     });
     return done;
   }
@@ -264,7 +322,7 @@ export class Net {
       queueMicrotask(() => p?.resolve(m));
     }
     if (m.t === 'error') {
-      this.fail(new Error(m.msg));
+      this.fail(Object.assign(new Error(m.msg), { type: m.msg === 'Partida llena' ? 'room-full' : 'room' }));
       return;
     }
     if (m.t === 'welcome' || m.t === 'lobby') {

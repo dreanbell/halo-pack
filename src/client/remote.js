@@ -2,16 +2,22 @@ import * as THREE from 'three';
 import { CFG } from './config.js';
 import { Avatar } from './avatar.js';
 import { TITLES } from '../shared/skins.js';
+import { drawEmblem } from './emblem.js';
 
 const DELAY = 100; // ms de retardo de interpolación
 const TELEPORT = 6; // m: salto mayor = reaparición, sin interpolar
 const _q = new THREE.Vector3();
 
-// Nombre (y título, debajo) sobre la cabeza.
-function nameTag(name, color, title = '') {
+// Emblema + nombre (y título, debajo) sobre la cabeza.
+function nameTag(name, color, title = '', em = null) {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 96;
   const g = c.getContext('2d');
+  if (em) {
+    g.font = '700 34px Rajdhani, system-ui, sans-serif';
+    const w = Math.min(200, g.measureText(name).width);
+    drawEmblem(g, em, 128 - w / 2 - 24, 32, 40);
+  }
   g.font = '700 34px Rajdhani, system-ui, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
@@ -64,7 +70,7 @@ class RemotePlayer {
     this.avatar.setOwner(this);
     this.group = this.avatar.root;
     this.hitMeshes = this.avatar.hitboxes;
-    this.tag = nameTag(this.name, this.colorHex, this.skin?.ti ? TITLES[this.skin.ti] ?? '' : '');
+    this.tag = nameTag(this.name, this.colorHex, this.skin?.ti ? TITLES[this.skin.ti] ?? '' : '', this.skin?.em ?? null);
     this.tag.position.y = 2.25;
     this.group.add(this.tag);
     this.ctx.scene.add(this.group);

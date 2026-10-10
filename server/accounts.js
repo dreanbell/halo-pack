@@ -168,6 +168,7 @@ export function createAccounts(dir, log = () => {}) {
         const s = sanitizeSkin(body.skin);
         // Solo se guarda lo que tiene desbloqueado.
         for (const k of ['m', 'h', 't']) if (!owns(u, k, s[k])) s[k] = 0;
+        if (!owns(u, 'e', s.em[1])) s.em[1] = 0;
         u.skin = s;
       }
       if (Array.isArray(body.loadout) && body.loadout.length === 2 && body.loadout.every((x) => typeof x === 'string' && x.length <= 16)) u.loadout = body.loadout;

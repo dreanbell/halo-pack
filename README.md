@@ -78,6 +78,18 @@ logros (250 a la cabeza, 25 jefes, 100 bajas con granada, oleada 20, 10 victoria
 sale junto a tu nombre, sobre tu cabeza y en el marcador de los demás. Tabla con tus 10 mejores partidas de un jugador
 (puntos, oleada, bajas, mapa, variante y fecha).
 
+**Partida rápida** (MULTIJUGADOR → ⚡ PARTIDA RÁPIDA, `net.quickMatch`): sin servidor propio. Usa 8 salas con código
+fijo (QK001–QK008) en el emparejamiento de PeerJS: busca en paralelo las que existen y entra en una; si no hay, crea
+una en un hueco libre y ese jugador es el **anfitrión automático**. Con 2+ jugadores la sala cuenta 15 s y arranca
+sola la siguiente partida de la lista (todos contra todos, escalada de armas, cooperativo, rey de la colina; mapa al
+azar; 8–10 min). Si entras con una partida en marcha, entras directamente. Si el anfitrión se va, los demás buscan otra
+sala o crean una solos; un anfitrión que se queda solo se une a otra sala abierta. Las salas privadas con código siguen
+igual.
+
+**Emblemas** (PERSONALIZAR → EMBLEMA, `src/client/emblem.js`): forma (5), icono (16, dibujados en 2D) y dos colores
+(10). Estrella, rayo, diana y galones gratis; el resto en la TIENDA (◈ 250–800) o en las cajas. Se ven en tu cabecera,
+junto a tu nombre sobre la cabeza, en el marcador y en la pantalla de muerte de quien eliminas.
+
 **Multijugador**: la armadura y los acabados de arma equipados viajan con el jugador (`skin.f`), así los demás ven tu
 arma de oro o tu armadura de neón.
 
@@ -413,6 +425,7 @@ src/client/              El juego (navegador)
   hill.js                Rey de la colina: zona móvil y puntos
   tutorial.js            Tutorial de la primera partida
   assist.js              Asistencia de apuntado y giroscopio (táctil)
+  emblem.js              Emblemas: formas e iconos vectoriales
   hud.js · effects.js · audio.js · spectator.js · touch.js · drop.js
 
 server/                  Servidor LAN opcional (Node ≥ 18, sin dependencias)
