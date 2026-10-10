@@ -11,7 +11,7 @@ const TIMEOUT = 15000;
 const HEARTBEAT = 2000; // ms entre pings
 const SILENCE = 9000; // ms sin mensajes = conexión perdida
 
-export const BUILD = '1.38.0';
+export const BUILD = '1.39.0';
 export const DEBUG = new URLSearchParams(location.search).has('debug');
 
 // Partida rápida: salas con código fijo (QK001…QK008) que cualquiera puede encontrar sin servidor propio.

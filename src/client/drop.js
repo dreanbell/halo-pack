@@ -10,6 +10,27 @@ import { buildGun } from './guns.js';
 const D = CFG.drop;
 let crate = null;
 
+// Luces de las cajas: fijas en la escena (apagadas cuando no hay caja). Añadir o quitar una luz cambia el número
+// de luces y three.js recompila TODOS los shaders de la escena (el tirón al caer suministros entre oleadas).
+const lightPool = [];
+export function primeDropLights(scene, n = 2) {
+  for (const l of lightPool) l.removeFromParent();
+  lightPool.length = 0;
+  for (let i = 0; i < n; i++) {
+    const l = new THREE.PointLight(0x9dff6a, 0, 8, 2);
+    l.userData.free = true;
+    scene.add(l);
+    lightPool.push(l);
+  }
+}
+function takeLight(scene) {
+  const l = lightPool.find((x) => x.userData.free && x.parent === scene);
+  // Más cajas a la vez que luces (cajas sin abrir de oleadas anteriores): la nueva va sin luz propia.
+  if (!l) return { intensity: 0, position: new THREE.Vector3(), userData: {} };
+  l.userData.free = false;
+  return l;
+}
+
 export function loadDropModel() {
   return new GLTFLoader().loadAsync(new URL('../../vendor/assets/drops/crate-wide.glb', import.meta.url).href)
     .then((g) => { crate = g.scene; })
@@ -94,9 +115,7 @@ export class SupplyDrop {
     this.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.6, 40, 16, 1, true), this.beamMat);
     this.ctx.scene.add(this.beam);
     this.beam.position.set(this.pos.x, this.pos.y + 20, this.pos.z);
-    this.light = new THREE.PointLight(0x9dff6a, 0, 8, 2);
-    this.light.position.set(0, 1.2, 0);
-    g.add(this.light);
+    this.light = takeLight(this.ctx.scene);
     // Expositor de armas sobre la caja.
     this.display = new THREE.Group();
     this.display.position.set(0, 0.5, 0);
@@ -191,6 +210,7 @@ export class SupplyDrop {
     const open = this.state === 'rolling' || this.state === 'offer' ? Math.min(1, this.t * 3) : this.state === 'closing' ? Math.max(0, 1 - this.t * 2) : 0;
     if (this.lid) this.lid.rotation.z = -open * 1.9;
     this.light.intensity = this.state === 'landed' ? 4 + Math.sin(this.age * 4) * 2 : open * 12;
+    this.light.position.copy(this.group.position).y += 1.2;
     const fade = this.state === 'closing' ? Math.max(0, 1 - this.t / 1.5) : 1;
     // El haz se apaga al acercarse (dentro de él teñiría la pantalla).
     const p = this.ctx.player.pos, near = Math.min(1, Math.max(0, (Math.hypot(p.x - this.pos.x, p.z - this.pos.z) - 2) / 5));
@@ -226,6 +246,8 @@ export class SupplyDrop {
   }
 
   dispose() {
+    this.light.intensity = 0;
+    this.light.userData.free = true;
     this.ctx.scene.remove(this.group, this.beam);
     this.group.traverse((o) => { if ((o.isMesh || o.isLine) && !o.userData.shared) o.geometry.dispose(); });
     this.beam.geometry.dispose();

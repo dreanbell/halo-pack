@@ -31,13 +31,13 @@ import { emblemURL, PALETTE, SHAPE_NAMES } from './emblem.js';
 import { AimAssist } from './assist.js';
 import { Account } from './account.js';
 import { encodeBackup, decodeBackup } from './profile.js';
-import { shopThumb } from './shopview.js';
+import { shopThumb, thumbGate } from './shopview.js';
 import { LOADOUTS, VARIANTS, defaultRules, sanitizeRules, isCustom, gunGameWeapon, hillTarget } from '../shared/rules.js';
 import { renderRules } from './setup.js';
 import { loadMonsters } from './monsters.js';
 import { buildAlien } from './aliens.js';
 import { loadGunModels, tickFinishes } from './guns.js';
-import { loadDropModel } from './drop.js';
+import { loadDropModel, primeDropLights, SupplyDrop } from './drop.js';
 import { loadPlayerModels, requestPlayerModel } from './playermodels.js';
 import { S, onSettings } from './settings.js';
 import { buildSettings } from './settingsui.js';
@@ -86,7 +86,27 @@ const warmed = new Set(); // enemigos ya precalentados con las luces del mapa ac
 // Ejemplares del precalentado: se conservan (fuera de escena) porque three.js borra un shader cuando ningún
 // material lo usa, y entonces la primera aparición real volvería a compilarlo.
 const warmKeep = { rigs: [], mats: [] };
+// Programas de shader «fijados»: three.js destruye un programa cuando se libera el último material que lo usa
+// (p. ej. al morir el último enemigo de un tipo) y el siguiente que aparece lo recompila (tirón de 50-500 ms).
+// Se fija cada programa nuevo (una referencia extra) y se sueltan todos al cambiar de mapa.
+const pinned = new Set();
+function pinPrograms() {
+  const list = renderer.info.programs;
+  if (!list || list.length === pinned.size) return;
+  for (const p of list) if (!pinned.has(p)) { p.usedTimes++; pinned.add(p); }
+}
+function unpinPrograms() {
+  const list = renderer.info.programs;
+  for (const p of pinned) {
+    if (--p.usedTimes > 0) continue;
+    const i = list?.indexOf(p) ?? -1;
+    if (i >= 0) list.splice(i, 1);
+    p.destroy();
+  }
+  pinned.clear();
+}
 function dropWarm() {
+  unpinPrograms();
   for (const rig of warmKeep.rigs) rig.dispose?.();
   for (const m of warmKeep.mats) m.dispose();
   warmKeep.rigs.length = warmKeep.mats.length = 0;
@@ -103,6 +123,7 @@ function loadMap(id, force = false) {
   renderer.toneMappingExposure = ctx.world.exposure * S.brightness;
   post.setGrade(ctx.world.grade);
   ctx.nav = new NavGrid(ctx.world);
+  primeDropLights(scene); // luces fijas: que el número de luces no cambie en partida (recompilaría todo)
   dropWarm(); // otro mapa, otras luces: otros shaders
   prewarm();
 }
@@ -111,8 +132,15 @@ function loadMap(id, force = false) {
 // Incluye un ejemplar de cada enemigo (con su modelo de carne si ya cargó): se dibujan una vez, diminutos,
 // delante de la cámara, así también se suben sus texturas y búferes. Así la primera aparición de cada tipo
 // no traba la partida.
+const _warmV = new THREE.Vector3();
 function prewarm(enemies = false) {
   const temp = ctx.fx?.warmObjects() ?? [], flashes = ctx.arsenal?.warmObjects() ?? [], rigs = [];
+  // Caja de suministros (caja, paracaídas, haz): sus shaders se compilan ya, no al caer la primera.
+  let box = null;
+  if (enemies && ctx.player) {
+    camera.getWorldPosition(_warmV).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
+    box = new SupplyDrop(ctx, -1, [_warmV.x, _warmV.y, _warmV.z], 0.5);
+  }
   if (enemies) {
     for (const type of Object.keys(CFG.enemies)) {
       const rig = buildAlien(type), key = `${type}:${rig.monster ? 1 : 0}`;
@@ -120,12 +148,19 @@ function prewarm(enemies = false) {
       warmed.add(key);
       rigs.push(rig);
       temp.push(rig.root);
+      // El acechador se vuelve transparente al camuflarse: otra variante de sus shaders.
+      if (CFG.enemies[type].ai === 'stalker') {
+        const r2 = buildAlien(type);
+        for (const m of r2.mats ?? []) m.transparent = true;
+        rigs.push(r2);
+        temp.push(r2.root);
+      }
     }
   }
   // Con postprocesado la escena se pinta a una textura HDR: los shaders son otra variante (sin tone mapping).
   if (post.enabled) { post.resize(); renderer.setRenderTarget(post.rt); }
   renderer.compile(scene, camera); // todo el mapa, también lo que queda fuera de la vista
-  if (!temp.length && !flashes.length) { renderer.setRenderTarget(null); return; }
+  if (!temp.length && !flashes.length) { renderer.setRenderTarget(null); box?.dispose(); return; }
   const holder = new THREE.Group();
   camera.updateMatrixWorld(true);
   camera.getWorldPosition(holder.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(2));
@@ -135,6 +170,8 @@ function prewarm(enemies = false) {
   for (const f of flashes) { f.visible = true; f.userData.warmScale = f.scale.x; f.scale.setScalar(0.001); }
   renderer.render(scene, camera);
   renderer.setRenderTarget(null);
+  pinPrograms();
+  box?.dispose();
   for (const f of flashes) { f.visible = false; f.scale.setScalar(f.userData.warmScale); }
   scene.remove(holder);
   holder.clear();
@@ -1766,6 +1803,7 @@ function frame(now) {
   last = now;
   beforeRender();
   post.render(scene, camera);
+  pinPrograms();
 }
 requestAnimationFrame(frame);
 
@@ -1804,4 +1842,5 @@ $('btn-install').addEventListener('click', async () => {
 }
 
 // Acceso para depuración y pruebas automatizadas.
-window.__ringfall = { Q, setQuality, ctx, newGame, tick, armory, loadMap, startSession, monstersReady, playersReady, loadAllPlayerModels };
+thumbGate.hold = () => game.state === 'playing' || game.state === 'paused';
+window.__ringfall = { Q, setQuality, ctx, newGame, tick, render: () => { beforeRender(); post.render(scene, camera); pinPrograms(); }, armory, loadMap, startSession, monstersReady, playersReady, loadAllPlayerModels };

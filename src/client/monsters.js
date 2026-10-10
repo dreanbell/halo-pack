@@ -526,6 +526,7 @@ class Monster {
   update(dt, s) {
     this.t += dt;
     const def = this.def, sp = s.speed ?? 0;
+    let skel = true; // ¿se ha movido el esqueleto en este fotograma?
     if (this.mixer) {
       const run = this.actions.run, idle = this.actions.idle, atk = this.actions.attack, tel = this.actions.telegraph;
       const moving = Math.min(1, sp / 1.2);
@@ -546,8 +547,12 @@ class Monster {
       if (atk) atk.setEffectiveWeight(this.wAtk);
       if (tel) tel.setEffectiveWeight(this.wTel);
       // Calidad BAJA: el esqueleto se evalúa un fotograma sí y otro no (mitad de CPU en animación).
+      // Lejos (s.lod 2-3), a 30/20 Hz. Desfase aleatorio: no se evalúan todos en el mismo fotograma.
+      const step = Math.max(Q.halfAnim ? 2 : 1, s.lod ?? 1);
       this.mixDt = (this.mixDt ?? 0) + dt;
-      if (!Q.halfAnim || (this.mixF = !this.mixF)) { this.mixer.update(this.mixDt); this.mixDt = 0; }
+      this.mixK = ((this.mixK ?? (Math.random() * 3) | 0) + 1) % step;
+      skel = this.mixK === 0;
+      if (skel) { this.mixer.update(this.mixDt); this.mixDt = 0; }
     }
     // Una extremidad más grande que la otra.
     if (this.bigArm) this.bigArm.scale.setScalar(this.bigArmK);
@@ -585,7 +590,9 @@ class Monster {
       for (const m of this.mats) { m.transparent = o < 0.99; m.opacity = o; m.depthWrite = o > 0.5; }
     }
 
-    // Anclas y hitbox de la cabeza siguen al esqueleto (solo se recalcula el modelo, no todo el rig).
+    // Anclas y hitbox de la cabeza siguen al esqueleto (solo se recalcula el modelo, no todo el rig). Si el
+    // esqueleto no se ha evaluado (LOD), siguen donde estaban (posiciones relativas al cuerpo).
+    if (!skel) return;
     this.holder.updateWorldMatrix(true, true);
     _inv.copy(this.rig.body.matrixWorld).invert();
     if (this.anchors.size) {
@@ -750,6 +757,14 @@ function overseer(M) {
 export function attachMonster(rig, type) {
   if (!hasMonster(type)) return null;
   // El rig procedural queda como esqueleto invisible: hitboxes y cañón siguen funcionando.
-  rig.body.traverse((o) => { if (o.isMesh && !o.material?.isShaderMaterial) o.visible = false; });
+  // Las mallas ocultas que no son hitbox ni tienen hijos se quitan: no se dibujan y así tampoco cuestan
+  // recalcular sus matrices en cada fotograma (~25 por enemigo).
+  const drop = [];
+  rig.body.traverse((o) => {
+    if (!o.isMesh || o.material?.isShaderMaterial) return;
+    o.visible = false;
+    if (!o.children.length && !o.userData.part) drop.push(o);
+  });
+  for (const o of drop) o.removeFromParent();
   return new Monster(rig, type);
 }

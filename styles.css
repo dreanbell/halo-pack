@@ -261,21 +261,23 @@ button.mapcard:hover { filter: brightness(1.15); }
 /* ---------- Armas ---------- */
 #weapon-alt { font-size: 12px; letter-spacing: 0.18em; opacity: 0.5; margin-bottom: 2px; }
 /* Visor: lente circular con viñeta, tinte, reflejo y retícula vectorial; fuera de la lente, negro. */
-#scope { position: absolute; inset: 0; overflow: hidden; }
+/* Rendimiento: el negro de fuera del visor es un degradado del contenedor (no una sombra de 100vmax) y la lente
+   va en su propia capa (se rasteriza una vez); la distancia, que cambia a 20 Hz, repinta solo su capa. */
+#scope { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(circle min(42vh, 42vw) at 50% 50%, transparent calc(100% - 1px), #000 100%); }
+#scope[data-k="dmr"] { background: radial-gradient(circle min(35vh, 35vw) at 50% 50%, transparent calc(100% - 1px), #000 100%); }
 #scope .lens {
-  position: absolute; left: 50%; top: 50%; width: min(84vh, 84vw); aspect-ratio: 1; transform: translate(-50%, -50%);
-  border-radius: 50%; box-shadow: 0 0 0 100vmax #000, inset 0 0 5vmin 2.5vmin rgba(0, 0, 0, 0.92), inset 0 0 0 0.5vmin rgba(40, 70, 90, 0.6);
+  position: absolute; left: 50%; top: 50%; width: min(84vh, 84vw); aspect-ratio: 1; transform: translate(-50%, -50%); will-change: transform;
+  border-radius: 50%; box-shadow: inset 0 0 5vmin 2.5vmin rgba(0, 0, 0, 0.92), inset 0 0 0 0.5vmin rgba(40, 70, 90, 0.6);
   background:
     radial-gradient(circle at 32% 26%, rgba(190, 230, 255, 0.1), transparent 22%),
     radial-gradient(circle, transparent 55%, rgba(10, 40, 60, 0.28) 85%, rgba(0, 0, 0, 0.6) 100%);
 }
 #scope[data-k="dmr"] .lens { width: min(70vh, 70vw); }
 #scope svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-#scope .glow { filter: drop-shadow(0 0 1.5px #ff3b3b); }
+#scope .glow { filter: none; }
 #scope[data-k="dmr"] .ret-sniper, #scope[data-k="sniper"] .ret-dmr { display: none; }
-#scope.enemy .glow { filter: drop-shadow(0 0 3px #ff3b3b); }
 .scope-info {
-  position: absolute; left: 50%; top: 62%; margin-left: 9%; display: flex; flex-direction: column; gap: 2px;
+  will-change: transform; position: absolute; left: 50%; top: 62%; margin-left: 9%; display: flex; flex-direction: column; gap: 2px;
   font-size: clamp(12px, 1.6vmin, 16px); font-weight: 700; letter-spacing: 0.12em; color: #ff6b5e; text-shadow: 0 0 4px rgba(255, 60, 40, 0.6);
 }
 #scope.enemy .scope-info { color: #ff3b3b; }

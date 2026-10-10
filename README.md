@@ -452,7 +452,7 @@ navegador; también `?q=baja` en la URL). AUTO elige ALTA en escritorio y MEDIA 
 | Antialias | sí | no | no |
 | Hierba · partículas · árboles · nubes | 100 % | 45 · 45 · 70 · 60 % | 0 · 20 · 45 · 35 % |
 | Luces puntuales · texturas · mapas de normales | 6 · 512 px · sí | 3 · 256 px · sí | 1 · 256 px · no |
-| Esqueletos de monstruos | 60 Hz | 60 Hz | 30 Hz |
+| Esqueletos de monstruos (cerca · 26-50 m · más lejos) | 60 · 30 · 20 Hz | 60 · 30 · 20 Hz | 30 · 30 · 20 Hz |
 
 En todos los niveles: las piezas estáticas del mapa se fusionan por material (valle: 454 → 77 llamadas de dibujo),
 la resolución baja sola si los FPS caen de ~45 (y se recupera si sobran), los shaders se compilan al cargar el mapa,
@@ -465,4 +465,19 @@ casquillo y granada (se conservan para que three.js no borre sus shaders). Los r
 (antes recorrían 8 192 triángulos por bala), la retícula consulta a 20 Hz, la caja y los añadidos fusionados de cada
 monstruo se calculan una vez por tipo, y la resolución dinámica solo cambia con caídas sostenidas.
 
-Para depurar, `window.__ringfall` expone `ctx`, `newGame()` y `tick(dt)`, que avanza la simulación sin renderizar.
+**Sin tirones al apuntar, entre oleadas ni con muchos enemigos (v1.39):**
+
+| Causa | Arreglo |
+|---|---|
+| Al apuntar con visor se ocultaba el arma y con ella su luz de fogonazo: cambiaba el número de luces y three.js recompilaba **todos** los shaders | La luz cuelga de la cámara; el número de luces no cambia nunca |
+| Cada caja de suministros añadía/quitaba una luz (mismo efecto, al cambiar de oleada) | Luces de caja fijas en la escena (apagadas sin caja); la caja se precompila al empezar |
+| Al morir el último enemigo de un tipo, three.js borraba sus shaders y el siguiente los recompilaba | Los programas de shader quedan fijados hasta cambiar de mapa |
+| El acechador camuflado usa una variante transparente | Se precompila también |
+| Miniaturas de la tienda (segundo contexto WebGL + `toDataURL`) seguían generándose en partida | Pausadas en partida; se reanudan en el menú |
+| Visor: sombra CSS de 100vmax y filtros `drop-shadow` repintados a 20 Hz | Degradado del contenedor y lente en su propia capa; sin filtros |
+| Muchos enemigos: esqueletos y sombras de todos a tope | LOD por distancia (esqueleto a 30/20 Hz, sin sombra proyectada > 45 m; con visor, todos a tope) y ~25 mallas ocultas menos por monstruo |
+
+Medido (banco de francotirador, oleadas 8-9, bajas continuas): compilaciones de shaders en partida 30 → 0-1.
+
+Para depurar, `window.__ringfall` expone `ctx`, `newGame()`, `tick(dt)` (avanza la simulación sin renderizar) y
+`render()` (dibuja un fotograma por la misma ruta que el juego).

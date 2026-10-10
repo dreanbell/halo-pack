@@ -13,7 +13,10 @@ const SIZE = 192;
 const cache = new Map(); // clave → dataURL
 const waiting = new Map(); // clave → [callbacks]
 const queue = [];
-let r = null, scene = null, cam = null, idleT = null, busy = false;
+let r = null, scene = null, cam = null, idleT = null, busy = false, holdT = null;
+// En partida no se generan miniaturas (un segundo contexto WebGL + toDataURL dan tirones): main.js pone aquí
+// la condición; la cola espera y se reanuda sola al volver al menú.
+export const thumbGate = { hold: () => false };
 
 const keyOf = (kind, i, skin) => (kind === 'w' ? `w|${i}` : `${kind}|${i}|${skin.p}|${skin.s}|${skin.v}${kind === 'm' ? `|${skin.h}|${skin.t}` : ''}`);
 
@@ -62,12 +65,20 @@ const later = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { ti
 
 function pump() {
   if (busy || !queue.length) return;
+  if (thumbGate.hold()) {
+    release();
+    clearTimeout(holdT);
+    holdT = setTimeout(pump, 1500);
+    return;
+  }
   busy = true;
   clearTimeout(idleT);
   later(async () => {
+    if (thumbGate.hold()) { busy = false; pump(); return; } // empezó una partida mientras esperaba turno
     const job = queue.shift();
     try {
       if (job.skin.m) await requestPlayerModel(job.skin.m); // los modelos 3D se cargan bajo demanda
+      if (thumbGate.hold()) { queue.unshift(job); busy = false; pump(); return; }
       const url = render(job);
       cache.set(job.key, url);
       for (const cb of waiting.get(job.key) ?? []) cb(url);

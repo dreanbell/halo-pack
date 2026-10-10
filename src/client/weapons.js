@@ -181,7 +181,9 @@ export class Arsenal {
     this.flashPlane = new THREE.PlaneGeometry(1, 1);
     this.muzzleLight = new THREE.PointLight(0xffd08a, 0, 9, 2);
     this.muzzleLight.position.set(0, 0.05, -0.6);
-    this.vm.add(this.muzzleLight);
+    // Colgada de la cámara, no del arma: al ocultar el arma (visor) una luz invisible cambiaría el número de
+    // luces y three.js recompilaría todos los shaders de la escena (tirón al apuntar con el francotirador).
+    this.ctx.camera.add(this.muzzleLight);
     this.skin = DEFAULT_SKIN;
     this.skinMeshes = [];
     this.armGroups = []; // { a, side } de cada arma, para ponerles los brazos de la skin 3D
@@ -315,7 +317,7 @@ export class Arsenal {
     this.gun.group.visible = true;
     this.muzzleLight.color.setHex(this.w.def.tracer);
     this.gun.muzzle.getWorldPosition(this.muzzleLight.position);
-    this.vm.worldToLocal(this.muzzleLight.position);
+    this.ctx.camera.worldToLocal(this.muzzleLight.position);
     this.boltK = this.cycleT = 0;
     this.ejectQueue.length = 0;
   }

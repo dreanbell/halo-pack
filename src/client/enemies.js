@@ -97,6 +97,16 @@ class Enemy {
     return _a.set(Math.sin(r), 0, Math.cos(r));
   }
 
+  castShadows(on) {
+    if (this.shadowOn === on) return;
+    this.shadowOn = on;
+    this.rig.root.traverse((o) => {
+      if (!o.isMesh) return;
+      o.userData.cs ??= o.castShadow;
+      o.castShadow = on && o.userData.cs;
+    });
+  }
+
   // Efectos visuales comunes; devuelve false cuando el cadáver ya puede retirarse.
   animate(dt) {
     this.t += dt;
@@ -129,7 +139,12 @@ class Enemy {
     }
     const revealed = (this.flags & 1) !== 0;
     this.revealK += ((revealed ? 1 : 0) - this.revealK) * Math.min(1, dt * 6);
+    // LOD por distancia: lejos, el esqueleto se evalúa a 30/20 Hz y no proyecta sombra (con visor, todo a tope).
+    const pp = this.ctx.player.pos, d2 = (pp.x - this.pos.x) ** 2 + (pp.z - this.pos.z) ** 2;
+    const lod = (this.ctx.arsenal?.zoom ?? 1) > 2 || d2 < 26 * 26 ? 1 : d2 < 50 * 50 ? 2 : 3;
+    this.castShadows(this.cfg.boss || d2 < 45 * 45);
     this.rig.animate(dt, {
+      lod,
       speed: Math.hypot(this.vel.x, this.vel.z),
       attack: (this.flags & 8) !== 0,
       telegraph: (this.flags & 2) !== 0,
