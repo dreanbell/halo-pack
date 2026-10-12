@@ -6,6 +6,7 @@ import { buildGun } from './guns.js';
 import { finishOf } from '../shared/shop.js';
 import { emblemURL } from './emblem.js';
 import { emoteThumbTime } from './emotes.js';
+import { buildMelee } from './melee.js';
 
 // Miniaturas 3D de la tienda: el artículo puesto en un soldado con tus colores.
 // Modelos: cuerpo entero · cascos: primer plano de la cabeza · patrones: torso · acabados: el arma de perfil. Se generan en segundo plano
@@ -19,7 +20,7 @@ let r = null, scene = null, cam = null, idleT = null, busy = false, holdT = null
 // la condición; la cola espera y se reanuda sola al volver al menú.
 export const thumbGate = { hold: () => false };
 
-const keyOf = (kind, i, skin) => (kind === 'w' ? `w|${i}` : `${kind}|${i}|${skin.p}|${skin.s}|${skin.v}${kind === 'm' || kind === 'o' ? `|${skin.h}|${skin.t}` : ''}${kind === 'o' ? `|${skin.m}` : ''}`);
+const keyOf = (kind, i, skin) => (kind === 'w' || kind === 'k' ? `${kind}|${i}` : `${kind}|${i}|${skin.p}|${skin.s}|${skin.v}${kind === 'm' || kind === 'o' ? `|${skin.h}|${skin.t}` : ''}${kind === 'o' ? `|${skin.m}` : ''}`);
 
 // Pide la miniatura; cb(url) se llama al tenerla (al momento si ya estaba hecha).
 export function shopThumb(kind, i, skin, cb, prio = false) {
@@ -33,7 +34,7 @@ export function shopThumb(kind, i, skin, cb, prio = false) {
   // Emotes: tu soldado tal cual (modelo, casco y patrón) en la pose del emote.
   const look = kind === 'o' ? { ...skin } : kind === 'm' ? { ...skin, m: i } : { ...skin, m: 0, [kind]: i };
   // prio: va delante (p. ej. el premio de una caja, que tiene que estar listo al pararse la ruleta).
-  const job = { key, kind, i, skin: kind === 'w' ? { m: 0 } : look };
+  const job = { key, kind, i, skin: kind === 'w' || kind === 'k' ? { m: 0 } : look };
   if (prio) queue.unshift(job); else queue.push(job);
   pump();
 }
@@ -98,6 +99,7 @@ const _b = new THREE.Box3(), _c = new THREE.Vector3(), _s = new THREE.Vector3(),
 function render({ kind, i, skin }) {
   if (!setup()) return '';
   if (kind === 'w') return renderGun(i);
+  if (kind === 'k') return renderMelee(i);
   const a = new Avatar(skin);
   a.root.rotation.y = Math.PI - 0.45; // tres cuartos, mirando a la cámara
   scene.add(a.root);
@@ -126,6 +128,26 @@ function render({ kind, i, skin }) {
   r.render(scene, cam);
   const url = r.domElement.toDataURL('image/png');
   a.dispose();
+  return url;
+}
+
+// Arma cuerpo a cuerpo, inclinada en diagonal (mango abajo a la izquierda).
+function renderMelee(i) {
+  const holder = new THREE.Group(), g = buildMelee(i);
+  holder.add(g);
+  holder.rotation.set(0.25, 0.5, -0.78);
+  scene.add(holder);
+  holder.updateMatrixWorld(true);
+  _b.setFromObject(holder, true);
+  _b.getCenter(_c);
+  _b.getSize(_s);
+  const half = Math.max(_s.x, _s.y) * 0.58;
+  const dist = half / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+  cam.position.set(_c.x, _c.y, _c.z + dist);
+  cam.lookAt(_c);
+  r.render(scene, cam);
+  const url = r.domElement.toDataURL('image/png');
+  scene.remove(holder);
   return url;
 }
 

@@ -237,6 +237,28 @@ export class Sfx {
     this.noise({ dur: 0.12, freq: 450, type: 'lowpass', gain: 0.45 });
     this.tone({ freq: 130, freqEnd: 60, dur: 0.1, gain: 0.3 });
   }
+  // Armas cuerpo a cuerpo (src/shared/melee.js · snd): silbido al blandir y golpe distinto por material.
+  meleeSwing(snd = 'blade') {
+    const v = 0.9 + Math.random() * 0.2;
+    if (snd === 'blade') this.noise({ dur: 0.16, freq: 2600 * v, freqEnd: 700, q: 1.4, gain: 0.32, attack: 0.02 });
+    else if (snd === 'soft') this.noise({ dur: 0.18, freq: 900 * v, freqEnd: 400, q: 0.8, gain: 0.22, attack: 0.03 });
+    else this.noise({ dur: 0.2, freq: 1100 * v, freqEnd: 260, type: 'lowpass', gain: 0.4, attack: 0.03 });
+  }
+  meleeHit(snd = 'blade') {
+    if (snd === 'blade') {
+      this.noise({ dur: 0.1, freq: 3200, freqEnd: 1500, q: 2, gain: 0.3 });
+      this.tone({ freq: 140, freqEnd: 70, dur: 0.09, gain: 0.25 });
+    } else if (snd === 'pan') { // ¡CLONG!
+      for (const [f, g] of [[523, 0.16], [784, 0.11], [1245, 0.07], [1660, 0.05]]) this.tone({ freq: f, freqEnd: f * 0.98, dur: 0.75, type: 'triangle', gain: g });
+      this.noise({ dur: 0.06, freq: 2000, gain: 0.25 });
+    } else if (snd === 'soft') { // golpe de pan / pez: blando y cómico
+      this.noise({ dur: 0.12, freq: 380, type: 'lowpass', gain: 0.35 });
+      this.tone({ freq: 220, freqEnd: 520, dur: 0.14, type: 'sine', gain: 0.12, delay: 0.02 });
+    } else {
+      this.noise({ dur: 0.14, freq: 220, type: 'lowpass', gain: 0.6 });
+      this.tone({ freq: 110, freqEnd: 50, dur: 0.12, gain: 0.35 });
+    }
+  }
   enemyMelee(dist = 0) { this.noise({ dur: 0.2, freq: 220, type: 'lowpass', gain: 0.5 * Sfx.falloff(dist, 30) }); }
   pickup() {
     this.tone({ freq: 660, dur: 0.06, type: 'triangle', gain: 0.12 });

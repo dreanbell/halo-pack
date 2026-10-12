@@ -3,6 +3,7 @@ import { sanitizeSkin } from '../shared/skins.js';
 import { buildGun } from './guns.js';
 import { PlayerModel, hasPlayerModel, requestPlayerModel } from './playermodels.js';
 import { emotePose, applyPose } from './emotes.js';
+import { buildMelee, meleeLoaded, poseTP } from './melee.js';
 
 // Soldado acorazado procedural (diseño original): esqueleto de grupos + piezas compartidas.
 // Mira hacia -Z, como la cámara. Pies en y = 0.
@@ -10,6 +11,7 @@ const HIP_Y = 0.98;
 const TAU = Math.PI * 2;
 const UPPER = 0.28, LOWER = 0.27; // longitudes de brazo y antebrazo
 const DOWN = new THREE.Vector3(0, -1, 0);
+const _eu = new THREE.Euler();
 const _t = new THREE.Vector3(), _d = new THREE.Vector3(), _p = new THREE.Vector3(), _e = new THREE.Vector3(), _u = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
 
 // --- Texturas y materiales (cacheados por skin) --------------------------------
@@ -311,6 +313,7 @@ export class Avatar {
     this.slideK = 0;
     this.t = Math.random() * 10;
     this.root = new THREE.Group();
+    this.meleeU = -1;
     this.hipY = HIP_Y;
     this.lowerArm = LOWER;
     this.build();
@@ -563,17 +566,40 @@ export class Avatar {
     this.body.rotation.x = -this.deadK * Math.PI / 2;
     this.body.position.y = this.deadK * 0.16;
 
+    // Golpe cuerpo a cuerpo (s.melee = 0..1 del golpe): el arma de la skin en la mano derecha, sin fusil.
+    this.swingMelee(s.alive !== false && s.melee >= 0 && s.melee < 1 ? s.melee : -1);
+
     // Emote (s.emote = { i, t }): mezcla suave con la pose normal al entrar y al salir; sin arma en las manos.
     const em = s.alive !== false ? s.emote : null;
     if (em) this.emote = em;
     this.emK += ((em ? 1 : 0) - this.emK) * (1 - Math.exp(-dt * 9));
     if (this.emK < 0.002) { this.emK = 0; this.emote = null; }
-    this.gun.visible = this.emK < 0.4;
+    this.gun.visible = this.emK < 0.4 && !this.meleeObj?.visible;
     if (this.emote) this.blendEmote(this.emK);
 
     // Si el modelo de la skin terminó de cargar después de crear el avatar, se pone ahora.
     if (!this.model && this.skin.m && hasPlayerModel(this.skin.m)) this.syncModel();
     this.model?.update();
+  }
+
+  swingMelee(u) {
+    const k = this.skin.k ?? 0;
+    if (u < 0) { if (this.meleeObj) this.meleeObj.visible = false; return; }
+    if (!this.meleeObj || this.meleeObj.userData.k !== (meleeLoaded(k) ? k : -1)) {
+      this.meleeObj?.removeFromParent();
+      this.meleeObj = buildMelee(k);
+      this.meleeObj.position.y = -this.lowerArm;
+      this.meleeObj.rotation.x = -Math.PI / 2; // hoja al frente, perpendicular al antebrazo
+      this.arms[1].el.add(this.meleeObj);
+    }
+    this.meleeObj.visible = true;
+    this.gun.visible = false;
+    const [az, ax, ex] = poseTP(k, u);
+    this.arms[1].sh.quaternion.setFromEuler(_eu.set(ax, 0, az, 'ZXY'));
+    this.arms[1].el.quaternion.setFromEuler(_eu.set(ex, 0, 0, 'ZXY'));
+    this.arms[-1].sh.quaternion.setFromEuler(_eu.set(0.1, 0, -0.18, 'ZXY'));
+    this.arms[-1].el.quaternion.setFromEuler(_eu.set(0.35, 0, 0, 'ZXY'));
+    this.spine.rotation.y += Math.sin(u * Math.PI) * 0.35; // el torso acompaña
   }
 
   joints() {

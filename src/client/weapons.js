@@ -8,6 +8,8 @@ import { DEFAULT_SKIN } from '../shared/skins.js';
 import { buildGun, applyFinish, GUN_INFO } from './guns.js';
 import { Spring, damp } from './feel.js';
 import { S } from './settings.js';
+import { buildMelee, meleeLoaded, poseFP } from './melee.js';
+import { MELEE } from '../shared/melee.js';
 
 const W = CFG.weapons, G = CFG.grenade, M = CFG.melee;
 const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _m = new THREE.Vector3(), _n = new THREE.Vector3(), _c = new THREE.Vector3();
@@ -184,6 +186,15 @@ export class Arsenal {
     // Colgada de la cámara, no del arma: al ocultar el arma (visor) una luz invisible cambiaría el número de
     // luces y three.js recompilaría todos los shaders de la escena (tirón al apuntar con el francotirador).
     this.ctx.camera.add(this.muzzleLight);
+    // Arma cuerpo a cuerpo (tecla F): aparece en la mano derecha solo durante el golpe.
+    this.meleeVM = new THREE.Group();
+    this.meleeVM.visible = false;
+    this.vmRoot.add(this.meleeVM);
+    // Guante en la empuñadura (el resto del brazo queda fuera de cámara).
+    this.meleeHand = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.055), new THREE.MeshStandardMaterial({ color: 0x1e2226, roughness: 0.65 }));
+    this.meleeHand.position.y = -0.01;
+    this.meleeVM.add(this.meleeHand);
+    this.meleeCount = 0;
     this.skin = DEFAULT_SKIN;
     this.skinMeshes = [];
     this.armGroups = []; // { a, side } de cada arma, para ponerles los brazos de la skin 3D
@@ -253,7 +264,8 @@ export class Arsenal {
 
   // Objetos que solo aparecen al disparar (fogonazos de las armas del equipo) para precompilar sus shaders.
   warmObjects() {
-    const out = [];
+    const out = [this.meleeVM];
+    this.syncMelee();
     for (const s of this.slots ?? []) { const g = this.model(s.id); if (!g.flash.visible) out.push(g.flash); }
     return out;
   }
@@ -322,8 +334,20 @@ export class Arsenal {
     this.ejectQueue.length = 0;
   }
 
+  // Modelo del arma cuerpo a cuerpo de la skin (se rehace al cambiarla o cuando termina de cargar).
+  syncMelee() {
+    const k = this.skin.k ?? 0;
+    if (this.meleeModel && this.meleeModel.userData.k === (meleeLoaded(k) ? k : -1)) return;
+    if (this.meleeModel) this.meleeVM.remove(this.meleeModel);
+    this.meleeModel = buildMelee(k);
+    this.meleeModel.scale.setScalar(0.72); // en primera persona, algo menor (no tapa media pantalla)
+    this.meleeModel.traverse((o) => { o.frustumCulled = false; o.castShadow = false; });
+    this.meleeVM.add(this.meleeModel);
+  }
+
   setSkin(skin) {
     this.skin = skin;
+    this.syncMelee?.();
     const sm = skinMaterials(skin);
     for (const m of this.skinMeshes) m.material = sm[m.userData.role];
     this.buildSkinArms();
@@ -828,7 +852,9 @@ export class Arsenal {
     this.meleeT = M.cooldown;
     this.reloadT = 0;
     this.zoom = 1;
-    sfx.melee();
+    const snd = (MELEE[this.skin.k ?? 0] ?? MELEE[0]).snd;
+    sfx.meleeSwing(snd);
+    this.meleeCount = (this.meleeCount + 1) % 1000; // los demás ven el golpe (estado de red «mk»)
     const fwd = player.forward(_d);
     player.vel.addScaledVector(fwd, M.lunge);
     let best = null, bestD = Infinity;
@@ -847,6 +873,7 @@ export class Arsenal {
         // Por la espalda: el rival mira en la misma dirección que el atacante.
         const back = Math.cos(r.yaw - player.yaw.rotation.y) > 0.3;
         this.hitRemote(r, back ? 9999 : M.damage / this.pvpMult, {}, back ? 'back' : 'body', player.pos);
+        sfx.meleeHit(snd);
         fx.sparks(_o.set(r.pos.x, r.pos.y + 1.1, r.pos.z), 0x7fe7ff);
         return;
       }
@@ -858,6 +885,7 @@ export class Arsenal {
     const res = best.takeDamage(back ? 9999 : M.damage, { part: 'body' });
     this.ctx.killSrc = null;
     hud.hitMarker(res.killed);
+    sfx.meleeHit(snd);
     fx.sparks(best.center(), best.cfg.glow);
     if (res.killed) {
       sfx.kill();
@@ -983,15 +1011,23 @@ export class Arsenal {
     const ads = this.gun.ads;
     // Sprint estilo táctico: arma baja, cruzada y girada hacia dentro.
     this.vm.position.set(
-      lerp(HIP.x, ads.x, aimE) + bobX - mel * 0.18 + this.swayX - run * 0.05 + tilt * 0.12 - this.crouchK * 0.015,
-      lerp(HIP.y, ads.y, aimE) + bobY + idleY + lift - swap * 0.35 - rl * 0.08 - run * 0.055 + this.swayY - cyc * 0.02 + ky * 0.4 - this.crouchK * 0.012,
-      lerp(HIP.z, ads.z, aimE) + kz * 0.11 - mel * 0.25 + cl(fwd * 0.0018, -0.012, 0.012) * free + run * 0.03,
+      lerp(HIP.x, ads.x, aimE) + bobX + mel * 0.08 + this.swayX - run * 0.05 + tilt * 0.12 - this.crouchK * 0.015,
+      lerp(HIP.y, ads.y, aimE) + bobY + idleY + lift - swap * 0.35 - mel * 0.42 - rl * 0.08 - run * 0.055 + this.swayY - cyc * 0.02 + ky * 0.4 - this.crouchK * 0.012,
+      lerp(HIP.z, ads.z, aimE) + kz * 0.11 + mel * 0.06 + cl(fwd * 0.0018, -0.012, 0.012) * free + run * 0.03,
     );
     this.vm.rotation.set(
       kp * 0.11 + idleP - rl * 0.6 - run * 0.32 + this.swayY * 1.5 + lift * 1.2,
       mel * 0.6 + run * 0.62 + this.swayR + kyaw * 0.05,
       rl * 0.3 + this.swayR * 0.5 + cyc * 0.12 + bobR + tilt + kr * 0.05 + run * 0.18 + this.crouchK * 0.12,
     );
+    // Golpe cuerpo a cuerpo: el arma de la skin barre la vista (el daño ya se aplicó al pulsar).
+    this.meleeVM.visible = this.meleeT > 0 && player.alive;
+    if (this.meleeVM.visible) {
+      this.syncMelee();
+      poseFP(this.meleeVM, this.skin.k ?? 0, 1 - this.meleeT / M.cooldown);
+      this.meleeVM.position.x += this.swayX;
+      this.meleeVM.position.y += bobY + this.swayY;
+    }
     const half = THREE.MathUtils.degToRad(camera.fov) / 2;
     const vk = Math.tan(half) / Math.tan(half * 78 / S.fov);
     this.vmRoot.scale.set(vk, vk, 1);

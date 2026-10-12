@@ -93,6 +93,10 @@ class RemotePlayer {
     if (typeof s.w === 'string') this.avatar.setWeapon(s.w, this.avatar.skin.f?.[s.w] ?? 0); // con su acabado de caja
     this.health = s.hp;
     this.shield = s.sh;
+    // Golpe cuerpo a cuerpo: mk cambia con cada golpe.
+    const mk = s.mk ?? 0;
+    if (this.mk !== undefined && mk !== this.mk) this.meleeT = 0;
+    this.mk = mk;
     // Emote: e = número + 1 (0 o ausente = ninguno); ec cambia en cada inicio (repetir el mismo lo reinicia).
     const e = Number.isInteger(s.e) && s.e > 0 && EMOTES[s.e - 1] ? s.e - 1 : -1;
     if (e < 0) this.emote = null;
@@ -133,7 +137,9 @@ class RemotePlayer {
       slide: this.alive && this.height < CFG.player.crouchHeight - 0.06 && speed > CFG.player.crouch + 1,
       sprint: speed > CFG.player.walk + 0.8 && this.height > CFG.player.crouchHeight,
       emote: this.alive && this.emote ? this.emote : null,
+      melee: this.meleeT !== undefined ? this.meleeT / 0.5 : -1,
     });
+    if (this.meleeT !== undefined) { this.meleeT += dt; if (this.meleeT > 0.5) this.meleeT = undefined; }
     if (this.emote) this.emote.t += dt;
     this.tag.visible = this.alive;
     g.updateMatrixWorld(true);

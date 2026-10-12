@@ -2,6 +2,7 @@
 // Módulo puro (sin navegador): el servidor lo usa para validar compras, abrir cajas y calcular recompensas.
 import { MODELS, HELMETS, PATTERNS, GUN_IDS, FINISH_COUNT, EMBLEM_NAMES } from './skins.js';
 import { EMOTE_NAMES, EMOTE_PRICES } from './emotes.js';
+import { MELEE_NAMES, MELEE_PRICES } from './melee.js';
 
 export const START_COINS = 300;
 // Precios por tipo de artículo (índice = el de la lista de skins.js). 0 = gratis desde el principio;
@@ -14,9 +15,11 @@ export const PRICES = {
   e: [0, 0, 0, 0, 800, 500, 300, 300, 600, 250, 250, 400, 500, 400, 600, 350],
   // Emotes (src/shared/emotes.js).
   o: EMOTE_PRICES,
+  // Armas cuerpo a cuerpo (src/shared/melee.js).
+  k: MELEE_PRICES,
 };
-export const ITEM_NAMES = { m: MODELS, h: HELMETS, t: PATTERNS, e: EMBLEM_NAMES, o: EMOTE_NAMES };
-export const KIND_NAMES = { m: 'MODELOS', h: 'CASCOS', t: 'PATRONES', e: 'EMBLEMAS', o: 'EMOTES' };
+export const ITEM_NAMES = { m: MODELS, h: HELMETS, t: PATTERNS, e: EMBLEM_NAMES, o: EMOTE_NAMES, k: MELEE_NAMES };
+export const KIND_NAMES = { m: 'MODELOS', h: 'CASCOS', t: 'PATRONES', e: 'EMBLEMAS', o: 'EMOTES', k: 'CUERPO A CUERPO' };
 export const itemPrice = (kind, i) => (Number.isInteger(i) ? PRICES[kind]?.[i] ?? null : null);
 
 // --- Acabados de arma (solo en cajas) ----------------------------------------------------------------------
@@ -66,13 +69,14 @@ function armorRarity(kind, i) {
   if (kind === 'h') return p >= 550 ? 2 : p >= 450 ? 1 : 0;
   if (kind === 'e') return p >= 800 ? 3 : p >= 500 ? 2 : p >= 350 ? 1 : 0;
   if (kind === 'o') return p >= 1200 ? 3 : p >= 700 ? 2 : p >= 350 ? 1 : 0;
+  if (kind === 'k') return p >= 1000 ? 3 : p >= 600 ? 2 : p >= 350 ? 1 : 0;
   return p >= 400 ? 2 : p >= 300 ? 1 : 0;
 }
 // Contenido de las cajas por rareza: [{ kind, i }].
 export const CASE_POOL = [[], [], [], []];
 for (const gun of GUN_IDS) FINISHES.forEach((f, k) => { if (f.r >= 0) CASE_POOL[f.r].push({ kind: 'w', i: finishItem(gun, k) }); });
 export const ARMOR_POOL = [[], [], [], []];
-for (const kind of ['m', 'h', 't', 'e', 'o']) PRICES[kind].forEach((_, i) => { const r = armorRarity(kind, i); if (r >= 0) ARMOR_POOL[r].push({ kind, i }); });
+for (const kind of ['m', 'h', 't', 'e', 'o', 'k']) PRICES[kind].forEach((_, i) => { const r = armorRarity(kind, i); if (r >= 0) ARMOR_POOL[r].push({ kind, i }); });
 
 export function rarityOf(kind, i) {
   if (kind === 'w') return isFinishItem(i) ? FINISHES[i % 32].r : -1;

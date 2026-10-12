@@ -363,11 +363,29 @@ en MEDIA (70 %) y BAJA (45 %). Solo visual: daño, alcance y colisiones no cambi
 | Clic der. (mantener o alternar) | Apuntar con la mira del arma · visor en DMR y francotirador |
 | G | Granada |
 | E | Abrir suministros caídos del cielo · coger el arma |
-| F | Golpe cuerpo a cuerpo (por la espalda = eliminación) |
+| F | Golpe cuerpo a cuerpo con tu arma C/C (cuchillo, katana, sartén…; por la espalda = eliminación) |
 | B (mantener) | Rueda de emotes: mueve el ratón y suelta. En móvil, botón ☺ y toca uno |
 | Tab | Marcador (multijugador) |
 | Círculo luminoso | Ascensor gravitatorio (Plataforma Cenit): te lanza a lo alto de la torre |
 | Esc | Pausa (en multijugador la partida sigue) |
+
+## Armas cuerpo a cuerpo
+
+15 armas para la tecla **F**, con modelos 3D CC0 (Kenney y OpenGameArt; ver `vendor/assets/melee/ATTRIBUTION.md`).
+Son **cosméticas**: todas hacen el mismo daño, alcance y cadencia (`CFG.melee`), así que pagar no da ventaja.
+Cambian el modelo, el estilo del golpe y el sonido.
+
+| Estilo | Armas | Sonido |
+|---|---|---|
+| Puñalada | Cuchillo táctico (gratis) | Acero |
+| Tajo | Machete, Katana, Espada, Cuchilla de carnicero, Pan francés, Pez | Acero · blando (pan, pez) |
+| Golpe de arriba abajo | Hacha, Martillo, Tubería, Bate, Pala, Sartén, Rodillo, Bastón de caramelo | Seco · ¡CLONG! (sartén, pala) |
+
+- **Tienda → CUERPO A CUERPO:** se compran (250–1 200 ◈; la katana es legendaria) o salen en las cajas; EQUIPAR la pone.
+- **Primera persona:** el fusil baja y el arma barre la vista; **tercera persona y multijugador:** los demás ven el
+  arma en tu mano derecha durante el golpe (el estado de red lleva `mk`, contador de golpes).
+- **Código:** `src/shared/melee.js` (lista y precios), `src/client/melee.js` (carga y animación),
+  `skin.k` (arma equipada, viaja con la armadura).
 
 ## Emotes
 

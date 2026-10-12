@@ -16,6 +16,7 @@ import { LoadoutMenu } from './loadout.js';
 import { gunThumbnails } from './gunview.js';
 import { Spectator } from './spectator.js';
 import { EmoteController } from './emotewheel.js';
+import { loadMelee } from './melee.js';
 import { WHEEL_SIZE } from '../shared/emotes.js';
 import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
 import { DEFAULT_SKIN, sanitizeSkin, MODELS, TITLES, EMBLEM_NAMES } from '../shared/skins.js';
@@ -58,7 +59,7 @@ console.info(`Ringfall v${BUILD}`);
 
 // Calidad (quality.js): en móvil, menos píxeles, sin antialias y sombras/detalle reducidos; resolución dinámica por FPS.
 // Modelos 3D de las armas (~0,9 MB, CC0): antes de crear la vista en primera persona y las miniaturas.
-await Promise.all([loadGunModels(), loadDropModel()]);
+await Promise.all([loadGunModels(), loadDropModel(), loadMelee()]);
 
 const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: 'high-performance' });
 applyRenderer(renderer);
@@ -851,7 +852,7 @@ function renderHome() {
   $('shop-coins').textContent = wallet.coins.toLocaleString('es-ES');
   // Tienda: modelos, cascos y patrones; comprar con créditos, equipar lo que ya tienes.
   const sections = [];
-  for (const kind of ['m', 'h', 't', 'e', 'o']) {
+  for (const kind of ['m', 'h', 't', 'k', 'e', 'o']) {
     const h = document.createElement('h4');
     h.className = 'shop-kind';
     h.textContent = KIND_NAMES[kind];
@@ -1739,6 +1740,7 @@ function netTick(dt) {
       h: +player.height.toFixed(2), a: player.alive ? 1 : 0, w: arsenal.w.id, hp: Math.round(player.health), sh: Math.round(player.shield),
     };
     // Emote: número + contador de inicio; el cuerpo mira a donde empezó (la cámara orbita libre).
+    if (arsenal.meleeCount) st.mk = arsenal.meleeCount; // golpe cuerpo a cuerpo: los demás lo ven
     const em = emotes.net();
     if (em) { st.e = em.e; st.ec = em.ec; st.y = +em.y.toFixed(3); st.pt = 0; }
     // Quieto y sin cambios: no se reenvía (como mucho cada medio segundo, para que nadie quede desfasado).

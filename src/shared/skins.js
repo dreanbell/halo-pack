@@ -7,7 +7,9 @@ export const PATTERNS = ['LISO', 'CAMUFLAJE', 'RAYAS', 'HEXÁGONOS', 'DIGITAL', 
 // Modelo del soldado: 0 = procedural (colores y patrón); el resto son modelos 3D (src/playermodels.js).
 export const MODELS = ['CLÁSICO', 'FEDERAL', 'MILITAR', 'RENEGADO', 'EXOTROOPER', 'COMANDO', 'COMANDO F', 'MONO', 'PATO', 'RANA', 'CHICA GANCHO', 'DADO PAR', 'DADO IMPAR'];
 
-export const DEFAULT_SKIN = { p: PRIMARY[0], s: SECONDARY[0], v: VISORS[0], h: 0, t: 0, m: 0 };
+export const DEFAULT_SKIN = { p: PRIMARY[0], s: SECONDARY[0], v: VISORS[0], h: 0, t: 0, m: 0, k: 0 };
+// Arma cuerpo a cuerpo (k): lista en src/shared/melee.js.
+export const MELEE_COUNT = 15;
 // Armas con acabado de caja (src/shared/shop.js): f = { arma: acabado } viaja con la armadura en multijugador.
 export const GUN_IDS = ['rifle', 'pistol', 'smg', 'shotgun', 'dmr', 'sniper', 'plasma', 'needler', 'arc', 'battle', 'revolver', 'sawed', 'carbine'];
 export const FINISH_COUNT = 18;
@@ -41,6 +43,7 @@ export function sanitizeSkin(x) {
     h: idx(s.h, HELMETS.length),
     t: idx(s.t, PATTERNS.length),
     m: idx(s.m, MODELS.length),
+    k: idx(s.k, MELEE_COUNT),
     f: sanitizeFinishes(s.f),
     ti: idx(s.ti, TITLES.length),
     em: sanitizeEmblem(s.em),
