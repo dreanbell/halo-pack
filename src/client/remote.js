@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EMOTES } from '../shared/emotes.js';
 import { CFG } from './config.js';
 import { Avatar } from './avatar.js';
 import { TITLES } from '../shared/skins.js';
@@ -92,6 +93,10 @@ class RemotePlayer {
     if (typeof s.w === 'string') this.avatar.setWeapon(s.w, this.avatar.skin.f?.[s.w] ?? 0); // con su acabado de caja
     this.health = s.hp;
     this.shield = s.sh;
+    // Emote: e = número + 1 (0 o ausente = ninguno); ec cambia en cada inicio (repetir el mismo lo reinicia).
+    const e = Number.isInteger(s.e) && s.e > 0 && EMOTES[s.e - 1] ? s.e - 1 : -1;
+    if (e < 0) this.emote = null;
+    else if (!this.emote || this.emote.i !== e || this.emote.c !== s.ec) this.emote = { i: e, t: 0, c: s.ec };
   }
 
   update(dt) {
@@ -127,7 +132,9 @@ class RemotePlayer {
       alive: this.alive,
       slide: this.alive && this.height < CFG.player.crouchHeight - 0.06 && speed > CFG.player.crouch + 1,
       sprint: speed > CFG.player.walk + 0.8 && this.height > CFG.player.crouchHeight,
+      emote: this.alive && this.emote ? this.emote : null,
     });
+    if (this.emote) this.emote.t += dt;
     this.tag.visible = this.alive;
     g.updateMatrixWorld(true);
   }

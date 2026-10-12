@@ -5,6 +5,7 @@ import { requestPlayerModel } from './playermodels.js';
 import { buildGun } from './guns.js';
 import { finishOf } from '../shared/shop.js';
 import { emblemURL } from './emblem.js';
+import { emoteThumbTime } from './emotes.js';
 
 // Miniaturas 3D de la tienda: el artículo puesto en un soldado con tus colores.
 // Modelos: cuerpo entero · cascos: primer plano de la cabeza · patrones: torso · acabados: el arma de perfil. Se generan en segundo plano
@@ -18,7 +19,7 @@ let r = null, scene = null, cam = null, idleT = null, busy = false, holdT = null
 // la condición; la cola espera y se reanuda sola al volver al menú.
 export const thumbGate = { hold: () => false };
 
-const keyOf = (kind, i, skin) => (kind === 'w' ? `w|${i}` : `${kind}|${i}|${skin.p}|${skin.s}|${skin.v}${kind === 'm' ? `|${skin.h}|${skin.t}` : ''}`);
+const keyOf = (kind, i, skin) => (kind === 'w' ? `w|${i}` : `${kind}|${i}|${skin.p}|${skin.s}|${skin.v}${kind === 'm' || kind === 'o' ? `|${skin.h}|${skin.t}` : ''}${kind === 'o' ? `|${skin.m}` : ''}`);
 
 // Pide la miniatura; cb(url) se llama al tenerla (al momento si ya estaba hecha).
 export function shopThumb(kind, i, skin, cb, prio = false) {
@@ -29,7 +30,8 @@ export function shopThumb(kind, i, skin, cb, prio = false) {
   if (waiting.has(key)) { waiting.get(key).push(cb); return; }
   waiting.set(key, [cb]);
   // Cascos y patrones sobre el soldado clásico (son piezas suyas); los modelos, con su propio cuerpo.
-  const look = kind === 'm' ? { ...skin, m: i } : { ...skin, m: 0, [kind]: i };
+  // Emotes: tu soldado tal cual (modelo, casco y patrón) en la pose del emote.
+  const look = kind === 'o' ? { ...skin } : kind === 'm' ? { ...skin, m: i } : { ...skin, m: 0, [kind]: i };
   // prio: va delante (p. ej. el premio de una caja, que tiene que estar listo al pararse la ruleta).
   const job = { key, kind, i, skin: kind === 'w' ? { m: 0 } : look };
   if (prio) queue.unshift(job); else queue.push(job);
@@ -99,7 +101,8 @@ function render({ kind, i, skin }) {
   const a = new Avatar(skin);
   a.root.rotation.y = Math.PI - 0.45; // tres cuartos, mirando a la cámara
   scene.add(a.root);
-  a.animate(1 / 60, { speed: 0, pitch: 0, alive: true });
+  if (kind === 'o') a.emK = 1; // pose del emote completa, sin mezcla
+  a.animate(1 / 60, { speed: 0, pitch: 0, alive: true, emote: kind === 'o' ? { i, t: emoteThumbTime(i) } : null });
   a.root.updateMatrixWorld(true);
   _b.setFromObject(a.root, true);
   _b.getCenter(_c);

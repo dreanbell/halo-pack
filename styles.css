@@ -387,6 +387,7 @@ body.touch #app canvas { touch-action: none; }
 #touch #t-use { right: 206px; bottom: 156px; font-size: 13px; font-weight: 700; border-color: #ffd36b; color: #ffd36b; }
 #touch #t-pause { --sz: 42px; left: calc(env(safe-area-inset-left, 0px) + 118px); top: 10px; font-size: 14px; }
 #touch #t-board { --sz: 42px; left: calc(env(safe-area-inset-left, 0px) + 118px); top: 60px; }
+#touch #t-emote { --sz: 42px; left: calc(env(safe-area-inset-left, 0px) + 168px); top: 10px; font-size: 20px; }
 .t-spec { display: none; }
 #touch .t-spec .tb { --sz: 64px; bottom: 28px; font-size: 24px; }
 #touch .t-spec .tb:first-child { right: 104px; }
@@ -877,3 +878,18 @@ body.touch #tutor { top: 64px; }
 #dc-emblem { display: block; width: 56px; height: 56px; margin: 0 auto 4px; }
 #dc-emblem[hidden] { display: none; }
 @media (max-height: 560px), (max-width: 900px) { .home-emblem { width: 30px; height: 30px; } .em-icons { grid-template-columns: repeat(6, 1fr); } }
+
+/* ---------- Emotes: rueda (mantén B) y tercera persona ---------- */
+body.emoting #crosshair, body.emoting #hitmarker { display: none; }
+#emote-wheel { position: absolute; left: 50%; top: 50%; width: min(78vmin, 520px); aspect-ratio: 1; transform: translate(-50%, -50%); z-index: 30; pointer-events: auto; }
+#emote-wheel .ew-ring { position: absolute; inset: 6%; border-radius: 50%; background: radial-gradient(circle, rgba(6, 14, 20, 0.35) 0 30%, rgba(6, 14, 20, 0.82) 31% 100%);
+  border: 1px solid rgba(127, 231, 255, 0.35); box-shadow: inset 0 0 0 1px rgba(127, 231, 255, 0.08); }
+#emote-wheel .ew-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; gap: 4px; text-align: center; width: 34%; }
+#emote-wheel .ew-center b { font-size: clamp(14px, 2.4vmin, 20px); letter-spacing: 0.16em; color: var(--hud); }
+#emote-wheel .ew-center small { font-size: 11px; letter-spacing: 0.12em; opacity: 0.7; text-transform: uppercase; }
+#emote-wheel .ew-slot { position: absolute; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%); display: grid; grid-template-rows: 1fr auto; place-items: center;
+  padding: 4px; border-radius: 50%; background: rgba(10, 22, 30, 0.9); border: 1px solid rgba(127, 231, 255, 0.25); color: #dcecf2; cursor: pointer; font: inherit; }
+#emote-wheel .ew-slot b { font-size: clamp(8px, 1.4vmin, 11px); letter-spacing: 0.08em; line-height: 1.1; text-align: center; padding-bottom: 8%; }
+#emote-wheel .ew-slot.on { border-color: var(--hud); background: rgba(20, 60, 74, 0.95); box-shadow: 0 0 14px rgba(127, 231, 255, 0.45); }
+#emote-wheel .ew-slot.empty { opacity: 0.35; cursor: default; }
+#emote-wheel .ew-thumb { width: 70%; height: 100%; background: center / contain no-repeat; }

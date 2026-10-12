@@ -364,9 +364,30 @@ en MEDIA (70 %) y BAJA (45 %). Solo visual: daño, alcance y colisiones no cambi
 | G | Granada |
 | E | Abrir suministros caídos del cielo · coger el arma |
 | F | Golpe cuerpo a cuerpo (por la espalda = eliminación) |
+| B (mantener) | Rueda de emotes: mueve el ratón y suelta. En móvil, botón ☺ y toca uno |
 | Tab | Marcador (multijugador) |
 | Círculo luminoso | Ascensor gravitatorio (Plataforma Cenit): te lanza a lo alto de la torre |
 | Esc | Pausa (en multijugador la partida sigue) |
+
+## Emotes
+
+20 animaciones hechas por código sobre el esqueleto del soldado (obra propia, sin recursos externos): valen
+para todas las skins y los demás jugadores las ven en multijugador.
+
+| Tipo | Emotes | Cómo se reproduce |
+|---|---|---|
+| Bailes | Robot, Paso lateral, Headbang, Disco, Caderas, Giro, Ola, Dab | En bucle hasta cancelar |
+| Burlas | Ven aquí, Encogerse, Risa, Mirar el reloj, Facepalm, Zombi (bucle), Estirarse | Una vez |
+| Tácticos | Señalar, Rendición (una vez) · Sentarse, Flexiones, Meditar (se quedan en la pose) | |
+
+- **Rueda:** mantén **B**, mueve el ratón hacia uno y suelta (o clic). Hasta 8; se eligen en TIENDA → EMOTES
+  (AÑADIR / EN LA RUEDA). Gratis: Ven aquí, Encogerse, Señalar y Rendición; el resto se compra o sale en las cajas
+  (rareza según precio: Meditar es legendario).
+- **Cámara:** pasa a tercera persona delante del soldado y gira con el ratón; no atraviesa paredes.
+- **Se cancela** al moverte, saltar, disparar, apuntar, recargar o recibir daño.
+- **Red:** el estado del jugador lleva `e` (emote + 1) y `ec` (contador de inicio); el cuerpo mira a donde empezó.
+- **Código:** `src/shared/emotes.js` (lista y precios), `src/client/emotes.js` (poses), `src/client/emotewheel.js`
+  (rueda, cámara y cancelación), mezcla suave con la pose normal en `Avatar.blendEmote`.
 
 ## Mecánicas
 

@@ -93,7 +93,7 @@ export class Arsenal {
     this.zoom = 1;
     this.buildViewmodelBase();
 
-    const playing = () => ctx.game.state === 'playing' && ctx.player.alive;
+    const playing = () => ctx.game.state === 'playing' && ctx.player.alive && !ctx.emotes?.wheelOpen;
     document.addEventListener('mousedown', (e) => {
       if (!playing()) return;
       if (e.button === 0) { this.trigger = true; this.pressed = true; }

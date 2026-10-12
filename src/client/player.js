@@ -35,7 +35,7 @@ export class Player {
     let lockedAt = 0;
     document.addEventListener('pointerlockchange', () => { lockedAt = performance.now(); });
     document.addEventListener('mousemove', (e) => {
-      if (!document.pointerLockElement || ctx.game.state !== 'playing' || !this.alive) return;
+      if (!document.pointerLockElement || ctx.game.state !== 'playing' || !this.alive || ctx.emotes?.wheelOpen) return; // rueda de emotes: el ratón elige
       if (performance.now() - lockedAt < 150 || Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;
       this.look(e.movementX, e.movementY);
     });

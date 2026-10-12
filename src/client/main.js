@@ -15,6 +15,8 @@ import { Armory } from './armory.js';
 import { LoadoutMenu } from './loadout.js';
 import { gunThumbnails } from './gunview.js';
 import { Spectator } from './spectator.js';
+import { EmoteController } from './emotewheel.js';
+import { WHEEL_SIZE } from '../shared/emotes.js';
 import { TOUCH, TouchControls, enterFullscreen } from './touch.js';
 import { DEFAULT_SKIN, sanitizeSkin, MODELS, TITLES, EMBLEM_NAMES } from '../shared/skins.js';
 import { Home } from './home.js';
@@ -217,6 +219,7 @@ arsenal.setSkin(ctx.skin);
 const wallet = (ctx.wallet = new Wallet(ctx.skin));
 const account = (ctx.account = new Account());
 wallet.attach(account);
+const emotes = (ctx.emotes = new EmoteController(ctx));
 
 // Aviso arriba de la pantalla (subidas de nivel, misiones). En partida, el aviso del HUD.
 let noticeT = null;
@@ -615,6 +618,7 @@ function gameOver(timeUp = false) {
 const playerEmblem = (id) => { const p = net.players.get(id); return p?.skin ? emblemURL(p.skin.em) : null; };
 // Equipar desde la tienda o una caja: los iconos de emblema van dentro de skin.em.
 function setEquip(kind, i) {
+  if (kind === 'o') { emotes.add(i); return; }
   if (kind === 'e') { const em = [...ctx.skin.em]; em[1] = i; armory.set({ em }); } else armory.set({ [kind]: i });
 }
 // Editor de emblema (PERSONALIZAR): forma, icono (los de pago, en la tienda) y dos colores.
@@ -847,14 +851,15 @@ function renderHome() {
   $('shop-coins').textContent = wallet.coins.toLocaleString('es-ES');
   // Tienda: modelos, cascos y patrones; comprar con créditos, equipar lo que ya tienes.
   const sections = [];
-  for (const kind of ['m', 'h', 't', 'e']) {
+  for (const kind of ['m', 'h', 't', 'e', 'o']) {
     const h = document.createElement('h4');
     h.className = 'shop-kind';
     h.textContent = KIND_NAMES[kind];
     const grid = document.createElement('div');
     grid.className = 'shop-grid';
     grid.append(...ITEM_NAMES[kind].map((label, i) => {
-      const owned = wallet.owns(kind, i), price = wallet.price(kind, i), equipped = kind === 'e' ? skin.em[1] === i : skin[kind] === i;
+      const owned = wallet.owns(kind, i), price = wallet.price(kind, i);
+      const equipped = kind === 'o' ? emotes.inWheel(i) : kind === 'e' ? skin.em[1] === i : skin[kind] === i;
       const c = document.createElement('button');
       c.className = 'shop-card' + (equipped ? ' equipped' : owned ? ' owned' : ' locked') + (!owned && wallet.coins < price ? ' poor' : '');
       const rr = rarityOf(kind, i);
@@ -869,7 +874,8 @@ function renderHome() {
       });
       const t = document.createElement('b'); t.textContent = label;
       const p = document.createElement('small');
-      p.textContent = equipped ? 'EQUIPADO' : owned ? 'EQUIPAR' : price < 0 ? 'SOLO EN CAJAS' : `◈ ${price.toLocaleString('es-ES')}`;
+      p.textContent = kind === 'o' && owned ? (equipped ? 'EN LA RUEDA' : 'AÑADIR')
+        : equipped ? 'EQUIPADO' : owned ? 'EQUIPAR' : price < 0 ? 'SOLO EN CAJAS' : `◈ ${price.toLocaleString('es-ES')}`;
       if (!owned) p.classList.add('price');
       c.append(ico, t, p);
       c.addEventListener('click', async () => {
@@ -880,6 +886,14 @@ function renderHome() {
           if (!ok) { $('shop-msg').textContent = `Te faltan ◈ ${(price - wallet.coins).toLocaleString('es-ES')} para ${label}. ¡Juega para ganar más!`; return; }
           $('shop-msg').textContent = `¡Desbloqueado: ${label}!`;
           sfx.boxReveal?.();
+          if (kind === 'o') { emotes.add(i); renderHome(); return; }
+        }
+        if (kind === 'o') {
+          const ok = emotes.toggle(i);
+          $('shop-msg').textContent = !ok ? `La rueda ya tiene ${WHEEL_SIZE} emotes: quita uno para añadir ${label}.`
+            : emotes.inWheel(i) ? `${label} añadido a la rueda (en partida: mantén B).` : `${label} quitado de la rueda.`;
+          renderHome();
+          return;
         }
         setEquip(kind, i);
         renderHome();
@@ -889,6 +903,7 @@ function renderHome() {
     sections.push(h, grid);
   }
   $('shop-grid').replaceChildren(...sections);
+  emotes.prefetch();
   renderCases();
   renderInventory();
 }
@@ -1723,6 +1738,9 @@ function netTick(dt) {
       p: v3(player.pos), v: v3(player.vel), y: +player.yaw.rotation.y.toFixed(3), pt: +player.pitch.rotation.x.toFixed(3),
       h: +player.height.toFixed(2), a: player.alive ? 1 : 0, w: arsenal.w.id, hp: Math.round(player.health), sh: Math.round(player.shield),
     };
+    // Emote: número + contador de inicio; el cuerpo mira a donde empezó (la cámara orbita libre).
+    const em = emotes.net();
+    if (em) { st.e = em.e; st.ec = em.ec; st.y = +em.y.toFixed(3); st.pt = 0; }
     // Quieto y sin cambios: no se reenvía (como mucho cada medio segundo, para que nadie quede desfasado).
     const key = JSON.stringify(st), now = performance.now();
     if (key !== lastSt || now - lastStT > 500) {
@@ -1739,6 +1757,7 @@ function tick(dt) {
   if ((moodT -= dt) <= 0) { moodT = 0.5; musicMood(); }
   // En multijugador la partida sigue aunque el jugador esté en pausa.
   const running = game.state === 'playing' || (game.state === 'paused' && game.mode !== 'sp');
+  if (!running) emotes.update(dt); // fuera de partida: lo cancela y devuelve la cámara
   if (running) {
     if (game.mode === 'sp') game.time += player.alive ? dt : 0;
     player.update(dt);
@@ -1751,6 +1770,7 @@ function tick(dt) {
     tutorial.update(dt);
     assist.update(dt);
     if (game.mode !== 'sp') spectator.update(dt);
+    emotes.update(dt);
     hud.update(ctx, dt);
     if (!player.alive && game.respawnIn > 0) {
       game.respawnIn -= dt;

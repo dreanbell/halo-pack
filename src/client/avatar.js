@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { sanitizeSkin } from '../shared/skins.js';
 import { buildGun } from './guns.js';
 import { PlayerModel, hasPlayerModel, requestPlayerModel } from './playermodels.js';
+import { emotePose, applyPose } from './emotes.js';
 
 // Soldado acorazado procedural (diseño original): esqueleto de grupos + piezas compartidas.
 // Mira hacia -Z, como la cámara. Pies en y = 0.
@@ -9,7 +10,7 @@ const HIP_Y = 0.98;
 const TAU = Math.PI * 2;
 const UPPER = 0.28, LOWER = 0.27; // longitudes de brazo y antebrazo
 const DOWN = new THREE.Vector3(0, -1, 0);
-const _t = new THREE.Vector3(), _d = new THREE.Vector3(), _p = new THREE.Vector3(), _e = new THREE.Vector3(), _u = new THREE.Vector3(), _q = new THREE.Quaternion();
+const _t = new THREE.Vector3(), _d = new THREE.Vector3(), _p = new THREE.Vector3(), _e = new THREE.Vector3(), _u = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
 
 // --- Texturas y materiales (cacheados por skin) --------------------------------
 const texCache = new Map();
@@ -304,6 +305,8 @@ export class Avatar {
     this.crouchK = 0;
     this.airK = 0;
     this.deadK = 0;
+    this.emK = 0;
+    this.emote = null;
     this.sprintK = 0;
     this.slideK = 0;
     this.t = Math.random() * 10;
@@ -529,8 +532,8 @@ export class Avatar {
       const L = this.legs[side];
       const s1 = side < 0 ? sw : -sw, c1 = side < 0 ? cw : -cw;
       L.hip.rotation.x = s1 * 0.62 * a + this.crouchK * 1.05 + this.airK * 0.6;
-      L.knee.rotation.x = -(Math.max(0, c1) * 1.05 * a + 0.04) - this.crouchK * 1.8 - this.airK * 1.0;
-      L.ankle.rotation.x = -(L.hip.rotation.x + L.knee.rotation.x) * 0.85;
+      L.knee.rotation.set(-(Math.max(0, c1) * 1.05 * a + 0.04) - this.crouchK * 1.8 - this.airK * 1.0, 0, 0);
+      L.ankle.rotation.set(-(L.hip.rotation.x + L.knee.rotation.x) * 0.85, 0, 0);
       L.hip.rotation.z = side * 0.03;
       // Deslizamiento: pierna derecha estirada al frente, izquierda plegada debajo.
       const sk = this.slideK;
@@ -541,12 +544,13 @@ export class Avatar {
       }
     }
     this.hips.position.y = HIP_Y - this.crouchK * 0.4 * (1 - this.slideK) - this.slideK * 0.62 - Math.abs(sw) * 0.035 * a * (1 - this.slideK) + breathe;
-    this.hips.rotation.y = sw * 0.06 * a;
+    this.hips.rotation.set(0, sw * 0.06 * a, 0);
+    this.hips.position.x = this.hips.position.z = 0;
 
     const pitch = s.pitch ?? 0;
-    this.spine.rotation.x = pitch * 0.45 - this.sprintK * 0.22 * this.amp - this.crouchK * 0.12 * (1 - this.slideK) + this.slideK * 0.38;
-    this.spine.rotation.y = -sw * 0.1 * a;
-    this.head.rotation.x = pitch * 0.4;
+    this.spine.rotation.set(pitch * 0.45 - this.sprintK * 0.22 * this.amp - this.crouchK * 0.12 * (1 - this.slideK) + this.slideK * 0.38, -sw * 0.1 * a, 0);
+    this.head.rotation.set(pitch * 0.4, 0, 0);
+    this.neck.rotation.set(0, 0, 0);
 
     // Fusil: se baja al esprintar; las manos lo siguen con IK.
     const low = this.sprintK;
@@ -559,9 +563,48 @@ export class Avatar {
     this.body.rotation.x = -this.deadK * Math.PI / 2;
     this.body.position.y = this.deadK * 0.16;
 
+    // Emote (s.emote = { i, t }): mezcla suave con la pose normal al entrar y al salir; sin arma en las manos.
+    const em = s.alive !== false ? s.emote : null;
+    if (em) this.emote = em;
+    this.emK += ((em ? 1 : 0) - this.emK) * (1 - Math.exp(-dt * 9));
+    if (this.emK < 0.002) { this.emK = 0; this.emote = null; }
+    this.gun.visible = this.emK < 0.4;
+    if (this.emote) this.blendEmote(this.emK);
+
     // Si el modelo de la skin terminó de cargar después de crear el avatar, se pone ahora.
     if (!this.model && this.skin.m && hasPlayerModel(this.skin.m)) this.syncModel();
     this.model?.update();
+  }
+
+  joints() {
+    if (!this._joints) {
+      this._joints = [this.hips, this.spine, this.neck, this.head];
+      for (const side of [-1, 1]) this._joints.push(this.arms[side].sh, this.arms[side].el, this.legs[side].hip, this.legs[side].knee, this.legs[side].ankle);
+      this._q0 = this._joints.map(() => new THREE.Quaternion());
+    }
+    return this._joints;
+  }
+
+  blendEmote(k) {
+    const js = this.joints(), q0 = this._q0, hp = this.hips.position;
+    js.forEach((j, n) => q0[n].copy(j.quaternion));
+    const hx = hp.x, hz = hp.z;
+    const p = emotePose(this.emote.i, this.emote.t);
+    applyPose(this, p);
+    js.forEach((j, n) => { _q.copy(j.quaternion); j.quaternion.slerpQuaternions(q0[n], _q, k); });
+    hp.x = hx + (hp.x - hx) * k;
+    hp.z = hz + (hp.z - hz) * k;
+    // Apoyo: el punto más bajo (pies, rodillas, manos, cadera) toca el suelo; p.lift lo despega (saltos, levitar).
+    this.body.position.y = 0;
+    this.root.updateMatrixWorld(true);
+    _m.copy(this.root.matrixWorld).invert();
+    let low = Infinity;
+    const probe = (obj, y) => { _t.set(0, y, 0); obj.localToWorld(_t).applyMatrix4(_m); low = Math.min(low, _t.y); };
+    for (const side of [-1, 1]) {
+      probe(this.legs[side].ankle, -0.08); probe(this.legs[side].knee, -0.06); probe(this.arms[side].el, -0.32);
+    }
+    probe(this.hips, -0.12);
+    this.body.position.y = (-low + p.lift) * k;
   }
 
   // IK de dos huesos: lleva la mano al punto (x, y, z) del fusil; el codo apunta hacia fuera y abajo.
