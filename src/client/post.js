@@ -13,6 +13,8 @@ uniform sampler2D tMap; uniform float threshold; varying vec2 vUv;
 void main() {
   vec3 c = texture2D(tMap, vUv).rgb;
   float l = max(c.r, max(c.g, c.b));
+  // Un píxel NaN/Inf (p. ej. un shader con pow de base negativa) se extendería con el desenfoque en un cuadro negro.
+  if (!(l < 1e4) || !(min(c.r, min(c.g, c.b)) > -1e4)) { c = vec3(0.0); l = 0.0; }
   float k = smoothstep(threshold, threshold + 0.6, l);
   gl_FragColor = vec4(c * k, 1.0);
 }`;
@@ -31,7 +33,10 @@ uniform sampler2D tScene, tBloomA, tBloomB; uniform float bloom, vignette, sat, 
 varying vec2 vUv;
 void main() {
   vec3 col = texture2D(tScene, vUv).rgb;
-  col += (texture2D(tBloomA, vUv).rgb * 0.7 + texture2D(tBloomB, vUv).rgb * 0.9) * bloom;
+  vec3 bl = texture2D(tBloomA, vUv).rgb * 0.7 + texture2D(tBloomB, vUv).rgb * 0.9;
+  if (!(dot(bl, vec3(1.0)) < 1e4)) bl = vec3(0.0);
+  if (!(dot(abs(col), vec3(1.0)) < 1e4)) col = vec3(0.0);
+  col += bl * bloom;
   #ifdef TONE_MAPPING
   col = toneMapping(col);
   #endif

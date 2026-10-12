@@ -74,7 +74,7 @@ export function shieldMaterial(color) {
     vertexShader: `varying vec3 vN; varying vec3 vV; varying vec3 vP;
       void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); vP = position; gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `uniform vec3 color; uniform float opacity; uniform float time; varying vec3 vN; varying vec3 vV; varying vec3 vP;
-      void main(){ float f = pow(1.0 - abs(dot(vN, vV)), 2.2);
+      void main(){ float f = pow(clamp(1.0 - abs(dot(normalize(vN), normalize(vV))), 0.0, 1.0), 2.2); // pow(<0) = NaN → cuadro negro con bloom
         float hex = 0.5 + 0.5 * sin(vP.y * 40.0 + time * 3.0) * sin(vP.x * 40.0);
         gl_FragColor = vec4(color, (f * 0.9 + hex * 0.08 + 0.04) * opacity); }`,
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
